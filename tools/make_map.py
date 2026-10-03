@@ -205,11 +205,18 @@ for y in range(WY, WY + 3):
         put(x, y, ".")
 put(WX, WY, "W")
 
+# 출하함 (§83, 2x1, 5~6 / 8). 집 왼쪽, 문 앞에서 몇 걸음
+OX, OY = HX - 3, HY + 2
+for y in range(OY, OY + 2):
+    for x in range(OX, OX + 2):
+        put(x, y, ".")
+put(OX, OY, "O")
+
 # ================================================================ 저장
 
 rows = ["".join(r) for r in g]
 assert all(len(r) == W for r in rows)
-for ch in "HMSW@":
+for ch in "HMSWO@":
     assert sum(r.count(ch) for r in rows) == 1, ch
 
 layout = ROOT / "scripts" / "world" / "map_layout.gd"

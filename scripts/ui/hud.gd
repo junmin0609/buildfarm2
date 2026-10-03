@@ -27,6 +27,8 @@ var _build_hint: PanelContainer
 var _build_hint_label: Label
 var _crop_info: CropInfoPopup
 var _menu: SystemMenu
+var _bin_panel: ShippingBinPanel
+var _summary: SalesSummaryPanel
 ## 마지막 하루 마감 이유 ("time_up" / "sleep")
 var _end_reason := ""
 
@@ -63,6 +65,14 @@ func _ready() -> void:
 	_place(_menu, Vector2(0.5, 0.5), Vector2.ZERO, Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BOTH)
 	_menu.hide()
 	_menu.close_requested.connect(_close_panels)
+	_bin_panel = ShippingBinPanel.new()
+	_place(_bin_panel, Vector2(0.5, 0.5), Vector2.ZERO, Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BOTH)
+	_bin_panel.hide()
+	_bin_panel.close_requested.connect(_close_panels)
+	_summary = SalesSummaryPanel.new()
+	_place(_summary, Vector2(0.5, 0.5), Vector2.ZERO, Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BOTH)
+	_summary.hide()
+	_summary.close_requested.connect(_close_panels)
 	_build_hint_label = Label.new()
 	_build_hint = PanelContainer.new()
 	_build_hint.add_theme_stylebox_override("panel", _panel_style(12))
@@ -88,6 +98,8 @@ func _ready() -> void:
 	Events.day_started.connect(_on_day_started)
 	Events.day_ending.connect(_on_day_ending)
 	Events.game_loading.connect(_close_panels)
+	Events.shipping_bin_requested.connect(open_shipping_bin)
+	Events.day_ended.connect(_on_day_ended)
 	Events.day_ending_soon.connect(_on_day_ending_soon)
 	Events.toast.connect(show_toast)
 	Events.prompt_changed.connect(_on_prompt_changed)
@@ -100,19 +112,21 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	var panel_open := _inventory.visible or _shop.visible or _build.visible or _menu.visible
-	if _menu.visible and not event.is_action_pressed("cancel"):
-		return  # 메뉴가 열려 있으면 다른 키는 무시 (버튼은 GUI 가 처리)
+	var panel_open := _inventory.visible or _shop.visible or _build.visible or _menu.visible \
+			or _bin_panel.visible or _summary.visible
+	if (_menu.visible or _summary.visible) and not event.is_action_pressed("cancel"):
+		return  # 메뉴·요약이 열려 있으면 다른 키는 무시 (버튼은 GUI 가 처리)
+	var blocking := _shop.visible or _bin_panel.visible  # 이 창이 열려 있으면 B·I 로 다른 창을 열지 않는다
 	if event.is_action_pressed("cancel") and not panel_open and not _build_hint.visible:
 		open_menu()  # 건설 모드 중 Esc 는 건설 모드가 받는다
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("build_menu") and not _shop.visible and not _inventory.visible:
+	elif event.is_action_pressed("build_menu") and not blocking and not _inventory.visible:
 		if _build.visible:
 			_close_panels()
 		else:
 			open_build_panel()
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("toggle_inventory") and not _shop.visible and not _build.visible:
+	elif event.is_action_pressed("toggle_inventory") and not blocking and not _build.visible:
 		if _inventory.visible:
 			_close_panels()
 		else:
@@ -163,6 +177,26 @@ func open_menu() -> void:
 	_pause_for("menu")
 
 
+## 출하함: 가방처럼 시간은 흐르고 플레이어 조작만 막는다
+func open_shipping_bin(bin: Node) -> void:
+	_close_inventory()
+	_bin_panel.open(bin as ShippingBin)
+	_prompt_box.hide()
+	_crop_info.suppressed = true
+	GameState.set_input_locked("shipping_bin", true)
+
+
+## 하루가 끝났을 때: 오늘 번 돈이 있으면 판매 수익 요약을 띄운다 (게임·시간 멈춤)
+func _on_day_ended(report: Dictionary) -> void:
+	var sales: Dictionary = report.get("sales", {})
+	if int(sales.get("total", 0)) <= 0:
+		return
+	_summary.open(int(report.get("from_day", GameState.day - 1)), sales)
+	_prompt_box.hide()
+	_crop_info.suppressed = true
+	_pause_for("summary")
+
+
 ## 가방: 시간은 계속 흐르고, 플레이어 이동·도구 사용만 막는다
 func open_inventory() -> void:
 	_inventory.open()
@@ -187,6 +221,10 @@ func _close_panels() -> void:
 	_shop.hide()
 	_build.hide()
 	_menu.hide()
+	_bin_panel.hide()
+	_summary.hide()
+	GameState.set_input_locked("shipping_bin", false)
+	GameState.set_time_paused("summary", false)
 	_prompt_box.visible = _prompt.text != "" and not _build_hint.visible
 	_crop_info.suppressed = false
 	get_tree().paused = false

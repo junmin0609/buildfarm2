@@ -36,6 +36,8 @@ func _ready() -> void:
 	register("obstacles", world.obstacles.to_data, world.obstacles.load_data)
 	register("build", world.build.to_data, func(d: Variant) -> bool: return world.build.load_data(d) != [null])
 	register("player", world.player.to_data, world.player.load_data)
+	if world.shipping_bin:
+		register("shipping_bin", world.shipping_bin.to_data, world.shipping_bin.load_data)
 	world.day_cycle.add_step(DayCycle.SAVE, func(_report: Dictionary) -> void: save_game("auto"))
 	Events.save_requested.connect(_on_save_requested)
 	Events.load_requested.connect(_on_load_requested)

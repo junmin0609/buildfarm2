@@ -20,6 +20,8 @@ const CAMERA_ZOOM := 4.0
 var buildings: Array[Interactable] = []
 ## 매일 아침 플레이어가 깨어나는 곳 (맵의 '@', 집 앞)
 var home_position := Vector2.ZERO
+## 농장 출하함 (맵의 'O')
+var shipping_bin: ShippingBin
 ## 하루 마감 흐름 (scripts/time/day_cycle.gd)
 var day_cycle: DayCycle
 ## 저장 / 불러오기 (scripts/save/save_manager.gd)
@@ -79,6 +81,8 @@ func _build_map() -> void:
 				building.position = Vector2(cell.x * TILE, (cell.y + building.size_tiles.y) * TILE)
 				objects.add_child(building)
 				buildings.append(building)
+				if building is ShippingBin:
+					shipping_bin = building
 
 
 ## 길·물·흙 칸 옆이 잔디면 그쪽 가장자리에 잔디를 살짝 덮어 경계를 부드럽게 한다.

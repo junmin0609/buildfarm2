@@ -89,7 +89,7 @@ func refresh() -> void:
 	_money_label.text = "가진 돈  %d G" % GameState.money
 	_clear(_buy_list)
 	for item in ItemDB.shop_items():
-		var row := _item_row(item, "%d G" % item.buy_price)
+		var row := item_row(item, "%d G" % item.buy_price)
 		for qty: int in [1, 5]:
 			var btn := Button.new()
 			btn.text = "%d개" % qty
@@ -104,7 +104,7 @@ func refresh() -> void:
 		var item := ItemDB.get_item(stack.id)
 		var quality: String = stack.quality
 		var have := GameState.inventory.count_of(stack.id, quality)
-		var row := _item_row(item, "%d G  ·  %d개" % [Pricing.unit_price(item, quality, CHANNEL), have], quality)
+		var row := item_row(item, "%d G  ·  %d개" % [Pricing.unit_price(item, quality, CHANNEL), have], quality)
 		var one := Button.new()
 		one.text = "1개"
 		one.pressed.connect(_sell.bind(stack.id, 1, quality))
@@ -122,7 +122,8 @@ func refresh() -> void:
 		_sell_list.add_child(empty)
 
 
-func _item_row(item: ItemDef, price_text: String, quality := Quality.NONE) -> HBoxContainer:
+## 아이콘 + 이름(품질) + 가격 한 줄. 출하함 창도 같이 쓴다.
+static func item_row(item: ItemDef, price_text: String, quality := Quality.NONE) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	var icon := ItemSlot.new()
@@ -181,6 +182,7 @@ func _sell(item_id: String, qty: int, quality := Quality.NONE) -> void:
 		return
 	var earned := Pricing.unit_price(item, quality, CHANNEL) * qty
 	GameState.add_money(earned)
+	GameState.record_sale(CHANNEL, earned)
 	Events.toast.emit("%s %d개를 팔아 %d G를 벌었어요." % [item.name, qty, earned])
 
 

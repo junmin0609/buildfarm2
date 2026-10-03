@@ -24,6 +24,8 @@ var minutes := 0
 var day_seconds := 0.0
 var inventory := Inventory.new()
 var selected_slot := 0
+## 오늘 번 돈 (판매 방식 -> G). 하루 마감 때 판매 수익 요약(§99)으로 보여 주고 비운다.
+var today_sales := {}
 ## 해금 상태 (지역·레시피·상점 품목 등). id -> true. 아직 해금 시스템은 없지만 저장 구조는 미리 둔다.
 var unlocks := {}
 
@@ -57,6 +59,7 @@ func new_game() -> void:
 	_pause_reasons.clear()
 	_input_locks.clear()
 	unlocks.clear()
+	today_sales.clear()
 	inventory.load_data([])
 	for entry: Array in STARTING_ITEMS:
 		inventory.add(entry[0], entry[1])
@@ -160,6 +163,19 @@ func add_money(amount: int) -> void:
 	Events.money_changed.emit(money)
 
 
+## 판매로 번 돈을 오늘 장부에 적는다 (돈은 부른 쪽이 따로 더한다). channel: Pricing.PLAZA / SHIPPING_BIN ...
+func record_sale(channel: String, amount: int) -> void:
+	if amount > 0:
+		today_sales[channel] = int(today_sales.get(channel, 0)) + amount
+
+
+## 하루 마감 때: 오늘 장부를 꺼내고 비운다
+func take_today_sales() -> Dictionary:
+	var sales := today_sales.duplicate()
+	today_sales.clear()
+	return sales
+
+
 func try_spend(amount: int) -> bool:
 	if amount > money:
 		return false
@@ -203,6 +219,7 @@ func to_data() -> Dictionary:
 		"selected_slot": selected_slot,
 		"inventory": inventory.to_data(),
 		"unlocks": unlocks.duplicate(true),
+		"today_sales": today_sales.duplicate(),
 	}
 
 
@@ -219,6 +236,12 @@ func load_data(data: Variant) -> bool:
 	inventory.load_data(inv_data if inv_data is Array else [])
 	var unlock_data: Variant = data.get("unlocks", {})
 	unlocks = unlock_data.duplicate(true) if unlock_data is Dictionary else {}
+	today_sales.clear()
+	var sales_data: Variant = data.get("today_sales", {})
+	if sales_data is Dictionary:
+		for channel: Variant in sales_data:
+			if typeof(sales_data[channel]) in [TYPE_INT, TYPE_FLOAT]:
+				record_sale(str(channel), int(sales_data[channel]))
 	select_slot(int(data.get("selected_slot", 0)))
 	Events.money_changed.emit(money)
 	Events.time_changed.emit(day, minutes)

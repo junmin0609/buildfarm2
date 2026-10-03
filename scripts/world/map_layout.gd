@@ -16,7 +16,7 @@ extends RefCounted
 ##   b  나무통   c  사과 상자   f  꽃 화분   n  간판   (소품: PROPS 에 등록)
 ##   F  분수   Q  퀘스트 게시판   h  벤치   L  가로등
 ##   H  집 (왼쪽 위 기준 4x3칸)   M  씨앗 상점 (3x2칸)   S  작물 판매처 (3x2칸)
-##   W  우물 (2x2칸, 물뿌리개를 채우는 곳)
+##   W  우물 (2x2칸, 물뿌리개를 채우는 곳)   O  출하함 (2x1칸, 하루가 끝나면 넣어 둔 것을 판다)
 ##   @  플레이어 시작 위치
 
 const ROWS := [
@@ -28,7 +28,7 @@ const ROWS := [
 	"TTT......................,,,,.YTT~~~~TT..........s.n..........TT",
 	"TTTY....H.......R........,,,,.BTT~~~~TTY.........ss....Y..B...TT",
 	"TTT................R....Y......TT~~~~TT....,.Y...ss...........TT",
-	"TTT....f....B.W............B...TT~~~~TT...,,,,....ss...,,,,..BTT",
+	"TTT..O.f....B.W............B...TT~~~~TT...,,,,....ss...,,,,..BTT",
 	"TTTY......ss...................TT~~~~TTTB.,,,,....ss...,,,,...TT",
 	"TTT.......@ss......ssssss.....BTTT~~~TTT...,......ss.........YTT",
 	"TTTY.......sssssssssssssssss..BTTT~~~~TTY.....B...ss..........TT",
@@ -97,6 +97,7 @@ const BUILDINGS := {
 	"M": "res://scenes/buildings/shop_stall.tscn",
 	"S": "res://scenes/buildings/sell_stand.tscn",
 	"W": "res://scenes/buildings/well.tscn",
+	"O": "res://scenes/buildings/shipping_bin.tscn",
 }
 
 

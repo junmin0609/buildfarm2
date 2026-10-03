@@ -1,0 +1,8 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/buildings/shipping_bin.gd" id="1_bin"]
+[ext_resource type="Texture2D" path="res://assets/art/shipping_bin.png" id="2_tex"]
+
+[node name="ShippingBin" type="Node2D"]
+script = ExtResource("1_bin")
+texture = ExtResource("2_tex")

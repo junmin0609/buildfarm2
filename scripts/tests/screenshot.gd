@@ -104,6 +104,25 @@ func _ready() -> void:
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_build_bad.png"))
 	bm.stop()
 
+	# 출하함: 위치·창, 하루가 끝난 뒤 판매 수익 요약
+	var bin: ShippingBin = world.shipping_bin
+	world.player.global_position = bin.interact_point()
+	world.player.facing = Vector2i.UP
+	world.player.camera.reset_smoothing()
+	bin.deposit(GameState.inventory, "carrot", "", 4)
+	bin.deposit(GameState.inventory, "potato", "gold", 2)
+	await get_tree().create_timer(0.6).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_bin.png"))
+	hud.open_shipping_bin(bin)
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_bin_panel.png"))
+	hud._close_panels()
+	GameState.record_sale(Pricing.PLAZA, 120)
+	GameState.sleep()
+	await get_tree().create_timer(1.4).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_sales_summary.png"))
+	hud._close_panels()
+
 	# 맵 전체 내려다보기
 	get_tree().paused = false
 	main.get_node("HUD").visible = false

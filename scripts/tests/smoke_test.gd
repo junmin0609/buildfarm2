@@ -27,7 +27,7 @@ func _ready() -> void:
 	var inv := GameState.inventory
 
 	_check(farm.farmable_cells.size() >= 100, "밭 칸 (실제 %d)" % farm.farmable_cells.size())
-	_check(world.buildings.size() == 4, "건물 4개 배치 (집·씨앗 상점·작물 판매처·우물)")
+	_check(world.buildings.size() == 5, "건물 5개 배치 (집·씨앗 상점·작물 판매처·우물·출하함)")
 	_check(world.fences.get_used_cells().is_empty(), "농장에 울타리 없음")
 	_check(world.objects.get_children().filter(func(n: Node) -> bool: return n is Prop).size() > 100, "나무·바위 소품 배치")
 	var home_cell := world.world_to_cell(world.cell_center(_find_char("@")))
@@ -146,6 +146,9 @@ func _ready() -> void:
 		player.velocity = Vector2(-240, -240)
 		player.move_and_slide()
 	_check(player.global_position.x >= 0 and player.global_position.y >= 0, "맵 밖으로 못 나감")
+
+	# ---------- 출하함 + 판매 수익 요약 (§83, §99)
+	await _test_shipping(world, hud)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -829,6 +832,74 @@ func _test_save(world: FarmWorld) -> void:
 	inv.load_data(saved_inv)
 	GameState.unlocks.clear()
 	GameState.select_slot(0)
+	await get_tree().process_frame
+
+
+func _test_shipping(world: FarmWorld, hud: HUD) -> void:
+	var bin := world.shipping_bin
+	var inv := GameState.inventory
+	var player := world.player
+	var saved_inv := inv.to_data()
+	var bin_cell := Vector2i(floori(bin.global_position.x / Art.TILE), floori(bin.global_position.y / Art.TILE) - 1)
+	_check(bin != null and bin_cell == _find_char("O"), "출하함 위치 = 맵의 O 칸 (2x1)")
+	_check(bin.interact_point().distance_to(world.home_position) < 8 * Art.TILE, "출하함은 집 가까이")
+	player.global_position = bin.interact_point()
+	_check(player._nearest_interactable() == bin, "출하함 앞에서 [E] 안내")
+
+	# 창: 가방처럼 시간은 흐르고 조작만 잠김
+	bin.interact(player)
+	_check(hud._bin_panel.visible and not GameState.is_time_paused() and GameState.is_input_locked() and not get_tree().paused, "출하함 창: 시간은 흐르고 조작만 잠김")
+	hud._close_panels()
+	_check(not hud._bin_panel.visible and not GameState.is_input_locked(), "출하함 창 닫기")
+
+	# 넣기 / 꺼내기 (아이템이 사라지지 않음)
+	inv.load_data([])
+	inv.add("carrot", 5, "silver")
+	inv.add("potato", 2, "gold")
+	inv.add("hoe")
+	_check(bin.deposit(inv, "carrot", "silver", 3) == 3 and inv.count_of("carrot", "silver") == 2 and bin.count_of("carrot", "silver") == 3, "당근(실버) 3개 넣기")
+	_check(bin.deposit(inv, "potato", "gold", 9) == 2 and inv.count_of("potato") == 0 and bin.count_of("potato", "gold") == 2, "가진 것보다 많이 넣으면 가진 만큼만")
+	_check(bin.deposit(inv, "hoe", "", 1) == 0 and inv.count_of("hoe") == 1, "판매가 없는 물건(도구)은 안 들어감")
+	_check(bin.withdraw(inv, "carrot", "silver", 1) == 1 and inv.count_of("carrot", "silver") == 3 and bin.count_of("carrot", "silver") == 2, "하루가 끝나기 전에는 다시 꺼낼 수 있음")
+	var expect := 2 * 44 + 2 * 48
+	_check(bin.pending_value() == expect, "오늘 밤 받을 돈 = 품질가 100%% (%d G)" % bin.pending_value())
+	var keep := inv.to_data()
+	for i in inv.size():
+		if inv.get_slot(i) == null:
+			inv.slots[i] = {"id": "stone", "count": 99, "quality": ""}
+	_check(bin.withdraw(inv, "potato", "gold", 1) == 0 and bin.count_of("potato", "gold") == 2, "가방이 가득 차면 꺼내지 않음 (출하함에 그대로)")
+	inv.load_data(keep)
+	bin.interact(player)
+	_check(hud._bin_panel._bin_list.get_child_count() == 2 and hud._bin_panel._pending.text.contains(str(expect)), "출하함 창에 내용·받을 돈 표시")
+	hud._close_panels()
+
+	# 저장에 들어감
+	world.save_manager.save_game("manual")
+	bin.contents.clear()
+	world.save_manager.load_game()
+	_check(bin.count_of("carrot", "silver") == 2 and bin.count_of("potato", "gold") == 2, "출하함 내용 저장·불러오기")
+
+	# 광장 즉시 판매는 80%, 오늘 장부에 적힘
+	var money := GameState.money
+	hud._shop._sell("carrot", 1, "silver")
+	_check(GameState.money == money + 35 and int(GameState.today_sales.get(Pricing.PLAZA, 0)) >= 35, "광장 즉시 판매는 80%% (실버 당근 35 G), 오늘 장부에 기록")
+
+	# 하루 마감: 출하함 정산 + 판매 수익 요약
+	money = GameState.money
+	var plaza_today := int(GameState.today_sales.get(Pricing.PLAZA, 0))
+	GameState.sleep()
+	var r: Dictionary = world.day_cycle.last_report
+	_check(GameState.money == money + expect and bin.is_empty(), "하루가 끝나면 출하함 물건이 팔림 (+%d G)" % expect)
+	_check(int(r.sales.by_channel.get(Pricing.SHIPPING_BIN, 0)) == expect and int(r.sales.by_channel.get(Pricing.PLAZA, 0)) == plaza_today and int(r.sales.total) == expect + plaza_today, "판매 요약: 출하함 %d + 광장 %d" % [expect, plaza_today])
+	_check(r.shipping.items.size() == 2 and GameState.today_sales.is_empty(), "정산 내역, 오늘 장부 비움")
+	_check(hud._summary.visible and get_tree().paused and GameState.is_time_paused(), "판매 수익 요약 창 (게임·시간 멈춤)")
+	_check(hud._summary._total.text.contains(SalesSummaryPanel.format_gold(expect + plaza_today)) and hud._summary._lines.get_child_count() == 2, "요약에 판매 방식별 금액·합계")
+	hud._close_panels()
+	_check(not hud._summary.visible and not get_tree().paused and not GameState.is_time_paused(), "확인하면 게임 재개")
+	GameState.sleep()
+	_check(not hud._summary.visible and int(world.day_cycle.last_report.sales.total) == 0, "판 게 없는 날은 요약을 띄우지 않음")
+	_check(SalesSummaryPanel.format_gold(2400) == "2,400" and SalesSummaryPanel.format_gold(1234567) == "1,234,567" and SalesSummaryPanel.format_gold(35) == "35", "금액 쉼표 표시")
+	inv.load_data(saved_inv)
 	await get_tree().process_frame
 
 

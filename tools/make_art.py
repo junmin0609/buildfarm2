@@ -836,6 +836,33 @@ def make_well():
     c.save("well.png")
 
 
+# ---------------------------------------------------------------- 출하함 (농장 판매함, 2x1칸, 그림 32x26)
+
+def make_shipping_bin():
+    w = P["wood"]
+    c = Canvas(32, 26)
+    c.ellipse(16, 24.5, 15, 1.4, SOFT_SHADOW)
+    # 나무 상자 몸통 (가로 판자)
+    rrect(c, 2, 9, 28, 16, 2, w[2])
+    for y in (13, 17, 21):
+        c.rect(3, y, 26, 1, w[1])
+    c.rect(3, 10, 26, 1, w[3])
+    # 모서리 쇠붙이
+    for x in (3, 26):
+        c.rect(x, 11, 3, 13, hexc("b5a696"))
+        c.rect(x + 1, 11, 1, 13, hexc("cdbfae"))
+    # 살짝 열린 뚜껑
+    rrect(c, 1, 3, 30, 7, 2, w[1])
+    c.rect(2, 4, 28, 1, w[3])
+    c.rect(2, 8, 28, 1, w[0])
+    # 앞면 표시: 동전 그림 판
+    rrect(c, 11, 14, 10, 7, 1.5, hexc("fbeccf"))
+    c.ellipse(16, 17.5, 2.3, 2.3, hexc("f5c542"))
+    c.set(15, 16, hexc("fff3c0"))
+    c.outline(INK)
+    c.save("shipping_bin.png")
+
+
 # ---------------------------------------------------------------- 개간 장애물 (data/obstacles.json 의 그림)
 # 모두 한 칸을 차지하고, 그림 아래쪽 가운데가 칸 바닥에 놓인다.
 
@@ -1341,6 +1368,7 @@ if __name__ == "__main__":
     make_plaza_props()
     make_placeables()
     make_well()
+    make_shipping_bin()
     make_obstacles()
     make_player()
     make_crops()

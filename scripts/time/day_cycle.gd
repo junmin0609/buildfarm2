@@ -12,7 +12,7 @@ extends Node
 
 ## 열린 창·건설 모드 닫기, 시간 정지·입력 잠금 풀기
 const END_ACTIVITIES := "end_activities"
-## 당일 판매 정산 (출하함 §83 — 아직 없음)
+## 당일 판매 정산: 출하함 판매(§83) + 오늘 장부 → report.sales (판매 수익 요약 §99)
 const SETTLE_SALES := "settle_sales"
 ## 작물 성장·밭 마르기 (§15), 작은 자원 재생 (§103)
 const FARM_DAILY := "farm_daily"
@@ -59,6 +59,7 @@ func _ready() -> void:
 		_steps[phase] = []
 	Events.day_end_requested.connect(end_day)
 	# 지금 있는 시스템의 하루 처리 (새 시스템은 각자 add_step 으로 붙인다)
+	add_step(SETTLE_SALES, _settle_sales)
 	add_step(FARM_DAILY, func(_r: Dictionary) -> void: world.farm.process_day())
 	add_step(FARM_DAILY, func(_r: Dictionary) -> void: world.obstacles.process_day())
 	add_step(WAKE_UP, func(_r: Dictionary) -> void: world.build.start_day())
@@ -95,6 +96,19 @@ func end_day(reason: String) -> Dictionary:
 	Events.time_changed.emit(GameState.day, GameState.minutes)
 	Events.day_ended.emit(report)
 	return report
+
+
+## 출하함을 팔고, 오늘 번 돈(광장 즉시 판매 포함)을 report.sales 로 모은다.
+## report.sales = {"by_channel": {채널: G}, "total": G}, report.shipping = 출하함 정산 내역
+## 하늘시장 같은 판매 수단은 이 단계에 add_step 으로 붙이고 GameState.record_sale 로 장부에 적으면 요약에 같이 나온다.
+func _settle_sales(report: Dictionary) -> void:
+	if world.shipping_bin:
+		report["shipping"] = world.shipping_bin.settle()
+	var by_channel := GameState.take_today_sales()
+	var total := 0
+	for amount: Variant in by_channel.values():
+		total += int(amount)
+	report["sales"] = {"by_channel": by_channel, "total": total}
 
 
 ## 이 노드가 직접 하는 단계
