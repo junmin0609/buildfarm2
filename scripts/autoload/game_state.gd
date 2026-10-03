@@ -203,6 +203,7 @@ func _setup_input() -> void:
 	_bind("interact", [KEY_E, KEY_K], [MOUSE_BUTTON_RIGHT])
 	_bind("toggle_inventory", [KEY_I, KEY_TAB])
 	_bind("build_menu", [KEY_B])
+	_bind("rotate", [KEY_R])
 	_bind("cancel", [KEY_ESCAPE])
 
 

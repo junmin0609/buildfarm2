@@ -7,6 +7,7 @@ extends Node
 ##   - 장애물(잡초·돌·나뭇가지·그루터기 ...)이 있는 칸은 안 된다. 자동으로 치우지 않는다: 개간은 플레이어 몫.
 ##   - 갈아 둔 밭 위에는 지을 수 있다. 지으면 그 칸은 보통 땅으로 돌아가고, 철거하면 보통 땅으로 남는다.
 ##   - 작물이 자라는 밭은 안 된다 (작물이 사라지지 않게, §105).
+##   - turns(회전)에 따라 차지하는 칸이 바뀐다 (§54). 옮길 때도 돌릴 수 있다.
 
 signal changed
 
@@ -38,29 +39,46 @@ func is_buildable_ground(cell: Vector2i) -> bool:
 	return MapLayout.char_at(cell) in MapLayout.BUILDABLE
 
 
-## origin(왼쪽 위)에 def 를 놓을 수 있는지. ignore 는 이동 중인 자기 자신.
+## origin(왼쪽 위)에 def 를 turns 방향으로 놓을 수 있는지. ignore 는 이동 중인 자기 자신.
 ## 돌려주는 값: {"ok": bool, "bad": Array[Vector2i] (막힌 칸), "reason": String}
-func check(def: PlaceableDef, origin: Vector2i, ignore: Placeable = null) -> Dictionary:
+func check(def: PlaceableDef, origin: Vector2i, ignore: Placeable = null, turns := 0) -> Dictionary:
 	var bad: Array[Vector2i] = []
 	var reason := ""
 	var player_cells := _player_cells()
-	for c in Placeable.footprint_of(def, origin):
-		var why := ""
-		if not is_buildable_ground(c):
-			why = "농장 땅에만 지을 수 있어요."
-		elif _cells.has(c) and _cells[c] != ignore:
-			why = "이미 다른 시설이 있어요."
-		elif world.obstacles.is_blocked(c):
-			why = "먼저 장애물을 치워야 해요."
-		elif world.farm.get_tile(c) != null and world.farm.get_tile(c).has_crop():
-			why = "작물이 자라는 밭에는 지을 수 없어요."
-		elif c in player_cells:
-			why = "서 있는 자리에는 지을 수 없어요."
+	for c in Placeable.footprint_of(def, origin, turns):
+		var why := _space_problem(c, ignore)
+		if why == "":
+			why = _cell_problem(c, player_cells)
 		if why != "":
 			bad.append(c)
 			if reason == "":
 				reason = why
 	return {"ok": bad.is_empty(), "bad": bad, "reason": reason}
+
+
+## 지금 이 칸에 무언가 있어서 지을 수 없는가 (시설·장애물·작물). 격자 표시용, 플레이어 위치는 보지 않는다.
+func is_cell_taken(c: Vector2i) -> bool:
+	return _cells.has(c) or _cell_problem(c, []) != ""
+
+
+## 땅·겹침만 보는 판정 (저장 불러오기는 이것만 확인한다)
+func _space_problem(c: Vector2i, ignore: Placeable) -> String:
+	if not is_buildable_ground(c):
+		return "농장 땅에만 지을 수 있어요."
+	if _cells.has(c) and _cells[c] != ignore:
+		return "이미 다른 시설이 있어요."
+	return ""
+
+
+## 지금 그 칸에 있는 것 때문에 못 짓는 이유 (장애물·작물·플레이어)
+func _cell_problem(c: Vector2i, player_cells: Array[Vector2i]) -> String:
+	if world.obstacles.is_blocked(c):
+		return "먼저 장애물을 치워야 해요."
+	if world.farm.get_tile(c) != null and world.farm.get_tile(c).has_crop():
+		return "작물이 자라는 밭에는 지을 수 없어요."
+	if c in player_cells:
+		return "서 있는 자리에는 지을 수 없어요."
+	return ""
 
 
 func _player_cells() -> Array[Vector2i]:
@@ -75,15 +93,19 @@ func _player_cells() -> Array[Vector2i]:
 
 # ---------- 설치·이동·철거
 
-func place(def: PlaceableDef, origin: Vector2i) -> Placeable:
-	if not check(def, origin).ok:
+func place(def: PlaceableDef, origin: Vector2i, turns := 0) -> Placeable:
+	if not check(def, origin, null, turns).ok:
 		return null
+	return _spawn(def, origin, turns)
+
+
+func _spawn(def: PlaceableDef, origin: Vector2i, turns: int) -> Placeable:
 	var obj: Placeable
 	if def.script_path != "":
 		obj = (load(def.script_path) as GDScript).new()
 	else:
 		obj = Placeable.new()
-	obj.setup(def, origin)
+	obj.setup(def, origin, turns)
 	world.objects.add_child(obj)
 	_register(obj)
 	_clear_soil(obj)
@@ -92,13 +114,16 @@ func place(def: PlaceableDef, origin: Vector2i) -> Placeable:
 	return obj
 
 
-func move(obj: Placeable, origin: Vector2i) -> bool:
-	if not check(obj.def, origin, obj).ok:
+## 시설을 다른 자리·방향으로 옮긴다. 시설 자체(내부 상태)는 그대로다 (§63). turns 가 -1 이면 방향 유지.
+func move(obj: Placeable, origin: Vector2i, turns := -1) -> bool:
+	var new_turns := obj.turns if turns < 0 else turns
+	if not check(obj.def, origin, obj, new_turns).ok:
 		return false
 	_unregister(obj)
-	obj.set_cell(origin)
+	obj.set_placement(origin, new_turns)
 	_register(obj)
 	_clear_soil(obj)
+	obj.on_moved(world)
 	changed.emit()
 	return true
 
@@ -143,11 +168,27 @@ func to_data() -> Array:
 	return _objects.map(func(o: Placeable) -> Dictionary: return o.to_data())
 
 
-func load_data(data: Array) -> void:
+## 저장된 시설을 다시 놓는다. 저장 당시 이미 놓여 있던 것이므로 플레이어 위치·장애물·작물은 따지지 않고
+## 땅과 겹침만 확인한다. 그래도 놓을 수 없는 항목은 조용히 버리지 않고 목록으로 돌려준다 (오류도 남김).
+func load_data(data: Array) -> Array:
 	for obj in _objects.duplicate():
 		remove(obj)
+	var failed := []
 	for entry: Dictionary in data:
 		var def := PlaceableDB.get_def(entry.get("id", ""))
 		var c: Array = entry.get("cell", [0, 0])
-		if def:
-			place(def, Vector2i(int(c[0]), int(c[1])))
+		var origin := Vector2i(int(c[0]), int(c[1]))
+		var turns := int(entry.get("turns", 0))
+		if def == null or not _fits_space(def, origin, turns):
+			push_error("시설을 불러오지 못했습니다: %s" % entry)
+			failed.append(entry)
+			continue
+		_spawn(def, origin, turns)
+	return failed
+
+
+func _fits_space(def: PlaceableDef, origin: Vector2i, turns: int) -> bool:
+	for c in Placeable.footprint_of(def, origin, turns):
+		if _space_problem(c, null) != "":
+			return false
+	return true

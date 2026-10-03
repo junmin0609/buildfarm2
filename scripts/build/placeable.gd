@@ -3,55 +3,117 @@ extends Node2D
 ## 농장에 설치된 시설 하나. 모든 시설의 공통 부모.
 ## 노드 위치는 차지하는 칸들의 아래쪽 가운데 (Objects 의 Y 정렬 기준이 발밑이 되도록).
 ##
+## 회전 (BUILD_FARM_PLAN §54): turns = 시계 방향 90° 회전 횟수 (0~3).
+##   홀수 번 돌리면 차지하는 칸의 가로·세로가 바뀐다 (3x4 → 4x3).
+##   facing() 은 시설이 바라보는 방향: 0 아래, 1 왼쪽, 2 위, 3 오른쪽.
+##   입출력 포트(§55)는 이 방향을 기준으로 돌려서 쓰면 된다 (rotate_dir).
+##
 ## 특별한 동작이 있는 시설은 이 스크립트를 상속해 아래 훅을 덮어쓰면 된다.
 ##   on_placed / on_removed   설치·철거될 때
+##   on_moved                 옮기거나 돌렸을 때 (상태는 그대로 유지된다 §63)
 ##   on_day_started           매일 아침 (자동 물주기, 자동 수확 등)
 
 const TILE := Art.TILE
+const DIRS: Array[Vector2i] = [Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP, Vector2i.RIGHT]
 
 var def: PlaceableDef
 ## 차지하는 칸들의 왼쪽 위 칸
 var cell := Vector2i.ZERO
+## 시계 방향 90° 회전 횟수 (0~3)
+var turns := 0
+
+var _sprite: Sprite2D
+var _shape: RectangleShape2D
+var _shape_node: CollisionShape2D
 
 
-func setup(placeable_def: PlaceableDef, origin: Vector2i) -> void:
+func setup(placeable_def: PlaceableDef, origin: Vector2i, new_turns := 0) -> void:
 	def = placeable_def
+	turns = posmod(new_turns, 4)
 	name = "%s_%d_%d" % [def.id, origin.x, origin.y]
 	set_cell(origin)
 
 
 func set_cell(origin: Vector2i) -> void:
 	cell = origin
-	position = Vector2(origin.x * TILE + def.size.x * TILE / 2.0, (origin.y + def.size.y) * TILE)
+	var s := size()
+	position = Vector2(origin.x * TILE + s.x * TILE / 2.0, (origin.y + s.y) * TILE)
+
+
+## 자리와 방향을 함께 바꾼다 (BuildGrid.move 가 쓴다)
+func set_placement(origin: Vector2i, new_turns: int) -> void:
+	turns = posmod(new_turns, 4)
+	set_cell(origin)
+	_update_visual()
+
+
+## 지금 방향에서 차지하는 칸 수
+func size() -> Vector2i:
+	return def.size_for(turns)
+
+
+func facing() -> Vector2i:
+	return DIRS[turns]
 
 
 func footprint() -> Array[Vector2i]:
-	return footprint_of(def, cell)
+	return footprint_of(def, cell, turns)
 
 
-static func footprint_of(placeable_def: PlaceableDef, origin: Vector2i) -> Array[Vector2i]:
+static func footprint_of(placeable_def: PlaceableDef, origin: Vector2i, rot := 0) -> Array[Vector2i]:
+	var s := placeable_def.size_for(rot)
 	var cells: Array[Vector2i] = []
-	for y in placeable_def.size.y:
-		for x in placeable_def.size.x:
+	for y in s.y:
+		for x in s.x:
 			cells.append(origin + Vector2i(x, y))
 	return cells
 
 
+## 회전 0 기준 방향 dir 을 rot 만큼 시계 방향으로 돌린다 (포트 방향 계산용)
+static func rotate_dir(dir: Vector2i, rot: int) -> Vector2i:
+	var d := dir
+	for i in posmod(rot, 4):
+		d = Vector2i(-d.y, d.x)
+	return d
+
+
 func _ready() -> void:
-	var sprite := Sprite2D.new()
-	sprite.texture = def.texture
-	sprite.centered = false
-	sprite.offset = Vector2(-def.texture.get_width() / 2.0, -def.texture.get_height())
-	add_child(sprite)
+	_sprite = Sprite2D.new()
+	_sprite.centered = false
+	add_child(_sprite)
 	if def.solid:
 		var body := StaticBody2D.new()
-		var shape := CollisionShape2D.new()
-		var rect := RectangleShape2D.new()
-		rect.size = Vector2(def.size * TILE) - Vector2(2, 2)
-		shape.shape = rect
-		shape.position = Vector2(0, -def.size.y * TILE / 2.0)
-		body.add_child(shape)
+		_shape_node = CollisionShape2D.new()
+		_shape = RectangleShape2D.new()
+		_shape_node.shape = _shape
+		body.add_child(_shape_node)
 		add_child(body)
+	_update_visual()
+
+
+## 방향에 맞게 그림과 충돌 모양을 맞춘다
+func _update_visual() -> void:
+	if _sprite == null:
+		return
+	var tex := def.texture_for(turns)
+	_sprite.texture = tex
+	if tex:
+		_sprite.offset = Vector2(-tex.get_width() / 2.0, -tex.get_height())
+	var s := size()
+	if _shape:
+		_shape.size = Vector2(s * TILE) - Vector2(2, 2)
+		_shape_node.position = Vector2(0, -s.y * TILE / 2.0)
+	queue_redraw()
+
+
+## 그림이 없는 시설은 자리만 보이게 상자를 그린다 (JSON 에 texture 를 빼먹어도 멈추지 않게)
+func _draw() -> void:
+	if def.texture_for(turns) != null:
+		return
+	var s := Vector2(size() * TILE)
+	var r := Rect2(Vector2(-s.x / 2.0, -s.y), s).grow(-1)
+	draw_rect(r, Color("c98f5e"))
+	draw_rect(r, Color("5b3a29"), false, 1.0)
 
 
 # ---------- 확장 훅 (상속한 시설이 덮어쓴다)
@@ -64,6 +126,10 @@ func on_removed(_world: FarmWorld) -> void:
 	pass
 
 
+func on_moved(_world: FarmWorld) -> void:
+	pass
+
+
 func on_day_started(_world: FarmWorld) -> void:
 	pass
 
@@ -71,4 +137,4 @@ func on_day_started(_world: FarmWorld) -> void:
 # ---------- 저장용
 
 func to_data() -> Dictionary:
-	return {"id": def.id, "cell": [cell.x, cell.y]}
+	return {"id": def.id, "cell": [cell.x, cell.y], "turns": turns}

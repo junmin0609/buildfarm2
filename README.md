@@ -117,6 +117,8 @@ python tools/make_art.py
 농장 땅(`MapLayout.BUILDABLE`) 위에 시설을 격자 단위로 놓습니다.
 
 - **B** → 건설 창에서 시설 고르기 → 초록(가능)/빨강(불가) 미리보기 → 클릭 설치, 우클릭·Esc로 끝내기
+- 건설 모드인 동안 농장 땅에 격자가 보이고, 시설·장애물·작물이 있는 칸은 어둡게 표시됩니다 (`BuildGridOverlay`).
+- **R** → 시계 방향 90° 회전(설치·옮기기 중). 직사각형은 가로·세로가 바뀝니다(3x4 → 4x3). 정사각형 장식은 돌리지 않습니다.
 - 같은 창의 **옮기기**(시설 클릭 → 새 자리 클릭, 무료) / **철거하기**(전액 환불)
 - 설치 불가: 농장 땅이 아닌 곳, 다른 시설, 장애물(잡초·돌·나뭇가지·그루터기 등, 자동으로 치우지 않음), 작물이 자라는 밭, 플레이어가 서 있는 자리. 시설이 있는 칸은 괭이질도 안 됩니다.
 - 갈아 둔 빈 밭 위에는 지을 수 있고, 지으면 그 칸은 보통 땅이 됩니다(§53). 철거해도 보통 땅으로 남습니다.
@@ -127,7 +129,8 @@ python tools/make_art.py
 |---|---|
 | `data/placeables.json` | 시설 정의 (이름·크기·그림·가격·통과 여부·전용 스크립트) |
 | `scripts/build/placeable_def.gd`, `placeable_db.gd` | 정의와 저장소 |
-| `scripts/build/placeable.gd` | 설치된 시설의 공통 부모. 훅: `on_placed` / `on_removed` / `on_day_started` |
+| `scripts/build/placeable.gd` | 설치된 시설의 공통 부모. `turns`(회전 0~3), `facing()`, `rotate_dir()`(포트 방향용). 훅: `on_placed` / `on_removed` / `on_moved` / `on_day_started` |
+| `scripts/build/build_grid_overlay.gd` | 건설 모드 격자 (밭 위·나무 아래에 그림) |
 | `scripts/build/build_grid.gd` | 칸 점유 관리, `check`·`place`·`move`·`remove`, 저장용 `to_data/load_data` |
 | `scripts/build/build_mode.gd` | 미리보기와 입력, 돈 계산 |
 | `scripts/ui/build_panel.gd` | 건설 창 (JSON 에서 목록 자동 생성) |
@@ -135,6 +138,8 @@ python tools/make_art.py
 **새 시설 추가**
 1. 그림을 만든다 (`make_art.py`의 `make_placeables`). 그림 아래쪽 `size` 칸이 바닥이고 그 위는 솟는 부분.
 2. `data/placeables.json`에 항목 추가 → 건설 창·설치·이동·철거가 바로 동작.
+   회전 관련: `"directional": true`(방향 있는 시설, 미리보기에 화살표), `"rotatable"`(생략하면 방향이 있거나 직사각형일 때 회전 가능),
+   `"rotated_textures": [아래, 왼쪽, 위, 오른쪽]`(방향별 그림, 없으면 `texture`를 그대로 씀). 저장 데이터에는 `turns`가 들어갑니다.
 3. 동작이 필요하면 `Placeable`을 상속한 스크립트를 만들어 `"script"`에 적는다. 예) 자동 물주기:
 ```gdscript
 extends Placeable
@@ -156,5 +161,5 @@ func on_day_started(world: FarmWorld) -> void:
 ```
 Godot --headless --path . res://scenes/tests/smoke_test.tscn
 ```
-땅 갈기 → 심기 → 물 주기 → 성장 → 수확 → 판매·구매 → 잠자기 → 상점 창 → 충돌, 건설(설치·불가 판정·밭 위 건설·충돌·이동·철거·환불·시간 정지), 개간(분포·도구·등급·자원·가방 가득·재생), 작물 데이터·품질 스택·판매 가격·다시 열리는 작물·수확량·물뿌리개, 시간(15분·경고·멈춤 규칙)까지 117개 항목을 확인합니다.
+땅 갈기 → 심기 → 물 주기 → 성장 → 수확 → 판매·구매 → 잠자기 → 상점 창 → 충돌, 건설(설치·불가 판정·밭 위 건설·충돌·이동·철거·환불·시간 정지·격자·회전·불러오기), 개간(분포·도구·등급·자원·가방 가득·재생), 작물 데이터·품질 스택·판매 가격·다시 열리는 작물·수확량·물뿌리개, 시간(15분·경고·멈춤 규칙)까지 138개 항목을 확인합니다.
 새 `class_name` 스크립트를 추가한 뒤에는 한 번 `Godot --headless --path . --import`로 클래스 목록을 갱신해야 점검이 돌아갑니다. (맵 좌표는 맵에서 찾아 쓰므로 맵을 바꿔도 그대로 동작)

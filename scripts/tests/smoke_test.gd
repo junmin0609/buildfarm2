@@ -102,6 +102,7 @@ func _ready() -> void:
 
 	# ---------- 건설
 	await _test_build(world, hud)
+	await _test_build_grid_and_rotation(world)
 
 	# ---------- 개간
 	await _test_clearing(world)
@@ -188,6 +189,86 @@ func _test_build(world: FarmWorld, hud: HUD) -> void:
 	_check(not bm.is_active() and not hud._build_hint.visible, "건설 모드 끝")
 	_check(not GameState.is_time_paused(), "건설 모드 끝나면 시간 다시 흐름")
 	await get_tree().process_frame
+
+
+func _test_build_grid_and_rotation(world: FarmWorld) -> void:
+	var grid := world.build
+	var bm := world.build_mode
+	var shed := PlaceableDB.get_def("shed")
+	var scarecrow := PlaceableDB.get_def("scarecrow")
+
+	# 격자 (§49)
+	bm.start_place("shed")
+	var ov := bm.grid_overlay
+	_check(ov != null and ov.visible, "건설 모드에서 격자 표시")
+	_check(ov.get_index() == world.farm.get_index() + 1 and ov.get_index() < world.objects.get_index(), "격자는 밭 위·나무와 시설 아래에 그림")
+	var all_cells := ov.grid_cells(Rect2i(Vector2i.ZERO, MapLayout.size()))
+	_check(all_cells.size() == world.farm.farmable_cells.size() and all_cells.all(grid.is_buildable_ground), "격자는 지을 수 있는 농장 땅에만 (%d칸)" % all_cells.size())
+	var taken := all_cells.filter(grid.is_cell_taken)
+	_check(not taken.is_empty() and taken.all(func(c: Vector2i) -> bool: return grid.is_occupied(c) or world.obstacles.is_blocked(c) or world.farm.get_tile(c) != null), "시설·장애물·작물 칸은 어둡게 표시 (%d칸)" % taken.size())
+	_check(not shed.rotatable and not scarecrow.rotatable, "정사각형 시설은 회전 대상 아님")
+	_check(not bm.rotate_preview() and bm.turns == 0, "정사각형은 R 을 눌러도 그대로")
+	bm.stop()
+	_check(not ov.visible, "건설 모드 끝나면 격자 숨김")
+
+	# 직사각형 회전 (§54): 점검 전용 3x2 정의
+	var wide := PlaceableDef.from_dict("test_wide", {"name": "점검용 3x2", "size": [3, 2], "texture": "res://assets/art/shed.png", "price": 0})
+	_check(wide.rotatable and wide.size_for(1) == Vector2i(2, 3) and wide.size_for(2) == Vector2i(3, 2), "직사각형은 회전 가능 (3x2 → 2x3 → 3x2)")
+	bm.place_def = wide
+	bm.turns = 0
+	bm.start(BuildMode.Mode.PLACE)
+	_check(bm.rotate_preview() and bm.turns == 1, "R 로 시계 방향 90°")
+	_check(GameState.is_time_paused(), "회전 중에도 시간 멈춤")
+	var o := _free_origin_turned(world, wide, 1, null)
+	_check(bm.try_place(o), "돌린 채로 설치")
+	var obj := grid.object_at(o)
+	_check(obj != null and obj.turns == 1 and obj.size() == Vector2i(2, 3), "설치된 시설이 방향을 기억 (2x3)")
+	_check(grid.object_at(o + Vector2i(1, 2)) == obj and grid.object_at(o + Vector2i(2, 0)) != obj, "돌린 모양대로 칸을 차지")
+	bm.stop()
+
+	bm.start(BuildMode.Mode.MOVE)
+	_check(bm.pick(o) and bm.turns == 1, "집으면 그 시설의 방향에서 시작")
+	bm.rotate_preview()
+	var o2 := _free_origin_turned(world, wide, 2, obj)
+	_check(bm.try_drop(o2) and obj.turns == 2 and obj.size() == Vector2i(3, 2) and grid.object_at(o2 + Vector2i(2, 1)) == obj, "옮기면서 돌리기 (3x2)")
+	var owned := grid._cells.values().filter(func(v: Placeable) -> bool: return v == obj)
+	_check(owned.size() == 6 and obj.footprint().all(func(c: Vector2i) -> bool: return grid.object_at(c) == obj), "옮긴 뒤 칸 정보가 정확함")
+	bm.stop()
+
+	# 방향이 있는 시설: 화살표 방향, 그림 없는 정의도 멈추지 않음
+	var arrow := PlaceableDef.from_dict("test_dir", {"name": "점검용 방향", "size": [1, 1], "directional": true, "price": 0})
+	_check(arrow.rotatable and arrow.texture == null, "방향 있는 1x1 은 회전 가능")
+	var dirs_ok := true
+	for t in 4:
+		dirs_ok = dirs_ok and Placeable.rotate_dir(Vector2i.DOWN, t) == Placeable.DIRS[t]
+	_check(dirs_ok and Placeable.rotate_dir(Vector2i.RIGHT, 1) == Vector2i.DOWN, "포트 방향 회전 계산 (아래→왼쪽→위→오른쪽)")
+	var dir_obj := grid.place(arrow, _free_origin_turned(world, arrow, 3, null), 3)
+	await get_tree().process_frame
+	_check(dir_obj != null and dir_obj.facing() == Vector2i.RIGHT, "그림 없는 시설도 설치됨, 오른쪽을 봄")
+	grid.remove(obj)
+	grid.remove(dir_obj)
+
+	# 저장·불러오기: 플레이어가 시설 위에 서 있어도 사라지지 않음
+	var placed := grid.place(shed, _free_origin_turned(world, shed, 0, null))
+	var placed_cell := placed.cell
+	world.player.global_position = world.cell_center(placed_cell)
+	var data := grid.to_data()
+	var failed := grid.load_data(data)
+	_check(failed.is_empty() and grid.to_data() == data, "불러와도 시설·위치·방향 그대로 (%d개)" % data.size())
+	_check(not grid._fits_space(shed, _find_char("s"), 0), "땅이 아닌 곳은 불러오기에서도 거부")
+	grid.remove(grid.object_at(placed_cell))
+	world.player.global_position = world.cell_center(_find_char("s"))
+	await get_tree().process_frame
+
+
+## def 를 turns 방향으로 놓을 수 있는 경작지 칸
+func _free_origin_turned(world: FarmWorld, def: PlaceableDef, turns: int, ignore: Placeable) -> Vector2i:
+	var cells: Array = world.farm.farmable_cells.keys()
+	cells.sort()
+	for c: Vector2i in cells:
+		if world.build.check(def, c, ignore, turns).ok:
+			return c
+	return cells[0]
 
 
 func _test_clearing(world: FarmWorld) -> void:
