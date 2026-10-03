@@ -1,7 +1,7 @@
 class_name ShippingBinPanel
 extends PanelContainer
 ## 출하함 창. 왼쪽 가방의 판매 가능한 물건을 넣고, 오른쪽 출하함에서 다시 꺼낸다.
-## 가방 창처럼 시간은 계속 흐르고, 열려 있는 동안 플레이어 조작만 막는다 (HUD 가 처리).
+## 상점처럼 열려 있는 동안 게임과 시간이 멈춘다 (HUD 가 처리).
 
 signal close_requested
 

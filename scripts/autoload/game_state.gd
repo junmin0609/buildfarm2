@@ -4,7 +4,7 @@ extends Node
 ## 시간 (BUILD_FARM_PLAN §94, §95, 수치는 data/time.json)
 ##   하루 = 실제로 시간이 흐른 day_length_seconds(15분). 남은 시간이 warning_seconds_left(1분)가 되면 경고.
 ##   시계(minutes)는 흐른 시간에서 계산해 보여 주기만 한다.
-##   상점·건설 창·건설 모드(설치·이동·철거) 동안은 멈춘다 (set_time_paused). 가방 창에서는 흐른다.
+##   상점·출하함·건설 창·건설 모드(설치·이동·철거)·메뉴 동안은 멈춘다 (set_time_paused). 가방 창에서는 흐른다.
 
 const TIME_DATA_PATH := "res://data/time.json"
 const START_MONEY := 500

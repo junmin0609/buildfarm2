@@ -177,13 +177,13 @@ func open_menu() -> void:
 	_pause_for("menu")
 
 
-## 출하함: 가방처럼 시간은 흐르고 플레이어 조작만 막는다
+## 출하함: 상점처럼 게임과 시간을 멈춘다
 func open_shipping_bin(bin: Node) -> void:
 	_close_inventory()
 	_bin_panel.open(bin as ShippingBin)
 	_prompt_box.hide()
 	_crop_info.suppressed = true
-	GameState.set_input_locked("shipping_bin", true)
+	_pause_for("shipping_bin")
 
 
 ## 하루가 끝났을 때: 오늘 번 돈이 있으면 판매 수익 요약을 띄운다 (게임·시간 멈춤)
@@ -223,7 +223,7 @@ func _close_panels() -> void:
 	_menu.hide()
 	_bin_panel.hide()
 	_summary.hide()
-	GameState.set_input_locked("shipping_bin", false)
+	GameState.set_time_paused("shipping_bin", false)
 	GameState.set_time_paused("summary", false)
 	_prompt_box.visible = _prompt.text != "" and not _build_hint.visible
 	_crop_info.suppressed = false

@@ -849,11 +849,13 @@ func _test_shipping(world: FarmWorld, hud: HUD) -> void:
 	player.global_position = bin.interact_point()
 	_check(player._nearest_interactable() == bin, "출하함 앞에서 [E] 안내")
 
-	# 창: 가방처럼 시간은 흐르고 조작만 잠김
+	# 창: 상점처럼 게임·시간 정지
 	bin.interact(player)
-	_check(hud._bin_panel.visible and not GameState.is_time_paused() and GameState.is_input_locked() and not get_tree().paused, "출하함 창: 시간은 흐르고 조작만 잠김")
+	var before := GameState.day_seconds
+	GameState.advance_time(5.0)
+	_check(hud._bin_panel.visible and GameState.is_time_paused() and get_tree().paused and GameState.day_seconds == before, "출하함 창을 열면 시간 정지")
 	hud._close_panels()
-	_check(not hud._bin_panel.visible and not GameState.is_input_locked(), "출하함 창 닫기")
+	_check(not hud._bin_panel.visible and not GameState.is_time_paused() and not get_tree().paused, "출하함 창 닫으면 다시 흐름")
 
 	# 넣기 / 꺼내기 (아이템이 사라지지 않음)
 	inv.load_data([])
