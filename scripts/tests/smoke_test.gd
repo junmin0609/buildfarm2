@@ -7,7 +7,14 @@ var _failures := 0
 var _near_home_at_start := -1
 
 
+const TEST_SAVE := "user://smoke_test_save.json"
+
+
 func _ready() -> void:
+	# 점검은 새 게임으로 시작하고, 플레이어의 진짜 저장 파일은 건드리지 않는다
+	SaveManager.load_on_start = false
+	SaveManager.slot_path = TEST_SAVE
+	_remove_test_save()
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
 	await get_tree().process_frame
@@ -130,6 +137,9 @@ func _ready() -> void:
 	# ---------- 하루 마감 흐름 (§96)
 	await _test_day_end(world, hud)
 
+	# ---------- 저장 / 불러오기 (§102)
+	await _test_save(world)
+
 	# 맵 밖으로는 못 나감
 	player.global_position = world.cell_center(Vector2i(1, 1))
 	for i in 60:
@@ -137,6 +147,10 @@ func _ready() -> void:
 		player.move_and_slide()
 	_check(player.global_position.x >= 0 and player.global_position.y >= 0, "맵 밖으로 못 나감")
 
+	# ---------- 게임을 켤 때 이어하기 / 새 게임
+	await _test_continue_on_start(main)
+
+	_remove_test_save()
 	print("SMOKE TEST %s (%d 실패)" % ["PASS" if _failures == 0 else "FAIL", _failures])
 	get_tree().quit(1 if _failures else 0)
 
@@ -708,6 +722,170 @@ func _test_day_end(world: FarmWorld, hud: HUD) -> void:
 	_check(GameState.day == day + 1, "마감 중 다시 요청해도 하루만 넘어감")
 	Events.day_started.disconnect(on_start)
 	await get_tree().process_frame
+
+
+func _test_save(world: FarmWorld) -> void:
+	var sm := world.save_manager
+	var farm := world.farm
+	var player := world.player
+	var inv := GameState.inventory
+	var saved_inv := inv.to_data()
+	_check(sm != null and SaveManager.slot_path == TEST_SAVE, "저장 관리자 준비 (점검용 파일 사용)")
+
+	# 하루 전환 자동 저장: 날짜 → 07:00 → 집 앞 → 저장
+	player.global_position = world.cell_center(_find_char("p"))
+	GameState.sleep()
+	var auto := sm.read_save()
+	_check(not auto.has("error") and auto.get("kind") == "auto" and int(auto.get("version", 0)) == SaveManager.VERSION, "하루 전환 자동 저장 (버전 %d)" % SaveManager.VERSION)
+	if auto.has("sections"):
+		var a_game: Dictionary = auto.sections.game
+		_check(DataFile.to_vector2(auto.sections.player.position) == world.home_position and float(a_game.day_seconds) == 0.0 and int(a_game.day) == GameState.day, "자동 저장은 다음 날 07:00 집 앞 상태")
+
+	# 수동 저장할 상태 만들기: 밭·작물·비료 전 품질 상태·가방(품질·물)·핫바·시설(회전)·해금·시각·위치
+	var c := _free_clear_cell(world)
+	farm.till(c)
+	farm.plant(c, ItemDB.get_item("strawberry_seed"))
+	farm.get_tile(c).days_grown = 2
+	farm.get_tile(c).regrowing = true
+	farm.water(c)
+	inv.add("potato", 2, "gold")
+	inv.add("carrot", 3, "silver")
+	var can_slot := -1
+	for i in inv.size():
+		if WateringCan.is_can(inv, i):
+			can_slot = i
+	inv.set_slot_value(can_slot, "water", 5)
+	GameState.select_slot(3)
+	GameState.unlocks["test_region"] = true
+	GameState.add_money(77)
+	var shed := PlaceableDB.get_def("shed")
+	var shed_at := _free_origin(world, shed, Vector2i(-1, -1))
+	world.build.place(shed, shed_at)
+	var gone_cell: Vector2i = world.obstacles.all()[0].cell
+	world.obstacles.remove(gone_cell)
+	await get_tree().process_frame
+	GameState.set_clock(13 * 60 + 20)
+	player.global_position = world.cell_center(c + Vector2i.UP) + Vector2(3, 2)
+	player.facing = Vector2i.LEFT
+	var snap := _snapshot(world)
+	_check(sm.save_game("manual") and sm.has_save(), "수동 저장")
+
+	# 다 바꿔 놓은 뒤 불러오기
+	GameState.try_spend(50)
+	GameState.set_clock(20 * 60)
+	GameState.unlocks.clear()
+	GameState.select_slot(0)
+	inv.load_data([])
+	farm.load_data({})
+	world.build.load_data([])
+	world.obstacles.spawn(gone_cell, "weed")
+	player.global_position = world.home_position
+	player.facing = Vector2i.DOWN
+	_check(sm.load_game() and sm.last_load.failed.is_empty() and sm.last_load.missing.is_empty(), "불러오기 (손상·누락 없음)")
+	# 프레임이 지나면 시간이 흐르고 물리가 위치를 조금 움직이므로 바로 비교한다
+	var after := _snapshot(world)
+	for key: String in snap:
+		_check(after[key] == snap[key], "불러온 뒤 %s 상태 같음" % key)
+	_check(GameState.minutes == 13 * 60 + 20 and player.global_position == snap.player_pos and player.facing == Vector2i.LEFT, "저장 당시 위치·시각에서 재개 (%s)" % GameState.format_clock(GameState.minutes))
+	_check(inv.count_of("potato", "gold") >= 2 and inv.count_of("carrot", "silver") >= 3 and WateringCan.water_left(inv, can_slot) == 5 and GameState.selected_slot == 3, "가방 품질·물뿌리개 물·핫바 선택 유지")
+	var t := farm.get_tile(c)
+	_check(t != null and t.seed_id == "strawberry_seed" and t.days_grown == 2 and t.regrowing and t.watered, "밭·수분·작물·성장·다시 열림 상태 유지")
+	_check(world.build.object_at(shed_at) != null and not world.obstacles.is_blocked(gone_cell), "시설·치운 장애물 유지")
+	_check(GameState.unlocks.get("test_region") == true, "해금 상태 유지")
+	await get_tree().process_frame
+
+	# 손상된 파일: 불러오지 않고 지금 상태 그대로
+	var money := GameState.money
+	_write_test_save("{ 망가진 저장")
+	_check(not sm.load_game() and GameState.money == money and sm.last_load.error != "", "손상된 파일은 안 불러옴 (%s)" % sm.last_load.error)
+	_write_test_save(JSON.stringify({"version": 99, "sections": {}}))
+	_check(not sm.load_game() and str(sm.last_load.error).contains("새로운 버전"), "더 새 버전 저장은 거부")
+	_write_test_save(JSON.stringify({"sections": {}}))
+	_check(not sm.load_game(), "버전 없는 저장은 거부")
+
+	# 일부 섹션만 손상: 그 섹션은 지금 상태 유지, 나머지는 불러옴
+	sm.save_game("manual")
+	var d := sm.read_save()
+	d.sections.farm = 5
+	d.sections.build = "oops"
+	d.sections.game.money = 4321
+	d.sections.erase("player")
+	_write_test_save(JSON.stringify(d))
+	var farm_before := farm.to_data()
+	var build_before := world.build.to_data()
+	var pos_before := player.global_position
+	_check(sm.load_game() and "farm" in sm.last_load.failed and "build" in sm.last_load.failed and "player" in sm.last_load.missing, "손상된 섹션만 건너뜀 %s / 없음 %s" % [sm.last_load.failed, sm.last_load.missing])
+	_check(farm.to_data() == farm_before and world.build.to_data() == build_before and player.global_position == pos_before, "손상된 섹션은 지금 상태 유지")
+	_check(GameState.money == 4321, "멀쩡한 섹션은 불러옴")
+
+	# 저장이 없을 때
+	_remove_test_save()
+	_check(not sm.has_save() and not sm.load_game() and SaveManager.describe_save() == "", "저장이 없으면 안전하게 실패")
+
+	# 정리
+	world.build.remove(world.build.object_at(shed_at))
+	farm.remove_crop(c)
+	farm.tiles.erase(c)
+	inv.load_data(saved_inv)
+	GameState.unlocks.clear()
+	GameState.select_slot(0)
+	await get_tree().process_frame
+
+
+func _test_continue_on_start(main: Node) -> void:
+	var world: FarmWorld = main.get_node("FarmWorld")
+	GameState.add_money(1234)
+	world.player.global_position = world.home_position + Vector2(24, 4)
+	world.save_manager.save_game("manual")
+	var money := GameState.money
+	var pos := world.player.global_position
+	main.queue_free()
+	await get_tree().process_frame
+
+	GameState.new_game()
+	SaveManager.load_on_start = true
+	var main2: Node = load("res://scenes/main.tscn").instantiate()
+	add_child(main2)
+	var w2: FarmWorld = main2.get_node("FarmWorld")
+	_check(GameState.money == money and w2.player.global_position.distance_to(pos) < 1.0, "게임을 켜면 저장한 곳에서 이어서 (%d G)" % GameState.money)
+	await get_tree().process_frame
+	main2.queue_free()
+	await get_tree().process_frame
+
+	SaveManager.skip_load_once = true
+	GameState.new_game()
+	var main3: Node = load("res://scenes/main.tscn").instantiate()
+	add_child(main3)
+	var w3: FarmWorld = main3.get_node("FarmWorld")
+	_check(GameState.money == GameState.START_MONEY and GameState.day == 1 and w3.player.global_position == w3.home_position and not SaveManager.skip_load_once, "새 게임을 고르면 저장을 불러오지 않음")
+	await get_tree().process_frame
+	main3.queue_free()
+	SaveManager.load_on_start = false
+	await get_tree().process_frame
+
+
+func _snapshot(world: FarmWorld) -> Dictionary:
+	var obstacles: Array = world.obstacles.to_data()
+	obstacles.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return DataFile.to_vector2i(a.cell) < DataFile.to_vector2i(b.cell))
+	return {
+		"game": GameState.to_data(),
+		"farm": world.farm.to_data(),
+		"build": world.build.to_data(),
+		"obstacles": obstacles,
+		"player_pos": world.player.global_position,
+	}
+
+
+func _write_test_save(text: String) -> void:
+	var f := FileAccess.open(TEST_SAVE, FileAccess.WRITE)
+	f.store_string(text)
+	f.close()
+
+
+func _remove_test_save() -> void:
+	for path in [TEST_SAVE, TEST_SAVE + ".bak", TEST_SAVE + ".tmp"]:
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 
 ## 장애물·밭·시설이 없는 농장 칸

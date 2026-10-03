@@ -230,12 +230,20 @@ func to_data() -> Dictionary:
 	return out
 
 
-func load_data(data: Dictionary) -> void:
+## 저장된 밭을 되살린다. 모양이 틀린 항목·농장 땅이 아닌 칸은 건너뛴다. 받은 데이터가 통째로 틀리면 false.
+func load_data(data: Variant) -> bool:
+	if not data is Dictionary:
+		return false
 	tiles.clear()
-	for key: String in data:
-		var parts := key.split(",")
-		tiles[Vector2i(int(parts[0]), int(parts[1]))] = SoilTile.from_dict(data[key])
 	queue_redraw()
+	for key: Variant in data:
+		var parts := str(key).split(",")
+		if parts.size() != 2 or not parts[0].is_valid_int() or not parts[1].is_valid_int() or not data[key] is Dictionary:
+			continue
+		var cell := Vector2i(int(parts[0]), int(parts[1]))
+		if is_farmable(cell):
+			tiles[cell] = SoilTile.from_dict(data[key])
+	return true
 
 
 # ---------- 그리기 (tiles.png 의 밭 그림 + crops.png 의 작물 단계)

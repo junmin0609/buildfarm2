@@ -173,11 +173,17 @@ func to_data() -> Array:
 	return _cells.values().map(func(o: Obstacle) -> Dictionary: return o.to_data())
 
 
-func load_data(data: Array) -> void:
+## 저장된 장애물을 되살린다. 모양이 틀린 항목은 건너뛴다. 받은 데이터가 통째로 틀리면 false (장애물은 그대로).
+func load_data(data: Variant) -> bool:
+	if not data is Array:
+		return false
 	for cell: Vector2i in _cells.keys():
 		remove(cell)
-	for entry: Dictionary in data:
-		var c: Array = entry.get("cell", [0, 0])
-		var ob := spawn(Vector2i(int(c[0]), int(c[1])), entry.get("id", ""), int(entry.get("variant", 0)))
+	for entry: Variant in data:
+		if not entry is Dictionary:
+			continue
+		var cell := DataFile.to_vector2i(entry.get("cell"), Vector2i(-1, -1))
+		var ob := spawn(cell, str(entry.get("id", "")), int(entry.get("variant", 0)))
 		if ob:
-			ob.hp = int(entry.get("hp", ob.def.hits))
+			ob.hp = clampi(int(entry.get("hp", ob.def.hits)), 1, ob.def.hits)
+	return true

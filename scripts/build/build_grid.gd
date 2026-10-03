@@ -167,14 +167,19 @@ func to_data() -> Array:
 
 ## 저장된 시설을 다시 놓는다. 저장 당시 이미 놓여 있던 것이므로 플레이어 위치·장애물·작물은 따지지 않고
 ## 땅과 겹침만 확인한다. 그래도 놓을 수 없는 항목은 조용히 버리지 않고 목록으로 돌려준다 (오류도 남김).
-func load_data(data: Array) -> Array:
+## 받은 데이터가 통째로 틀리면(배열이 아니면) 아무것도 바꾸지 않고 [null] 을 돌려준다.
+func load_data(data: Variant) -> Array:
+	if not data is Array:
+		return [null]
 	for obj in _objects.duplicate():
 		remove(obj)
 	var failed := []
-	for entry: Dictionary in data:
-		var def := PlaceableDB.get_def(entry.get("id", ""))
-		var c: Array = entry.get("cell", [0, 0])
-		var origin := Vector2i(int(c[0]), int(c[1]))
+	for entry: Variant in data:
+		if not entry is Dictionary:
+			failed.append(entry)
+			continue
+		var def := PlaceableDB.get_def(str(entry.get("id", "")))
+		var origin := DataFile.to_vector2i(entry.get("cell"), Vector2i(-1, -1))
 		var turns := int(entry.get("turns", 0))
 		if def == null or not _fits_space(def, origin, turns):
 			push_error("시설을 불러오지 못했습니다: %s" % entry)

@@ -3,6 +3,9 @@ extends Node
 ## 화면 확인용: 메인 씬을 띄우고 밭을 조금 가꾼 뒤 스크린샷 두 장을 user:// 에 저장한다.
 
 func _ready() -> void:
+	# 새 게임으로 찍고, 진짜 저장 파일은 건드리지 않는다
+	SaveManager.load_on_start = false
+	SaveManager.slot_path = "user://screenshot_save.json"
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
 	await get_tree().process_frame
@@ -69,6 +72,11 @@ func _ready() -> void:
 	get_tree().paused = true
 	await get_tree().create_timer(0.5).timeout
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_inv.png"))
+	main.get_node("HUD")._close_panels()
+	main.get_node("HUD").open_menu()
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_menu.png"))
+	main.get_node("HUD")._close_panels()
 	# 건설: 창, 설치 가능/불가 미리보기
 	get_tree().paused = false
 	var hud = main.get_node("HUD")

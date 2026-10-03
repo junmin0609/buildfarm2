@@ -17,6 +17,16 @@ signal day_ending_soon(seconds_left: float)
 signal inventory_changed
 signal hotbar_selection_changed(index: int)
 
+## 저장 (kind: "auto" 하루 전환 자동 저장 / "manual" 수동 저장)
+signal game_saved(kind: String)
+## 불러오기 직전 (열린 창·모드를 닫을 때) / 직후
+signal game_loading
+signal game_loaded
+## 메뉴에서 보내는 요청 (SaveManager 가 받는다)
+signal save_requested
+signal load_requested
+signal new_game_requested
+
 ## 마우스 아래 작물 정보 (FarmGrid.crop_info 형식, 빈 사전이면 숨김) §19
 signal crop_hover_changed(info: Dictionary)
 

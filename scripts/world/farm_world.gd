@@ -22,6 +22,8 @@ var buildings: Array[Interactable] = []
 var home_position := Vector2.ZERO
 ## 하루 마감 흐름 (scripts/time/day_cycle.gd)
 var day_cycle: DayCycle
+## 저장 / 불러오기 (scripts/save/save_manager.gd)
+var save_manager: SaveManager
 
 
 func _ready() -> void:
@@ -45,6 +47,11 @@ func _ready() -> void:
 	day_cycle.name = "DayCycle"
 	day_cycle.world = self
 	add_child(day_cycle)
+	# 맵·장애물을 새 게임 상태로 다 만든 뒤에 붙인다 (저장이 있으면 여기서 불러온다)
+	save_manager = SaveManager.new()
+	save_manager.name = "SaveManager"
+	save_manager.world = self
+	add_child(save_manager)
 
 
 func _build_map() -> void:

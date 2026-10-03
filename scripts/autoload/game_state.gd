@@ -24,6 +24,8 @@ var minutes := 0
 var day_seconds := 0.0
 var inventory := Inventory.new()
 var selected_slot := 0
+## 해금 상태 (지역·레시피·상점 품목 등). id -> true. 아직 해금 시스템은 없지만 저장 구조는 미리 둔다.
+var unlocks := {}
 
 ## 하루 길이·시계 설정 (data/time.json)
 var day_length := 900.0
@@ -54,6 +56,7 @@ func new_game() -> void:
 	_reset_day_clock()
 	_pause_reasons.clear()
 	_input_locks.clear()
+	unlocks.clear()
 	inventory.load_data([])
 	for entry: Array in STARTING_ITEMS:
 		inventory.add(entry[0], entry[1])
@@ -188,6 +191,38 @@ func request_day_end(reason: String) -> void:
 func advance_date() -> void:
 	day += 1
 	_reset_day_clock()
+
+
+# ---------- 저장용 (SaveManager 가 부른다)
+
+func to_data() -> Dictionary:
+	return {
+		"money": money,
+		"day": day,
+		"day_seconds": day_seconds,
+		"selected_slot": selected_slot,
+		"inventory": inventory.to_data(),
+		"unlocks": unlocks.duplicate(true),
+	}
+
+
+## 받은 데이터가 통째로 틀리면 false (지금 상태 그대로). 항목 하나가 틀리면 그 항목만 기본값.
+func load_data(data: Variant) -> bool:
+	if not data is Dictionary:
+		return false
+	money = maxi(0, int(data.get("money", START_MONEY)))
+	day = maxi(1, int(data.get("day", 1)))
+	day_seconds = clampf(float(data.get("day_seconds", 0.0)), 0.0, day_length - 0.01)
+	minutes = _clock_at(day_seconds)
+	_warned = seconds_left() <= warning_seconds
+	var inv_data: Variant = data.get("inventory", [])
+	inventory.load_data(inv_data if inv_data is Array else [])
+	var unlock_data: Variant = data.get("unlocks", {})
+	unlocks = unlock_data.duplicate(true) if unlock_data is Dictionary else {}
+	select_slot(int(data.get("selected_slot", 0)))
+	Events.money_changed.emit(money)
+	Events.time_changed.emit(day, minutes)
+	return true
 
 
 static func format_clock(total_minutes: int) -> String:

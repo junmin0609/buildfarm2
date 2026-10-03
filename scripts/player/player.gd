@@ -53,6 +53,25 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 
+# ---------- 저장용 (수동 저장은 저장 당시 위치에서 다시 시작한다 §102)
+
+func to_data() -> Dictionary:
+	return {"position": [global_position.x, global_position.y], "facing": [facing.x, facing.y]}
+
+
+func load_data(data: Variant) -> bool:
+	if not data is Dictionary or not data.has("position"):
+		return false
+	var pos := DataFile.to_vector2(data.get("position"), global_position)
+	var dir := DataFile.to_vector2i(data.get("facing"), Vector2i.DOWN)
+	wake_at(pos)
+	if dir in [Vector2i.DOWN, Vector2i.UP, Vector2i.LEFT, Vector2i.RIGHT]:
+		facing = dir
+		if is_node_ready():
+			_update_sprite(false)
+	return true
+
+
 ## 새 날 아침: 집 앞에서 아래를 보고 선 채로 시작한다 (움직임·휘두르기 초기화)
 func wake_at(pos: Vector2) -> void:
 	global_position = pos

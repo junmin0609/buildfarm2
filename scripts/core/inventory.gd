@@ -191,11 +191,15 @@ func load_data(data: Array) -> void:
 	slots.fill(null)
 	for i in mini(data.size(), SIZE):
 		var slot: Variant = data[i]
-		if not (slot is Dictionary) or not ItemDB.has_item(slot.get("id", "")):
+		if not (slot is Dictionary) or not ItemDB.has_item(str(slot.get("id", ""))):
 			continue
-		var item := ItemDB.get_item(slot["id"])
+		var item := ItemDB.get_item(str(slot["id"]))
+		var count := int(slot.get("count", 1)) if typeof(slot.get("count", 1)) in [TYPE_INT, TYPE_FLOAT] else 1
+		if count <= 0:
+			continue
 		var loaded: Dictionary = slot.duplicate(true)
-		loaded["count"] = int(slot.get("count", 1))
+		loaded["id"] = item.id
+		loaded["count"] = mini(count, item.max_stack)
 		loaded["quality"] = Quality.normalize(item, str(slot.get("quality", "")))
 		for key: String in item.new_slot_state():
 			if not loaded.has(key):

@@ -26,6 +26,7 @@ var _build: BuildPanel
 var _build_hint: PanelContainer
 var _build_hint_label: Label
 var _crop_info: CropInfoPopup
+var _menu: SystemMenu
 ## 마지막 하루 마감 이유 ("time_up" / "sleep")
 var _end_reason := ""
 
@@ -58,6 +59,10 @@ func _ready() -> void:
 	_place(_build, Vector2(0.5, 0.5), Vector2.ZERO, Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BOTH)
 	_build.hide()
 	_build.close_requested.connect(_close_panels)
+	_menu = SystemMenu.new()
+	_place(_menu, Vector2(0.5, 0.5), Vector2.ZERO, Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BOTH)
+	_menu.hide()
+	_menu.close_requested.connect(_close_panels)
 	_build_hint_label = Label.new()
 	_build_hint = PanelContainer.new()
 	_build_hint.add_theme_stylebox_override("panel", _panel_style(12))
@@ -82,6 +87,7 @@ func _ready() -> void:
 	Events.money_changed.connect(_on_money_changed)
 	Events.day_started.connect(_on_day_started)
 	Events.day_ending.connect(_on_day_ending)
+	Events.game_loading.connect(_close_panels)
 	Events.day_ending_soon.connect(_on_day_ending_soon)
 	Events.toast.connect(show_toast)
 	Events.prompt_changed.connect(_on_prompt_changed)
@@ -94,8 +100,13 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	var panel_open := _inventory.visible or _shop.visible or _build.visible
-	if event.is_action_pressed("build_menu") and not _shop.visible and not _inventory.visible:
+	var panel_open := _inventory.visible or _shop.visible or _build.visible or _menu.visible
+	if _menu.visible and not event.is_action_pressed("cancel"):
+		return  # 메뉴가 열려 있으면 다른 키는 무시 (버튼은 GUI 가 처리)
+	if event.is_action_pressed("cancel") and not panel_open and not _build_hint.visible:
+		open_menu()  # 건설 모드 중 Esc 는 건설 모드가 받는다
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("build_menu") and not _shop.visible and not _inventory.visible:
 		if _build.visible:
 			_close_panels()
 		else:
@@ -143,6 +154,15 @@ func open_build_panel() -> void:
 	_pause_for("build_menu")
 
 
+## 시스템 메뉴 (Esc): 게임과 시간을 멈춘다
+func open_menu() -> void:
+	_close_inventory()
+	_menu.open()
+	_prompt_box.hide()
+	_crop_info.suppressed = true
+	_pause_for("menu")
+
+
 ## 가방: 시간은 계속 흐르고, 플레이어 이동·도구 사용만 막는다
 func open_inventory() -> void:
 	_inventory.open()
@@ -166,11 +186,13 @@ func _close_panels() -> void:
 	_close_inventory()
 	_shop.hide()
 	_build.hide()
+	_menu.hide()
 	_prompt_box.visible = _prompt.text != "" and not _build_hint.visible
 	_crop_info.suppressed = false
 	get_tree().paused = false
 	GameState.set_time_paused("shop", false)
 	GameState.set_time_paused("build_menu", false)
+	GameState.set_time_paused("menu", false)
 
 
 # ---------- 표시 갱신
