@@ -24,6 +24,8 @@ var minutes := 0
 var day_seconds := 0.0
 var inventory := Inventory.new()
 var selected_slot := 0
+## 오늘 날씨 (data/weather.json 의 types). 아침에 정해지고 하루 동안 바뀌지 않는다.
+var weather := "sunny"
 ## 오늘 번 돈 (판매 방식 -> G). 하루 마감 때 판매 수익 요약(§99)으로 보여 주고 비운다.
 var today_sales := {}
 ## 해금 상태 (지역·레시피·상점 품목 등). id -> true. 아직 해금 시스템은 없지만 저장 구조는 미리 둔다.
@@ -60,6 +62,7 @@ func new_game() -> void:
 	_input_locks.clear()
 	unlocks.clear()
 	today_sales.clear()
+	set_weather(Weather.first_day())
 	inventory.load_data([])
 	for entry: Array in STARTING_ITEMS:
 		inventory.add(entry[0], entry[1])
@@ -163,6 +166,11 @@ func add_money(amount: int) -> void:
 	Events.money_changed.emit(money)
 
 
+func set_weather(new_weather: String) -> void:
+	weather = new_weather
+	Events.weather_changed.emit(weather)
+
+
 ## 판매로 번 돈을 오늘 장부에 적는다 (돈은 부른 쪽이 따로 더한다). channel: Pricing.PLAZA / SHIPPING_BIN ...
 func record_sale(channel: String, amount: int) -> void:
 	if amount > 0:
@@ -220,6 +228,7 @@ func to_data() -> Dictionary:
 		"inventory": inventory.to_data(),
 		"unlocks": unlocks.duplicate(true),
 		"today_sales": today_sales.duplicate(),
+		"weather": weather,
 	}
 
 
@@ -242,6 +251,8 @@ func load_data(data: Variant) -> bool:
 		for channel: Variant in sales_data:
 			if typeof(sales_data[channel]) in [TYPE_INT, TYPE_FLOAT]:
 				record_sale(str(channel), int(sales_data[channel]))
+	var saved_weather := str(data.get("weather", ""))
+	set_weather(saved_weather if Weather.name_of(saved_weather) != saved_weather else Weather.first_day())
 	select_slot(int(data.get("selected_slot", 0)))
 	Events.money_changed.emit(money)
 	Events.time_changed.emit(day, minutes)

@@ -20,7 +20,7 @@ const FARM_DAILY := "farm_daily"
 const ADVANCE_DATE := "advance_date"
 ## 계절 변경 판정 (§30, §34, §12): 날짜가 새 계절로 넘어가면 작물 시듦·빈 밭 되돌림 → report.season
 const SEASON := "season"
-## 오늘 날씨 정하기·비 오면 밭 젖히기 (§32, §100 — 아직 없음)
+## 오늘 날씨 정하기, 비 오면 바깥 밭 적시기 (§32, §100) → report.weather
 const WEATHER := "weather"
 ## 야간 5시간 생산 (§97 — 아직 없음)
 const NIGHT_PRODUCTION := "night_production"
@@ -50,17 +50,22 @@ var world: FarmWorld
 ## 마지막 하루 마감 결과 (테스트·요약용)
 var last_report := {}
 
+## 날씨 뽑기용
+var rng := RandomNumberGenerator.new()
+
 var _steps := {}   # 단계 -> Array[Callable]
 var _running := false
 
 
 func _ready() -> void:
+	rng.randomize()
 	for phase in PHASES:
 		_steps[phase] = []
 	Events.day_end_requested.connect(end_day)
 	# 지금 있는 시스템의 하루 처리 (새 시스템은 각자 add_step 으로 붙인다)
 	add_step(SETTLE_SALES, _settle_sales)
 	add_step(SEASON, _change_season)
+	add_step(WEATHER, _decide_weather)
 	add_step(FARM_DAILY, func(_r: Dictionary) -> void: world.farm.process_day())
 	add_step(FARM_DAILY, func(_r: Dictionary) -> void: world.obstacles.process_day())
 	add_step(WAKE_UP, func(_r: Dictionary) -> void: world.build.start_day())
@@ -122,6 +127,15 @@ func _change_season(report: Dictionary) -> void:
 	var result := world.farm.change_season(now)
 	report["season"] = {"from": before, "to": now, "withered": result.withered, "reverted": result.reverted}
 	Events.season_changed.emit(now)
+
+
+## 새 날의 날씨를 정한다 (하루 동안 바뀌지 않음, 예보 없음). 비면 바깥 밭이 07:00부터 젖어 있다.
+## report.weather = {"id": 날씨, "watered": 적신 칸 수}
+func _decide_weather(report: Dictionary) -> void:
+	var weather := Weather.roll(GameState.day, rng)
+	GameState.set_weather(weather)
+	var watered := world.farm.water_outdoor() if Weather.waters_soil(weather) else 0
+	report["weather"] = {"id": weather, "watered": watered}
 
 
 ## 이 노드가 직접 하는 단계

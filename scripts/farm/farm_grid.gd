@@ -63,7 +63,10 @@ func till(cell: Vector2i) -> bool:
 		return false
 	if blocked.is_valid() and blocked.call(cell):
 		return false
-	tiles[cell] = SoilTile.new()
+	var tile := SoilTile.new()
+	# 비 오는 날 새로 간 밭도 젖는다 (§16)
+	tile.watered = Weather.waters_soil(GameState.weather)
+	tiles[cell] = tile
 	_changed(cell)
 	return true
 
@@ -254,6 +257,18 @@ func change_season(season: String) -> Dictionary:
 			reverted += 1
 	queue_redraw()
 	return {"withered": withered, "reverted": reverted}
+
+
+## 비 오는 날 아침 (DayCycle 의 weather 단계, §100): 바깥 밭을 모두 적신다. 적신 칸 수를 돌려준다.
+## 온실이 생기면 온실 안 밭은 여기서 빼야 한다 (§16 온실은 비의 영향을 받지 않음).
+func water_outdoor() -> int:
+	var count := 0
+	for tile: SoilTile in tiles.values():
+		if not tile.watered:
+			tile.watered = true
+			count += 1
+	queue_redraw()
+	return count
 
 
 ## 하루 마감 때 (DayCycle 의 farm_daily 단계): 물 준 작물만 자라고 밭이 마른다

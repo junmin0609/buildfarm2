@@ -12,6 +12,8 @@ signal day_end_requested(reason: String)
 signal day_ending(reason: String)
 ## 하루 마감이 다 끝남. report: DayCycle.end_day 의 결과 (판매·야간 생산 요약 등에 쓴다)
 signal day_ended(report: Dictionary)
+## 오늘 날씨가 정해짐 ("sunny", "cloudy", "rain", "snow")
+signal weather_changed(weather: String)
 ## 계절이 바뀜 (새 계절 id: "spring" ...). 하루 마감의 season 단계에서 보낸다.
 signal season_changed(season: String)
 ## 하루가 끝나기 직전 (남은 실제 시간, 초). data/time.json 의 warning_seconds_left

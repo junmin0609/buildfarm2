@@ -1,0 +1,28 @@
+{
+	"_comment": "날씨 (BUILD_FARM_PLAN §32, §33, §16, §100). 아침 07:00에 그날 날씨를 정하고 하루 동안 바꾸지 않는다. 예보 없음. 확률(가중치)은 모두 임시 값.",
+	"first_day": "sunny",
+	"types": {
+		"sunny": {"name": "맑음", "morning": "오늘은 맑아요."},
+		"cloudy": {"name": "흐림", "morning": "오늘은 구름이 꼈어요.", "tint": "e4e6ee"},
+		"rain": {"name": "비", "morning": "비가 와서 바깥 밭이 모두 젖었어요.", "tint": "c6cedc", "waters_soil": true},
+		"_snow": "기획서에는 비만 밭을 적신다(§16, §100). 겨울은 바깥 농사가 없어서(§35) 눈은 날씨 상태·화면 효과로만 쓴다.",
+		"snow": {"name": "눈", "morning": "눈이 내려요.", "tint": "e8eef8", "waters_soil": false}
+	},
+	"_seasons": "계절별 날씨 확률. 계절 안의 날(1~28)로 구간을 나눌 수 있다. 여름은 비가 가장 많고 중간(장마)에 몰린다 (§33).",
+	"seasons": {
+		"spring": [
+			{"from": 1, "to": 28, "weights": {"sunny": 55, "cloudy": 25, "rain": 20}}
+		],
+		"summer": [
+			{"from": 1, "to": 9, "_note": "초여름: 보통", "weights": {"sunny": 50, "cloudy": 20, "rain": 30}},
+			{"from": 10, "to": 19, "_note": "한여름 장마", "weights": {"sunny": 20, "cloudy": 20, "rain": 60}},
+			{"from": 20, "to": 28, "_note": "늦여름: 적음", "weights": {"sunny": 60, "cloudy": 25, "rain": 15}}
+		],
+		"autumn": [
+			{"from": 1, "to": 28, "weights": {"sunny": 55, "cloudy": 30, "rain": 15}}
+		],
+		"winter": [
+			{"from": 1, "to": 28, "weights": {"sunny": 45, "cloudy": 30, "snow": 25}}
+		]
+	}
+}

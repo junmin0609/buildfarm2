@@ -14,6 +14,8 @@ func _ready() -> void:
 	# 점검은 새 게임으로 시작하고, 플레이어의 진짜 저장 파일은 건드리지 않는다
 	SaveManager.load_on_start = false
 	SaveManager.slot_path = TEST_SAVE
+	# 날씨는 무작위라 다른 점검이 흔들리지 않게 맑음으로 고정한다 (날씨 점검에서만 바꾼다)
+	Weather.forced = "sunny"
 	_remove_test_save()
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
@@ -155,6 +157,9 @@ func _ready() -> void:
 
 	# ---------- 날짜 / 계절 (§30, §34, §12)
 	await _test_seasons(world, hud)
+
+	# ---------- 날씨 / 비 (§32, §33, §16, §100)
+	await _test_weather(world, hud)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -1092,6 +1097,97 @@ func _test_seasons(world: FarmWorld, hud: HUD) -> void:
 	for c: Vector2i in cells:
 		farm.tiles.erase(c)
 	ItemDB._items.erase("test_multi_seed")
+	GameState.day = start_day
+	await get_tree().process_frame
+
+
+func _test_weather(world: FarmWorld, hud: HUD) -> void:
+	var farm := world.farm
+	var start_day := GameState.day
+	# 데이터
+	var types: Dictionary = DataFile.load_dict(Weather.DATA_PATH).get("types", {})
+	_check(types.has_all(["sunny", "cloudy", "rain", "snow"]) and Weather.first_day() == "sunny", "날씨 4종 (맑음·흐림·비·눈), 첫날 맑음")
+	_check(Weather.waters_soil("rain") and not Weather.waters_soil("snow") and not Weather.waters_soil("cloudy"), "비만 밭을 적심 (눈은 날씨 상태만)")
+	_check(Weather.weights_for(85).has("snow") and not Weather.weights_for(85).has("rain") and not Weather.weights_for(1).has("snow"), "겨울에는 비 대신 눈")
+	var share := func(day: int) -> float:
+		var w := Weather.weights_for(day)
+		var total := 0.0
+		for v: Variant in w.values():
+			total += float(v)
+		return float(w.get("rain", 0)) / total
+	var avg := func(first: int) -> float:
+		var sum := 0.0
+		for d in 28:
+			sum += share.call(first + d)
+		return sum / 28.0
+	_check(avg.call(29) > avg.call(1) and avg.call(29) > avg.call(57), "여름 비가 가장 많음 (봄 %d%% 여름 %d%% 가을 %d%%)" % [roundi(avg.call(1) * 100), roundi(avg.call(29) * 100), roundi(avg.call(57) * 100)])
+	_check(share.call(28 + 15) > share.call(28 + 3) and share.call(28 + 15) > share.call(28 + 25), "여름 중간(장마)에 비가 몰림")
+	Weather.forced = ""
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 9
+	var rain := 0
+	for i in 2000:
+		if Weather.roll(28 + 15, rng) == "rain":
+			rain += 1
+	_check(absf(rain / 2000.0 - share.call(28 + 15)) < 0.05, "날씨 뽑기 확률 = 데이터 (장마 비 %d%%)" % roundi(rain / 20.0))
+
+	# 비 오는 날: 07:00부터 바깥 밭 전체가 젖고, 작물은 물 없이 자람
+	GameState.day = 3
+	var cells := []
+	for c: Vector2i in farm.farmable_cells.keys():
+		if cells.size() >= 3:
+			break
+		if not world.obstacles.is_blocked(c) and not world.build.is_occupied(c) and not farm.tiles.has(c):
+			cells.append(c)
+	var crop_c: Vector2i = cells[0]
+	var empty_c: Vector2i = cells[1]
+	farm.till(crop_c)
+	farm.till(empty_c)
+	farm.plant(crop_c, ItemDB.get_item("carrot_seed"))
+	Weather.forced = "rain"
+	GameState.sleep()
+	hud._close_panels()
+	var r: Dictionary = world.day_cycle.last_report
+	_check(GameState.weather == "rain" and r.weather.id == "rain" and r.weather.watered >= 2, "아침에 비 결정 (밭 %d칸 젖음)" % r.weather.watered)
+	_check(farm.get_tile(crop_c).watered and farm.get_tile(empty_c).watered, "비 오는 날은 07:00부터 바깥 밭이 모두 젖어 있음")
+	_check(hud._day_label.text.ends_with("비") and hud._weather_fx.visible and hud._weather_fx.weather == "rain", "날짜 옆에 날씨, 비 화면 효과 (%s)" % hud._day_label.text)
+	var new_c: Vector2i = cells[2]
+	_check(farm.till(new_c) and farm.get_tile(new_c).watered, "비 오는 날 새로 간 밭도 젖음")
+	var inv := GameState.inventory
+	var can_slot := -1
+	for i in inv.size():
+		if WateringCan.is_can(inv, i):
+			can_slot = i
+	var water_before := WateringCan.water_left(inv, can_slot)
+	WateringCan.use(world, crop_c, inv, can_slot)
+	_check(WateringCan.water_left(inv, can_slot) == water_before, "이미 젖은 밭에는 물뿌리개 물이 줄지 않음")
+	GameState.advance_time(300.0)
+	_check(GameState.weather == "rain", "하루 중에는 날씨가 바뀌지 않음")
+	world.save_manager.save_game("manual")
+	GameState.set_weather("sunny")
+	world.save_manager.load_game()
+	_check(GameState.weather == "rain", "날씨 저장·불러오기")
+	var grown := farm.get_tile(crop_c).days_grown
+	Weather.forced = "sunny"
+	GameState.sleep()
+	hud._close_panels()
+	_check(farm.get_tile(crop_c).days_grown == grown + 1 and not farm.get_tile(crop_c).watered, "비 온 날 작물은 물을 안 줘도 자람, 다음 날(맑음)은 마름")
+	_check(not hud._weather_fx.visible and hud._day_label.text.ends_with("맑음"), "맑은 날은 비 효과 없음")
+
+	# 겨울 눈: 밭을 적시지 않음 (상태·화면 효과만)
+	GameState.day = 84
+	Weather.forced = "snow"
+	GameState.sleep()
+	hud._close_panels()
+	r = world.day_cycle.last_report
+	_check(Calendar.season_of(GameState.day) == "winter" and GameState.weather == "snow" and r.weather.watered == 0, "겨울 눈은 밭을 적시지 않음")
+	_check(hud._weather_fx.visible and hud._weather_fx.weather == "snow", "눈 화면 효과")
+
+	# 정리
+	for c: Vector2i in cells:
+		farm.tiles.erase(c)
+	Weather.forced = "sunny"
+	GameState.set_weather("sunny")
 	GameState.day = start_day
 	await get_tree().process_frame
 

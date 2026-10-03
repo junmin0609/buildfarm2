@@ -246,6 +246,7 @@ func _setup_daylight() -> void:
 	_daylight = CanvasModulate.new()
 	add_child(_daylight)
 	Events.time_changed.connect(_on_time_changed)
+	Events.weather_changed.connect(func(_w: String) -> void: _on_time_changed(GameState.day, GameState.minutes))
 	_on_time_changed(GameState.day, GameState.minutes)
 
 
@@ -257,6 +258,7 @@ func _on_time_changed(_day: int, minutes: int) -> void:
 		if minutes >= a[0] and minutes <= b[0]:
 			target = (a[1] as Color).lerp(b[1], float(minutes - a[0]) / (b[0] - a[0]))
 			break
+	target *= Weather.tint(GameState.weather)  # 흐림·비·눈은 조금 어둡고 푸르게
 	var tween := create_tween()
 	tween.tween_property(_daylight, "color", target, 1.5)
 

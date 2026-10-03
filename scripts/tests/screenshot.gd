@@ -6,6 +6,7 @@ func _ready() -> void:
 	# 새 게임으로 찍고, 진짜 저장 파일은 건드리지 않는다
 	SaveManager.load_on_start = false
 	SaveManager.slot_path = "user://screenshot_save.json"
+	Weather.forced = "sunny"
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
 	await get_tree().process_frame
@@ -39,6 +40,15 @@ func _ready() -> void:
 	Input.warp_mouse(get_viewport().get_canvas_transform() * world.cell_center(origin + Vector2i(5, 4)))
 	await get_tree().create_timer(0.4).timeout
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_crop_info.png"))
+	# 비·눈 오는 날 화면
+	GameState.set_weather("rain")
+	farm.water_outdoor()
+	await get_tree().create_timer(1.8).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_rain.png"))
+	GameState.set_weather("snow")
+	await get_tree().create_timer(1.8).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_snow.png"))
+	GameState.set_weather("sunny")
 	world.player.global_position = world.buildings[0].interact_point() + Vector2(-40, 30)
 	world.player.facing = Vector2i.LEFT
 	world.player.camera.reset_smoothing()
