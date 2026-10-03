@@ -197,11 +197,19 @@ for _ in range(600):
     if placed >= 22:
         break
 
+# ================================================================ 5.5 우물 (§14)
+# 집과 흙밭 사이, 집 앞 길 옆 (2x2, 14~15 / 8~9). 장식을 다 놓은 뒤에 두어 다른 배치(난수 순서)를 바꾸지 않는다.
+WX, WY = HX + 6, HY + 2
+for y in range(WY, WY + 3):
+    for x in range(WX, WX + 2):
+        put(x, y, ".")
+put(WX, WY, "W")
+
 # ================================================================ 저장
 
 rows = ["".join(r) for r in g]
 assert all(len(r) == W for r in rows)
-for ch in "HMS@":
+for ch in "HMSW@":
     assert sum(r.count(ch) for r in rows) == 1, ch
 
 layout = ROOT / "scripts" / "world" / "map_layout.gd"

@@ -20,7 +20,7 @@ func _ready() -> void:
 	var inv := GameState.inventory
 
 	_check(farm.farmable_cells.size() >= 100, "밭 칸 (실제 %d)" % farm.farmable_cells.size())
-	_check(world.buildings.size() == 3, "건물 3개 배치 (집·씨앗 상점·작물 판매처)")
+	_check(world.buildings.size() == 4, "건물 4개 배치 (집·씨앗 상점·작물 판매처·우물)")
 	_check(world.fences.get_used_cells().is_empty(), "농장에 울타리 없음")
 	_check(world.objects.get_children().filter(func(n: Node) -> bool: return n is Prop).size() > 100, "나무·바위 소품 배치")
 	var home_cell := world.world_to_cell(world.cell_center(_find_char("@")))
@@ -544,7 +544,34 @@ func _test_crops_and_quality(world: FarmWorld, hud: HUD) -> void:
 	farm.get_tile(c).watered = false
 	_check(WateringCan.use(world, c, inv, can_slot) and WateringCan.water_left(inv, can_slot) == 0, "마지막 물 한 번")
 	_check(not WateringCan.use(world, c2, inv, can_slot) and not farm.get_tile(c2).watered, "물이 없으면 못 줌")
-	_check(WateringCan.use(world, _find_char("~"), inv, can_slot) and WateringCan.water_left(inv, can_slot) == 12, "물가에서 가득 채움")
+	_check(not WateringCan.use(world, _find_char("~"), inv, can_slot) and WateringCan.water_left(inv, can_slot) == 0, "개울·연못에서는 더 이상 안 채워짐")
+
+	# 우물 (§14)
+	var cap := ItemDB.get_item("watering_can").capacity
+	var well: Well = world.buildings.filter(func(b: Interactable) -> bool: return b is Well)[0]
+	_check(well.is_in_group(WateringCan.WATER_SOURCES), "우물은 물 공급원")
+	_check(_find_char("W") in well.footprint() and well.footprint().size() == 4, "우물 위치 = 맵의 W 칸 (2x2)")
+	_check(well.interact_point().distance_to(world.home_position) < 8 * Art.TILE, "우물은 집 가까이 (%.1f칸)" % (well.interact_point().distance_to(world.home_position) / Art.TILE))
+	world.player.global_position = well.interact_point()
+	_check(world.player._nearest_interactable() == well, "우물 앞에서 [E] 안내")
+	well.interact(world.player)
+	_check(WateringCan.water_left(inv, can_slot) == cap, "우물에서 [E] → 최대 용량까지 (%d/%d)" % [WateringCan.water_left(inv, can_slot), cap])
+	_check(WateringCan.refill_all(inv, well).added == 0, "가득 차 있으면 그대로")
+	inv.set_slot_value(can_slot, "water", 3)
+	var well_cell: Vector2i = well.footprint()[0]
+	_check(WateringCan.use(world, well_cell, inv, can_slot) and WateringCan.water_left(inv, can_slot) == cap, "물뿌리개로 우물 칸을 클릭해도 채워짐")
+	_check(not well.covers_cell(well_cell + Vector2i(4, 0)), "우물 밖 칸은 공급원 아님")
+	inv.add("watering_can")
+	for i in inv.size():
+		if WateringCan.is_can(inv, i):
+			inv.set_slot_value(i, "water", 0)
+	var res := WateringCan.refill_all(inv, well)
+	_check(res.cans == 2 and res.added == cap * 2, "물뿌리개가 여러 개면 모두 채움")
+	for i in range(inv.size() - 1, -1, -1):
+		if WateringCan.is_can(inv, i) and i != can_slot:
+			inv.remove_at(i)
+			break
+	_check(inv.count_of("watering_can") == 1, "점검용 물뿌리개 정리")
 	farm.tiles.erase(c2)
 	await get_tree().process_frame
 
@@ -653,8 +680,12 @@ func _test_day_end(world: FarmWorld, hud: HUD) -> void:
 	var on_night := func(rep: Dictionary) -> void:
 		calls.append(["night", GameState.day])
 		rep["night_production"] = {"flour": 3}
+	var at_save := []
+	var on_save := func(_rep: Dictionary) -> void: at_save.append([world.player.global_position, GameState.minutes, GameState.day])
 	dc.add_step(DayCycle.SETTLE_SALES, on_sales)
 	dc.add_step(DayCycle.NIGHT_PRODUCTION, on_night)
+	dc.add_step(DayCycle.SAVE, on_save)
+	player.global_position = world.cell_center(_find_char("p"))
 	day = GameState.day
 	var got := [{}]
 	var on_ended := func(rep: Dictionary) -> void: got[0] = rep
@@ -662,8 +693,10 @@ func _test_day_end(world: FarmWorld, hud: HUD) -> void:
 	GameState.sleep()
 	_check(calls == [["sales", day], ["night", day + 1]], "판매 정산은 날짜 넘기기 전, 야간 생산은 후 %s" % [calls])
 	_check(got[0].get("night_production") == {"flour": 3}, "단계 결과가 하루 마감 보고(day_ended)에 담김")
+	_check(DayCycle.PHASES[-1] == DayCycle.SAVE and at_save.size() == 1 and at_save[0] == [world.home_position, 7 * 60, day + 1], "자동 저장 자리는 맨 끝 (날짜·07:00·집 위치 반영 뒤)")
 	dc.remove_step(DayCycle.SETTLE_SALES, on_sales)
 	dc.remove_step(DayCycle.NIGHT_PRODUCTION, on_night)
+	dc.remove_step(DayCycle.SAVE, on_save)
 	Events.day_ended.disconnect(on_ended)
 
 	# 6) 마감 도중 다시 불러도 한 번만

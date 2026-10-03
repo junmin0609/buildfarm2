@@ -43,6 +43,10 @@ func _ready() -> void:
 	world.player.facing = Vector2i.UP
 	await get_tree().create_timer(0.6).timeout
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_door.png"))
+	var well: Interactable = world.buildings.filter(func(b: Interactable) -> bool: return b is Well)[0]
+	world.player.global_position = well.interact_point()
+	await get_tree().create_timer(0.6).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_well.png"))
 	world.player.global_position = world.buildings[1].interact_point() + Vector2(40, 30)
 	world.player.facing = Vector2i.UP
 	world.player.camera.reset_smoothing()

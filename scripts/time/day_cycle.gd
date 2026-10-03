@@ -26,12 +26,13 @@ const WEATHER := "weather"
 const NIGHT_PRODUCTION := "night_production"
 ## 상점 일일 특가 (§101 — 아직 없음)
 const SHOP_REFRESH := "shop_refresh"
-## 자동 저장 (§102 — 아직 없음)
-const SAVE := "save"
-## 집에서 07:00 시작, 시설 아침 동작, Events.day_started
+## 집에서 07:00 시작 (지금은 집 앞 '@' 칸, 집 내부 맵이 생기면 침대), 시설 아침 동작
 const WAKE_UP := "wake_up"
+## 자동 저장 (§102 — 아직 없음). 날짜·07:00·집 시작 위치가 모두 반영된 뒤 맨 마지막에 저장한다.
+const SAVE := "save"
 
 ## 하루 마감 순서. 순서를 바꿀 때는 여기만 고친다.
+## 확정 규칙: 하루 종료 처리 → 다음 날 날짜·상태 반영 → 07:00 → 집 시작 위치 → 자동 저장
 const PHASES: Array[String] = [
 	END_ACTIVITIES,
 	SETTLE_SALES,
@@ -41,8 +42,8 @@ const PHASES: Array[String] = [
 	WEATHER,
 	NIGHT_PRODUCTION,
 	SHOP_REFRESH,
-	SAVE,
 	WAKE_UP,
+	SAVE,
 ]
 
 var world: FarmWorld

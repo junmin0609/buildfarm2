@@ -797,6 +797,45 @@ def make_placeables():
     c.save("shed.png")
 
 
+# ---------------------------------------------------------------- 우물 (농장 물 긷는 곳, 2x2칸, 그림 32x40)
+
+def make_well():
+    w, st, wa = P["wood"], P["stone"], P["water"]
+    c = Canvas(32, 40)
+    c.ellipse(16, 38.5, 15, 1.6, SOFT_SHADOW)
+    # 돌을 둥글게 쌓은 몸통
+    rrect(c, 3, 24, 26, 15, 3, st[1])
+    for row, y in enumerate(range(28, 38, 4)):
+        c.rect(4, y, 24, 1, st[0])
+        for x in range(4 if row % 2 else 8, 28, 8):
+            c.rect(x, y + 1, 1, 3, st[0])
+    # 나무 기둥 두 개
+    for x in (4, 25):
+        c.rect(x, 8, 3, 18, w[1])
+        c.rect(x + 1, 8, 1, 18, w[2])
+    # 위에서 본 우물 입구 (돌 테두리 + 물)
+    c.ellipse(16, 25, 12.5, 3.8, st[2])
+    c.rect(6, 23, 20, 1, st[3])
+    c.ellipse(16, 25.5, 9.5, 2.3, wa[0])
+    c.rect(12, 25, 6, 1, wa[2])
+    # 도르래 가로대, 밧줄, 두레박
+    c.rect(6, 11, 20, 2, w[0])
+    c.ellipse(16, 12, 2, 2, w[2])
+    c.rect(15, 14, 1, 5, hexc("e8d3a8"))
+    rrect(c, 12, 18, 7, 6, 1.5, w[2])
+    c.rect(12, 20, 7, 1, w[0])
+    c.rect(13, 18, 5, 1, w[3])
+    # 지붕 (집과 같은 붉은 지붕)
+    roof, roof_d, roof_l = hexc("e07a62"), hexc("bf5f4c"), hexc("f29b80")
+    for y in range(0, 10):
+        inset = max(0, int(10 - y * 1.2))
+        for x in range(inset, 32 - inset):
+            c.set(x, y, roof_d if y % 3 == 2 else roof)
+    c.rect(10, 0, 12, 1, roof_l)
+    c.outline(INK)
+    c.save("well.png")
+
+
 # ---------------------------------------------------------------- 개간 장애물 (data/obstacles.json 의 그림)
 # 모두 한 칸을 차지하고, 그림 아래쪽 가운데가 칸 바닥에 놓인다.
 
@@ -1301,6 +1340,7 @@ if __name__ == "__main__":
     make_shop_decor()
     make_plaza_props()
     make_placeables()
+    make_well()
     make_obstacles()
     make_player()
     make_crops()
