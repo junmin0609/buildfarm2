@@ -1,0 +1,37 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/farm_world.gd" id="1_world"]
+[ext_resource type="Script" path="res://scripts/farm/farm_grid.gd" id="2_farm"]
+[ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="3_player"]
+[ext_resource type="Script" path="res://scripts/build/build_grid.gd" id="4_build"]
+[ext_resource type="Script" path="res://scripts/build/build_mode.gd" id="5_buildmode"]
+[ext_resource type="Script" path="res://scripts/clearing/obstacle_grid.gd" id="6_obstacles"]
+
+[node name="FarmWorld" type="Node2D"]
+script = ExtResource("1_world")
+
+[node name="Ground" type="TileMapLayer" parent="."]
+
+[node name="Edges" type="TileMapLayer" parent="."]
+
+[node name="Details" type="TileMapLayer" parent="."]
+
+[node name="Farm" type="Node2D" parent="."]
+script = ExtResource("2_farm")
+
+[node name="Objects" type="Node2D" parent="."]
+y_sort_enabled = true
+
+[node name="Fences" type="TileMapLayer" parent="Objects"]
+y_sort_enabled = true
+
+[node name="Player" parent="Objects" instance=ExtResource("3_player")]
+
+[node name="Build" type="Node" parent="."]
+script = ExtResource("4_build")
+
+[node name="BuildMode" type="Node2D" parent="."]
+script = ExtResource("5_buildmode")
+
+[node name="Obstacles" type="Node" parent="."]
+script = ExtResource("6_obstacles")

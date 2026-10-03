@@ -1,0 +1,206 @@
+class_name Inventory
+extends RefCounted
+## 칸(slot) 단위 인벤토리. 앞의 HOTBAR_SIZE 칸이 핫바다.
+## 각 칸은 비어 있으면 null, 아니면 {"id": String, "count": int, "quality": String}.
+##   quality: 품질이 있는 아이템(작물)은 "bronze"/"silver"/"gold", 나머지는 Quality.NONE("")
+##   같은 id 라도 quality 가 다르면 다른 스택이다 (potato+bronze, potato+silver 는 따로 쌓임).
+##   도구 칸에는 상태가 더 붙을 수 있다. 예) 물뿌리개 {"water": 남은 물}
+## 창고·출하함 같은 다른 보관함도 같은 칸 형식을 쓰면 그대로 옮겨 담을 수 있다.
+
+signal changed
+
+const SIZE := 27
+const HOTBAR_SIZE := 9
+
+var slots: Array = []
+
+
+func _init(size: int = SIZE) -> void:
+	slots.resize(size)
+
+
+func size() -> int:
+	return slots.size()
+
+
+func get_slot(index: int) -> Variant:
+	if index < 0 or index >= slots.size():
+		return null
+	return slots[index]
+
+
+func item_at(index: int) -> ItemDef:
+	var slot: Variant = get_slot(index)
+	return ItemDB.get_item(slot["id"]) if slot != null else null
+
+
+func quality_at(index: int) -> String:
+	var slot: Variant = get_slot(index)
+	return slot.get("quality", Quality.NONE) if slot != null else Quality.NONE
+
+
+## 칸에 붙은 상태 값 (물뿌리개의 "water" 등)
+func slot_value(index: int, key: String, default: Variant = null) -> Variant:
+	var slot: Variant = get_slot(index)
+	return slot.get(key, default) if slot != null else default
+
+
+func set_slot_value(index: int, key: String, value: Variant) -> void:
+	var slot: Variant = get_slot(index)
+	if slot == null:
+		return
+	slot[key] = value
+	changed.emit()
+
+
+## 아이템을 넣는다. 넣지 못하고 남은 개수를 돌려준다 (0이면 전부 들어감).
+## quality 를 비우면 품질 있는 아이템은 기본 품질(브론즈)로 들어간다.
+func add(item_id: String, count: int = 1, quality: String = Quality.NONE) -> int:
+	var item := ItemDB.get_item(item_id)
+	if item == null or count <= 0:
+		return count
+	var q := Quality.normalize(item, quality)
+	var remaining := count
+	# 1) 같은 아이템·같은 품질 칸에 먼저 채운다
+	for i in slots.size():
+		if remaining == 0:
+			break
+		var slot: Variant = slots[i]
+		if _same_stack(slot, item_id, q) and slot["count"] < item.max_stack:
+			var moved := mini(remaining, item.max_stack - slot["count"])
+			slot["count"] += moved
+			remaining -= moved
+	# 2) 남으면 빈 칸에 넣는다
+	for i in slots.size():
+		if remaining == 0:
+			break
+		if slots[i] == null:
+			var moved := mini(remaining, item.max_stack)
+			var slot := {"id": item_id, "count": moved, "quality": q}
+			slot.merge(item.new_slot_state())
+			slots[i] = slot
+			remaining -= moved
+	if remaining != count:
+		changed.emit()
+	return remaining
+
+
+## 전부 들어갈 자리가 있는지 미리 확인한다.
+func can_add(item_id: String, count: int = 1, quality: String = Quality.NONE) -> bool:
+	var item := ItemDB.get_item(item_id)
+	if item == null:
+		return false
+	var q := Quality.normalize(item, quality)
+	var room := 0
+	for slot: Variant in slots:
+		if slot == null:
+			room += item.max_stack
+		elif _same_stack(slot, item_id, q):
+			room += item.max_stack - slot["count"]
+		if room >= count:
+			return true
+	return false
+
+
+func remove_at(index: int, count: int = 1) -> void:
+	var slot: Variant = get_slot(index)
+	if slot == null:
+		return
+	slot["count"] -= count
+	if slot["count"] <= 0:
+		slots[index] = null
+	changed.emit()
+
+
+## 여러 칸에 걸쳐 id 아이템을 count개 뺀다. 모자라면 아무것도 빼지 않고 false.
+## quality 가 null 이면 품질을 가리지 않고, 값이 있으면 그 품질 스택에서만 뺀다.
+func remove(item_id: String, count: int = 1, quality: Variant = null) -> bool:
+	if count_of(item_id, quality) < count:
+		return false
+	var q: Variant = _wanted_quality(item_id, quality)
+	var remaining := count
+	for i in range(slots.size() - 1, -1, -1):
+		var slot: Variant = slots[i]
+		if remaining > 0 and _matches(slot, item_id, q):
+			var taken := mini(remaining, slot["count"])
+			slot["count"] -= taken
+			remaining -= taken
+			if slot["count"] <= 0:
+				slots[i] = null
+	changed.emit()
+	return true
+
+
+## quality 가 null 이면 모든 품질을 합친 개수
+func count_of(item_id: String, quality: Variant = null) -> int:
+	var q: Variant = _wanted_quality(item_id, quality)
+	var total := 0
+	for slot: Variant in slots:
+		if _matches(slot, item_id, q):
+			total += slot["count"]
+	return total
+
+
+## 가방에 든 (id, quality) 조합들. 가방 순서대로, 겹치지 않게. 판매 목록 등에 쓴다.
+func stacks() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var seen := {}
+	for slot: Variant in slots:
+		if slot == null:
+			continue
+		var key := "%s|%s" % [slot["id"], slot.get("quality", Quality.NONE)]
+		if seen.has(key):
+			continue
+		seen[key] = true
+		result.append({"id": slot["id"], "quality": slot.get("quality", Quality.NONE)})
+	return result
+
+
+func swap(a: int, b: int) -> void:
+	if a == b:
+		return
+	var tmp: Variant = slots[a]
+	slots[a] = slots[b]
+	slots[b] = tmp
+	changed.emit()
+
+
+func _same_stack(slot: Variant, item_id: String, quality: String) -> bool:
+	return slot != null and slot["id"] == item_id and slot.get("quality", Quality.NONE) == quality
+
+
+func _matches(slot: Variant, item_id: String, quality: Variant) -> bool:
+	if slot == null or slot["id"] != item_id:
+		return false
+	return quality == null or slot.get("quality", Quality.NONE) == quality
+
+
+func _wanted_quality(item_id: String, quality: Variant) -> Variant:
+	if quality == null:
+		return null
+	return Quality.normalize(ItemDB.get_item(item_id), quality)
+
+
+## 저장용
+func to_data() -> Array:
+	return slots.duplicate(true)
+
+
+func load_data(data: Array) -> void:
+	slots.resize(SIZE)
+	slots.fill(null)
+	for i in mini(data.size(), SIZE):
+		var slot: Variant = data[i]
+		if not (slot is Dictionary) or not ItemDB.has_item(slot.get("id", "")):
+			continue
+		var item := ItemDB.get_item(slot["id"])
+		var loaded: Dictionary = slot.duplicate(true)
+		loaded["count"] = int(slot.get("count", 1))
+		loaded["quality"] = Quality.normalize(item, str(slot.get("quality", "")))
+		for key: String in item.new_slot_state():
+			if not loaded.has(key):
+				loaded[key] = item.new_slot_state()[key]
+			else:
+				loaded[key] = int(loaded[key])  # JSON 숫자는 float 로 읽힌다
+		slots[i] = loaded
+	changed.emit()

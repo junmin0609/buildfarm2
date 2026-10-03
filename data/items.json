@@ -1,0 +1,126 @@
+{
+	"hoe": {
+		"name": "괭이",
+		"kind": "tool",
+		"tool": "hoe",
+		"description": "흙을 갈아 씨앗을 심을 수 있는 밭으로 만들어요.",
+		"max_stack": 1,
+		"icon": 0,
+		"tier": 1
+	},
+	"watering_can": {
+		"name": "물뿌리개",
+		"kind": "tool",
+		"tool": "watering_can",
+		"description": "밭에 물을 줘요. 물이 떨어지면 물가에서 다시 채워요.",
+		"max_stack": 1,
+		"icon": 1,
+		"tier": 1,
+		"capacity": 12
+	},
+	"axe": {
+		"name": "도끼",
+		"kind": "tool",
+		"tool": "axe",
+		"tier": 1,
+		"description": "나뭇가지와 그루터기를 베어 나무를 얻어요.",
+		"max_stack": 1,
+		"icon": 8
+	},
+	"pickaxe": {
+		"name": "곡괭이",
+		"kind": "tool",
+		"tool": "pickaxe",
+		"tier": 1,
+		"description": "돌을 깨서 돌을 얻어요.",
+		"max_stack": 1,
+		"icon": 9
+	},
+	"carrot_seed": {
+		"name": "당근 씨앗",
+		"kind": "seed",
+		"grows": "carrot",
+		"grow_days": 3,
+		"regrow_days": 0,
+		"yield_min": 1,
+		"yield_max": 1,
+		"seasons": [
+			"spring"
+		],
+		"buy_price": 20,
+		"description": "3일이면 자라는 당근 씨앗이에요. 처음 키우기 좋아요.",
+		"icon": 2,
+		"crop_row": 0
+	},
+	"potato_seed": {
+		"name": "감자 씨앗",
+		"kind": "seed",
+		"grows": "potato",
+		"grow_days": 5,
+		"regrow_days": 0,
+		"yield_min": 1,
+		"yield_max": 3,
+		"seasons": [
+			"spring"
+		],
+		"buy_price": 45,
+		"description": "5일이면 자라요. 한 번에 1~3개를 캘 수 있어요.",
+		"icon": 3,
+		"crop_row": 1
+	},
+	"strawberry_seed": {
+		"name": "딸기 씨앗",
+		"kind": "seed",
+		"grows": "strawberry",
+		"grow_days": 7,
+		"regrow_days": 3,
+		"yield_min": 1,
+		"yield_max": 3,
+		"seasons": [
+			"spring"
+		],
+		"buy_price": 120,
+		"description": "7일이면 열리고, 거둔 뒤에도 3일마다 다시 열려요.",
+		"icon": 4,
+		"crop_row": 2
+	},
+	"carrot": {
+		"name": "당근",
+		"kind": "crop",
+		"sell_price": 35,
+		"description": "아삭하고 달콤한 당근.",
+		"icon": 5
+	},
+	"potato": {
+		"name": "감자",
+		"kind": "crop",
+		"sell_price": 30,
+		"description": "포슬포슬한 감자.",
+		"icon": 6
+	},
+	"strawberry": {
+		"name": "딸기",
+		"kind": "crop",
+		"sell_price": 45,
+		"description": "달콤한 딸기.",
+		"icon": 7
+	},
+	"fiber": {
+		"name": "식물 섬유",
+		"kind": "material",
+		"description": "잡초에서 얻은 섬유. 퇴비·비료 재료가 될 거예요.",
+		"icon": 10
+	},
+	"wood": {
+		"name": "나무",
+		"kind": "material",
+		"description": "나뭇가지와 그루터기에서 얻은 목재. 시설과 건물 재료예요.",
+		"icon": 11
+	},
+	"stone": {
+		"name": "돌",
+		"kind": "material",
+		"description": "돌을 깨서 얻은 석재. 시설과 건물 재료예요.",
+		"icon": 12
+	}
+}

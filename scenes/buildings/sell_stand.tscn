@@ -1,0 +1,10 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/buildings/shop_stall.gd" id="1_shop"]
+[ext_resource type="Texture2D" path="res://assets/art/sell_stand.png" id="2_tex"]
+
+[node name="SellStand" type="Node2D"]
+script = ExtResource("1_shop")
+shop_mode = "sell"
+texture = ExtResource("2_tex")
+prompt = "[E] 작물 판매처"

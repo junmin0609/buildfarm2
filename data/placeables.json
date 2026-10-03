@@ -1,0 +1,20 @@
+{
+	"scarecrow": {
+		"name": "허수아비",
+		"category": "장식",
+		"description": "밭을 지켜 주는 귀여운 허수아비예요.",
+		"size": [1, 1],
+		"texture": "res://assets/art/scarecrow.png",
+		"price": 50,
+		"solid": true
+	},
+	"shed": {
+		"name": "나무 창고",
+		"category": "건물",
+		"description": "2x2 크기의 작은 창고. 나중에 보관함 기능이 들어갈 자리예요.",
+		"size": [2, 2],
+		"texture": "res://assets/art/shed.png",
+		"price": 300,
+		"solid": true
+	}
+}

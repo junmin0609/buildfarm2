@@ -1,0 +1,34 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/player.gd" id="1_player"]
+[ext_resource type="Texture2D" path="res://assets/art/player.png" id="2_tex"]
+[ext_resource type="Texture2D" path="res://assets/art/shadow.png" id="3_shadow"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_feet"]
+radius = 4.0
+
+[node name="Player" type="CharacterBody2D"]
+motion_mode = 1
+script = ExtResource("1_player")
+
+[node name="Shadow" type="Sprite2D" parent="."]
+show_behind_parent = true
+modulate = Color(1, 1, 1, 0.9)
+texture = ExtResource("3_shadow")
+offset = Vector2(0, -1)
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+show_behind_parent = true
+texture = ExtResource("2_tex")
+offset = Vector2(0, -11)
+hframes = 4
+vframes = 3
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -2)
+shape = SubResource("CircleShape2D_feet")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(0, -8)
+position_smoothing_enabled = true
+position_smoothing_speed = 7.0

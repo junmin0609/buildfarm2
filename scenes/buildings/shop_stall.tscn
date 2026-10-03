@@ -1,0 +1,8 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/buildings/shop_stall.gd" id="1_shop"]
+[ext_resource type="Texture2D" path="res://assets/art/shop.png" id="2_tex"]
+
+[node name="ShopStall" type="Node2D"]
+script = ExtResource("1_shop")
+texture = ExtResource("2_tex")

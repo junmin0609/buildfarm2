@@ -1,0 +1,7 @@
+{
+	"_comment": "판매 방식별 가격 배율 (기준가 = items.json 의 sell_price). 품질 배율은 quality.json. 하늘시장은 배율이 아니라 날마다 바뀌는 가격을 쓸 예정이라 여기에는 없다.",
+	"sell_channels": {
+		"plaza": {"name": "광장 즉시 판매", "multiplier": 0.8},
+		"shipping_bin": {"name": "농장 출하함", "multiplier": 1.0}
+	}
+}

@@ -1,0 +1,10 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/prop.gd" id="1_prop"]
+[ext_resource type="Texture2D" path="res://assets/art/tree.png" id="2_tex"]
+
+[node name="Tree" type="Node2D"]
+script = ExtResource("1_prop")
+texture = ExtResource("2_tex")
+foot = Vector2(16, 30)
+collision = Rect2(-4, -5, 9, 5)

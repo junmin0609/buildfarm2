@@ -1,0 +1,8 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/buildings/house.gd" id="1_house"]
+[ext_resource type="Texture2D" path="res://assets/art/house.png" id="2_tex"]
+
+[node name="House" type="Node2D"]
+script = ExtResource("1_house")
+texture = ExtResource("2_tex")

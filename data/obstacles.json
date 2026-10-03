@@ -1,0 +1,74 @@
+{
+	"start_farm": {
+		"_comment": "시작 농장 분포 (BUILD_FARM_PLAN §2). 집에서 가까운 순서로 농장 땅을 나눈다: 바로 쓸 땅 / 기본 도구로 치울 땅 / 강화 도구가 필요한 땅",
+		"seed": 2026,
+		"clear_ratio": 0.30,
+		"small_ratio": 0.50,
+		"small_zone_density": 0.85,
+		"large_zone_density": 0.95,
+		"small_zone": {"weed": 6, "branch": 3, "small_rock": 3, "stump": 1},
+		"large_zone": {"big_rock": 1, "big_stump": 1}
+	},
+	"regrow": {
+		"_comment": "작은 자원은 매일 조금씩 다시 생긴다 (§103). 밭·시설·장애물·플레이어 자리는 피한다. 큰 장애물은 다시 생기지 않는다.",
+		"attempts_per_day": 6,
+		"chance": 0.5,
+		"types": {"weed": 5, "branch": 2, "small_rock": 2}
+	},
+	"types": {
+		"weed": {
+			"name": "잡초",
+			"textures": ["res://assets/art/weed.png", "res://assets/art/weed2.png"],
+			"tools": ["hoe", "axe", "pickaxe"],
+			"tier": 1,
+			"hits": 1,
+			"solid": false,
+			"drops": [{"item": "fiber", "min": 1, "max": 1}]
+		},
+		"branch": {
+			"name": "나뭇가지",
+			"textures": ["res://assets/art/branch.png"],
+			"tools": ["axe"],
+			"tier": 1,
+			"hits": 1,
+			"solid": false,
+			"drops": [{"item": "wood", "min": 1, "max": 1}]
+		},
+		"small_rock": {
+			"name": "작은 돌",
+			"textures": ["res://assets/art/small_rock.png"],
+			"tools": ["pickaxe"],
+			"tier": 1,
+			"hits": 2,
+			"solid": true,
+			"drops": [{"item": "stone", "min": 1, "max": 2}]
+		},
+		"stump": {
+			"name": "그루터기",
+			"textures": ["res://assets/art/stump.png"],
+			"tools": ["axe"],
+			"tier": 1,
+			"hits": 3,
+			"solid": true,
+			"drops": [{"item": "wood", "min": 2, "max": 3}]
+		},
+		"big_rock": {
+			"name": "큰 바위",
+			"textures": ["res://assets/art/big_rock.png"],
+			"tools": ["pickaxe"],
+			"tier": 2,
+			"hits": 6,
+			"solid": true,
+			"drops": [{"item": "stone", "min": 5, "max": 8}]
+		},
+		"big_stump": {
+			"name": "큰 그루터기",
+			"textures": ["res://assets/art/big_stump.png"],
+			"tools": ["axe"],
+			"tier": 2,
+			"hits": 6,
+			"solid": true,
+			"drops": [{"item": "wood", "min": 5, "max": 8}]
+		}
+	}
+}
