@@ -1,6 +1,7 @@
 class_name Player
 extends CharacterBody2D
 ## 플레이어. 이동하고, 앞 칸(또는 손 닿는 거리 안의 마우스 칸)에 손에 든 아이템을 쓴다.
+## 손 닿는 거리는 data/player.json 의 reach_tiles (기획서 §9: 2칸).
 ## 노드 위치는 발밑이다. 그림은 player.png (16x24 프레임, 줄: 아래/위/옆, 칸: 걷기 4프레임)
 
 const SPEED := 68.0
@@ -11,10 +12,14 @@ const ROW_DOWN := 0
 const ROW_UP := 1
 const ROW_SIDE := 2
 
+const DATA_PATH := "res://data/player.json"
+
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var camera: Camera2D = $Camera2D
 
 var facing := Vector2i.DOWN
+## 마우스로 고를 수 있는 거리 (칸)
+var reach := int(DataFile.load_dict(DATA_PATH).get("reach_tiles", 2))
 var _anim_time := 0.0
 var _swing := 0.0
 var _swing_item: ItemDef = null
@@ -55,14 +60,21 @@ func _update_sprite(moving: bool) -> void:
 	sprite.flip_h = facing == Vector2i.LEFT
 
 
-## 행동할 칸: 마우스가 플레이어 주변 1칸 안이면 그 칸, 아니면 바라보는 방향 앞 칸.
+## 행동할 칸: 마우스가 플레이어 주변 reach 칸 안이면 그 칸, 아니면 바라보는 방향 바로 앞 칸.
 func target_cell() -> Vector2i:
 	var world := _world()
-	var my_cell := world.world_to_cell(global_position + Vector2(0, -3))
-	var mouse_cell := world.world_to_cell(get_global_mouse_position())
-	if absi(mouse_cell.x - my_cell.x) <= 1 and absi(mouse_cell.y - my_cell.y) <= 1 and mouse_cell != my_cell:
+	return pick_target(my_cell(), world.world_to_cell(get_global_mouse_position()))
+
+
+func my_cell() -> Vector2i:
+	return _world().world_to_cell(global_position + Vector2(0, -3))
+
+
+func pick_target(from_cell: Vector2i, mouse_cell: Vector2i) -> Vector2i:
+	var d := (mouse_cell - from_cell).abs()
+	if maxi(d.x, d.y) <= reach and mouse_cell != from_cell:
 		return mouse_cell
-	return my_cell + facing
+	return from_cell + facing
 
 
 func _unhandled_input(event: InputEvent) -> void:

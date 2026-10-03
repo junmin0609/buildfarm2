@@ -10,6 +10,9 @@ signal day_ending_soon(seconds_left: float)
 signal inventory_changed
 signal hotbar_selection_changed(index: int)
 
+## 마우스 아래 작물 정보 (FarmGrid.crop_info 형식, 빈 사전이면 숨김) §19
+signal crop_hover_changed(info: Dictionary)
+
 ## 화면에 잠깐 띄울 안내 문구
 signal toast(text: String)
 ## 플레이어 근처의 상호작용 안내 ("" 이면 숨김)

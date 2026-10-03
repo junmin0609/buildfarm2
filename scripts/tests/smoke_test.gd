@@ -27,6 +27,10 @@ func _ready() -> void:
 	player.global_position = world.cell_center(cell + Vector2i.UP)
 	player.facing = Vector2i.DOWN
 	_check(player.target_cell() == cell, "앞 칸을 목표로 삼음 (실제 %s)" % player.target_cell())
+	var me := Vector2i(10, 10)
+	_check(player.reach == 2, "손 닿는 거리 2칸 (player.json)")
+	_check(player.pick_target(me, me + Vector2i(2, -2)) == me + Vector2i(2, -2) and player.pick_target(me, me + Vector2i(0, 2)) == me + Vector2i(0, 2), "마우스가 2칸 안이면 그 칸")
+	_check(player.pick_target(me, me + Vector2i(3, 0)) == me + Vector2i.DOWN and player.pick_target(me, me) == me + Vector2i.DOWN, "2칸 밖이거나 내 칸이면 앞 칸")
 
 	GameState.select_slot(2)
 	player._use_selected()
@@ -470,6 +474,32 @@ func _test_crops_and_quality(world: FarmWorld, hud: HUD) -> void:
 		hi = maxi(hi, n)
 	_check(lo == 1 and hi == 3, "감자 수확량 1~3개 (%d~%d)" % [lo, hi])
 	farm.get_tile(c).seed_id = ""
+
+	# 작물 정보 (§19)
+	farm.plant(c, cs)
+	farm.get_tile(c).days_grown = 1
+	farm.get_tile(c).watered = true
+	var info := farm.crop_info(c)
+	_check(info.name == "당근" and not info.mature and info.days == 1 and info.need == 3 and info.days_left == 2 and info.watered, "작물 정보: 당근 1/3일, 물 줌, 2일 남음")
+	var texts := CropInfoPopup.lines(info).map(func(l: Array) -> String: return l[0])
+	_check(texts == ["자라는 중", "1 / 3일", "오늘 물: 줬어요", "수확까지 2일"], "정보 문구 %s" % [texts])
+	farm.get_tile(c).watered = false
+	texts = CropInfoPopup.lines(farm.crop_info(c)).map(func(l: Array) -> String: return l[0])
+	_check(texts.has("오늘 물: 안 줬어요") and texts.has("오늘은 자라지 않아요"), "물 안 주면 '오늘은 자라지 않아요'")
+	farm.get_tile(c).days_grown = 3
+	texts = CropInfoPopup.lines(farm.crop_info(c)).map(func(l: Array) -> String: return l[0])
+	_check(texts == ["수확할 수 있어요"], "다 자라면 '수확할 수 있어요'")
+	_check(farm.crop_info(c + Vector2i(40, 40)).is_empty(), "작물 없는 칸은 정보 없음")
+	var popup: CropInfoPopup = hud._crop_info
+	popup.show_info(farm.crop_info(c))
+	_check(popup.visible, "작물 정보 창 표시")
+	hud.open_inventory()
+	_check(not popup.visible, "가방을 열면 작물 정보 숨김")
+	hud._close_panels()
+	_check(popup.visible, "닫으면 다시 표시")
+	popup.show_info({})
+	_check(not popup.visible, "작물에서 벗어나면 숨김")
+	farm.remove_crop(c)
 
 	# 작물 뽑기 (§29): 괭이·곡괭이로만. 씨앗은 안 돌아오고 밭은 남는다
 	farm.plant(c, cs)

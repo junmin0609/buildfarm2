@@ -22,6 +22,8 @@ var _cursor_visible := false
 
 
 var _pulse := 0.0
+## 마지막으로 알린 마우스 아래 작물 정보
+var _hover_info := {}
 
 
 func _ready() -> void:
@@ -33,6 +35,18 @@ func _process(delta: float) -> void:
 	if _cursor_visible:
 		_pulse += delta
 		queue_redraw()
+	_update_hover()
+
+
+## 마우스 아래 작물이 바뀌거나 상태가 바뀌면 알린다. 건설 모드(커서 숨김) 중에는 알리지 않는다.
+func _update_hover() -> void:
+	var info := {}
+	if _cursor_visible:
+		var m := get_global_mouse_position()
+		info = crop_info(Vector2i(floori(m.x / TILE), floori(m.y / TILE)))
+	if info != _hover_info:
+		_hover_info = info
+		Events.crop_hover_changed.emit(info)
 
 
 # ---------- 밭 조작 (자동화·저장 기능도 이 함수들을 쓴다)
@@ -139,6 +153,26 @@ func remove_crop(cell: Vector2i) -> bool:
 ## 작물을 뽑을 수 있는 도구 (§29: 괭이·곡괭이)
 static func removes_crops(item: ItemDef) -> bool:
 	return item != null and item.kind == ItemDef.Kind.TOOL and item.tool_type in ["hoe", "pickaxe"]
+
+
+## 작물 정보 (§19). 작물이 없으면 빈 사전.
+##   name 작물 이름, mature 다 자람, regrowing 다시 열리는 중, days 자란 날, need 필요한 날,
+##   days_left 남은 날, watered 오늘 물을 받았는지
+func crop_info(cell: Vector2i) -> Dictionary:
+	var tile := get_tile(cell)
+	if tile == null or not tile.has_crop():
+		return {}
+	var crop := ItemDB.get_item(tile.seed_item().grows)
+	return {
+		"cell": cell,
+		"name": crop.name if crop else tile.seed_item().name,
+		"mature": tile.is_mature(),
+		"regrowing": tile.regrowing,
+		"days": tile.days_grown,
+		"need": tile.days_needed(),
+		"days_left": maxi(0, tile.days_needed() - tile.days_grown),
+		"watered": tile.watered,
+	}
 
 
 func mature_produce_at(cell: Vector2i) -> String:

@@ -30,6 +30,10 @@ func _ready() -> void:
 	GameState.inventory.add("strawberry", 2)
 	await get_tree().create_timer(1.2).timeout
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_farm.png"))
+	# 작물 위에 마우스를 올려 작물 정보 창 확인
+	Input.warp_mouse(get_viewport().get_canvas_transform() * world.cell_center(origin + Vector2i(5, 4)))
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_crop_info.png"))
 	world.player.global_position = world.buildings[0].interact_point() + Vector2(-40, 30)
 	world.player.facing = Vector2i.LEFT
 	world.player.camera.reset_smoothing()

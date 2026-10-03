@@ -25,6 +25,7 @@ var _shop: ShopPanel
 var _build: BuildPanel
 var _build_hint: PanelContainer
 var _build_hint_label: Label
+var _crop_info: CropInfoPopup
 
 
 func _ready() -> void:
@@ -63,6 +64,10 @@ func _ready() -> void:
 	_place(_build_hint, Vector2(0.5, 1.0), Vector2(0, -122), Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BEGIN)
 	_build_hint.hide()
 	Events.build_hint_changed.connect(_on_build_hint)
+
+	_crop_info = CropInfoPopup.new()
+	_crop_info.add_theme_stylebox_override("panel", _panel_style(10))
+	_root.add_child(_crop_info)
 
 	_fade = ColorRect.new()
 	_fade.color = Color("3b2a20")
@@ -123,6 +128,7 @@ func _open_shop(mode: String = "all") -> void:
 	_close_inventory()
 	_shop.open(mode)
 	_prompt_box.hide()
+	_crop_info.suppressed = true
 	_pause_for("shop")
 
 
@@ -130,6 +136,7 @@ func open_build_panel() -> void:
 	_close_inventory()
 	_build.open()
 	_prompt_box.hide()
+	_crop_info.suppressed = true
 	_pause_for("build_menu")
 
 
@@ -137,6 +144,7 @@ func open_build_panel() -> void:
 func open_inventory() -> void:
 	_inventory.open()
 	_prompt_box.hide()
+	_crop_info.suppressed = true
 	GameState.set_input_locked("inventory", true)
 
 
@@ -156,6 +164,7 @@ func _close_panels() -> void:
 	_shop.hide()
 	_build.hide()
 	_prompt_box.visible = _prompt.text != "" and not _build_hint.visible
+	_crop_info.suppressed = false
 	get_tree().paused = false
 	GameState.set_time_paused("shop", false)
 	GameState.set_time_paused("build_menu", false)

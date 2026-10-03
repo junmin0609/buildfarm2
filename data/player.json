@@ -1,0 +1,4 @@
+{
+	"_comment": "플레이어 조작 (BUILD_FARM_PLAN §9). reach_tiles: 마우스로 고를 수 있는 거리(칸). 그 밖이면 바라보는 방향 바로 앞 칸을 쓴다.",
+	"reach_tiles": 2
+}
