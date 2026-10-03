@@ -42,7 +42,7 @@ func _ready() -> void:
 	var columns := HBoxContainer.new()
 	columns.add_theme_constant_override("separation", 24)
 	box.add_child(columns)
-	_buy_list = _column(columns, "씨앗 사기")
+	_buy_list = _column(columns, "씨앗·비료 사기")
 	_sell_list = _column(columns, "작물 팔기")
 	var note := Label.new()
 	note.text = "바로 팔면 기준가의 %d%%만 받아요." % roundi(Pricing.channel_multiplier(CHANNEL) * 100)

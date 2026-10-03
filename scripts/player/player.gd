@@ -137,7 +137,7 @@ func _use_selected() -> void:
 	if item.tool_type == "watering_can":
 		WateringCan.use(_world(), cell, GameState.inventory, GameState.selected_slot)
 		return
-	if _world().farm.use_item(cell, item) and item.kind == ItemDef.Kind.SEED:
+	if _world().farm.use_item(cell, item) and item.kind in [ItemDef.Kind.SEED, ItemDef.Kind.FERTILIZER]:
 		GameState.inventory.remove_at(GameState.selected_slot, 1)
 
 

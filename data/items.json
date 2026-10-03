@@ -122,5 +122,32 @@
 		"kind": "material",
 		"description": "돌을 깨서 얻은 석재. 시설과 건물 재료예요.",
 		"icon": 12
+	},
+	"basic_fertilizer": {
+		"name": "기본 비료",
+		"kind": "fertilizer",
+		"quality_table": "basic",
+		"buy_price": 50,
+		"soil_color": "8fb35a",
+		"icon": 13,
+		"description": "씨앗을 심기 전에 밭에 뿌려요. 실버·골드 작물이 조금 더 잘 나와요."
+	},
+	"advanced_fertilizer": {
+		"name": "고급 비료",
+		"kind": "fertilizer",
+		"quality_table": "advanced",
+		"buy_price": 120,
+		"soil_color": "6fb3d9",
+		"icon": 14,
+		"description": "씨앗을 심기 전에 밭에 뿌려요. 실버 작물이 가장 많이 나와요."
+	},
+	"premium_fertilizer": {
+		"name": "최상급 비료",
+		"kind": "fertilizer",
+		"quality_table": "premium",
+		"buy_price": 250,
+		"soil_color": "f2c443",
+		"icon": 15,
+		"description": "씨앗을 심기 전에 밭에 뿌려요. 골드 작물이 훨씬 잘 나와요."
 	}
 }

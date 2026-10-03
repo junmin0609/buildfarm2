@@ -8,7 +8,10 @@
 		"gold": {"name": "골드", "multiplier": 1.6, "color": "f2bf3a"}
 	},
 	"harvest_chances": {
-		"_comment": "수확할 때 품질이 나올 확률(가중치). 기획서 §25 초안 값. 비료가 생기면 비료 id 별 표를 여기에 추가한다.",
-		"none": {"bronze": 80, "silver": 18, "gold": 2}
+		"_comment": "수확할 때 품질이 나올 확률(가중치). 기획서 §25 값. 키는 비료 아이템의 quality_table (비료 없음 = none)",
+		"none": {"bronze": 80, "silver": 18, "gold": 2},
+		"basic": {"bronze": 60, "silver": 35, "gold": 5},
+		"advanced": {"bronze": 35, "silver": 50, "gold": 15},
+		"premium": {"bronze": 15, "silver": 45, "gold": 40}
 	}
 }

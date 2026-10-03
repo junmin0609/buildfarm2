@@ -2,9 +2,9 @@ class_name ItemDef
 extends RefCounted
 ## 아이템 한 종류의 정의. data/items.json 한 항목이 하나의 ItemDef가 된다.
 
-enum Kind { TOOL, SEED, CROP, MATERIAL }
+enum Kind { TOOL, SEED, CROP, MATERIAL, FERTILIZER }
 
-const KIND_BY_NAME := {"tool": Kind.TOOL, "seed": Kind.SEED, "crop": Kind.CROP, "material": Kind.MATERIAL}
+const KIND_BY_NAME := {"tool": Kind.TOOL, "seed": Kind.SEED, "crop": Kind.CROP, "material": Kind.MATERIAL, "fertilizer": Kind.FERTILIZER}
 
 var id := ""
 var name := ""
@@ -37,6 +37,12 @@ var yield_max := 1
 var seasons: Array[String] = []
 var crop_row := 0    # crops.png 에서 이 작물의 줄
 
+## 비료 정보 (kind == FERTILIZER, §25)
+## quality.json 의 harvest_chances 에서 쓸 표 이름 ("basic", "advanced", "premium")
+var quality_table := ""
+## 비료를 준 밭에 찍히는 점 색
+var soil_color := Color.TRANSPARENT
+
 
 static func from_dict(item_id: String, d: Dictionary) -> ItemDef:
 	var item := ItemDef.new()
@@ -60,6 +66,9 @@ static func from_dict(item_id: String, d: Dictionary) -> ItemDef:
 	item.yield_max = maxi(item.yield_min, int(d.get("yield_max", item.yield_min)))
 	for s: String in d.get("seasons", []):
 		item.seasons.append(s)
+	item.quality_table = d.get("quality_table", "")
+	if d.has("soil_color"):
+		item.soil_color = Color(d.soil_color)
 	return item
 
 

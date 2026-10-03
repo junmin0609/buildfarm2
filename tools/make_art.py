@@ -1228,6 +1228,27 @@ def material_icon(c, kind):
     c.outline(INK)
 
 
+FERTILIZER_COLORS = {
+    "basic_fertilizer": (hexc("8fb35a"), hexc("6e8f42")),      # 풀색
+    "advanced_fertilizer": (hexc("6fb3d9"), hexc("4f8fb8")),   # 하늘색
+    "premium_fertilizer": (hexc("f2c443"), hexc("d19a2a")),    # 금색
+}
+
+
+def fertilizer_bag(c, item):
+    """비료 자루: 크림색 자루 + 등급 색 띠 + 새싹 그림"""
+    band, band_d = FERTILIZER_COLORS[item]
+    rrect(c, 3, 4, 10, 11, 2.5, hexc("ead3a8"))
+    c.rect(5, 3, 6, 2, hexc("d9bf8f"))
+    c.rect(6, 2, 4, 1, hexc("c9a978"))
+    c.rect(3, 8, 10, 4, band)
+    c.rect(3, 11, 10, 1, band_d)
+    c.set(8, 9, hexc("fffaf0")); c.set(7, 10, hexc("fffaf0")); c.set(9, 10, hexc("fffaf0"))
+    if item == "premium_fertilizer":
+        c.set(5, 6, hexc("fff3c0")); c.set(11, 6, hexc("fff3c0"))
+    c.outline(INK)
+
+
 def seed_packet(c, color):
     rrect(c, 3, 2, 10, 13, 2, hexc("fbeccf"))
     c.rect(4, 3, 8, 2, hexc("ead3a8"))
@@ -1238,7 +1259,8 @@ def seed_packet(c, color):
 
 def make_items():
     order = ["hoe", "watering_can", "carrot_seed", "potato_seed", "strawberry_seed", "carrot", "potato", "strawberry",
-             "axe", "pickaxe", "fiber", "wood", "stone"]
+             "axe", "pickaxe", "fiber", "wood", "stone",
+             "basic_fertilizer", "advanced_fertilizer", "premium_fertilizer"]
     atlas = Canvas(len(order) * T, T)
     for col, item in enumerate(order):
         c, done = sub(atlas, col, 0)
@@ -1252,6 +1274,8 @@ def make_items():
             c.template(PICKAXE, ICON_PAL)
         elif item in ("fiber", "wood", "stone"):
             material_icon(c, item)
+        elif item.endswith("_fertilizer"):
+            fertilizer_bag(c, item)
         elif item.endswith("_seed"):
             seed_packet(c, {"carrot_seed": hexc("f0913a"), "potato_seed": hexc("d9a868"), "strawberry_seed": hexc("ef5b5b")}[item])
         else:

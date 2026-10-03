@@ -56,8 +56,9 @@ func show_info(info: Dictionary) -> void:
 
 ## 본문 줄들: [글, 색]
 static func lines(info: Dictionary) -> Array:
+	var fert: Array = [["비료: %s" % info.fertilizer, TEXT_SOFT]] if str(info.get("fertilizer", "")) != "" else []
 	if info.mature:
-		return [["수확할 수 있어요", GOOD]]
+		return [["수확할 수 있어요", GOOD]] + fert
 	var result := []
 	result.append(["다시 열리는 중" if info.regrowing else "자라는 중", TEXT_SOFT])
 	result.append(["%d / %d일" % [info.days, info.need], TEXT_SOFT])
@@ -67,7 +68,7 @@ static func lines(info: Dictionary) -> Array:
 	else:
 		result.append(["오늘 물: 안 줬어요", ACCENT])
 		result.append(["오늘은 자라지 않아요", ACCENT])
-	return result
+	return result + fert
 
 
 func _refresh_visible() -> void:

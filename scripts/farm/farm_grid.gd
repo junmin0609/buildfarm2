@@ -87,6 +87,26 @@ func water(cell: Vector2i) -> bool:
 	return true
 
 
+## 비료를 뿌린다 (§26): 갈아 둔 빈 밭에만, 씨앗을 심기 전에. 이미 비료가 있으면 덮어쓰지 않는다.
+func fertilize(cell: Vector2i, fert: ItemDef) -> bool:
+	if fert == null or fert.kind != ItemDef.Kind.FERTILIZER:
+		return false
+	var tile := get_tile(cell)
+	if tile == null:
+		if is_farmable(cell):
+			Events.toast.emit("먼저 괭이로 땅을 갈아 주세요.")
+		return false
+	if tile.has_crop():
+		Events.toast.emit("비료는 씨앗을 심기 전에 뿌려야 해요.")
+		return false
+	if tile.fertilizer != "":
+		Events.toast.emit("이미 %s를 뿌린 밭이에요." % tile.fertilizer_item().name)
+		return false
+	tile.fertilizer = fert.id
+	_changed(cell)
+	return true
+
+
 func plant(cell: Vector2i, seed_def: ItemDef) -> bool:
 	var tile := get_tile(cell)
 	if seed_def == null or seed_def.kind != ItemDef.Kind.SEED:
@@ -115,7 +135,7 @@ func roll_harvest(cell: Vector2i) -> Dictionary:
 	return {
 		"id": seed_def.grows,
 		"count": rng.randi_range(seed_def.yield_min, seed_def.yield_max),
-		"quality": Quality.roll(rng),
+		"quality": Quality.roll(rng, tile.quality_table()),
 	}
 
 
@@ -142,9 +162,7 @@ func remove_crop(cell: Vector2i) -> bool:
 	var tile := get_tile(cell)
 	if tile == null or not tile.has_crop():
 		return false
-	tile.seed_id = ""
-	tile.days_grown = 0
-	tile.regrowing = false
+	tile.clear_crop()
 	_changed(cell)
 	return true
 
@@ -171,6 +189,7 @@ func crop_info(cell: Vector2i) -> Dictionary:
 		"need": tile.days_needed(),
 		"days_left": maxi(0, tile.days_needed() - tile.days_grown),
 		"watered": tile.watered,
+		"fertilizer": tile.fertilizer_item().name if tile.fertilizer != "" else "",
 	}
 
 
@@ -198,6 +217,8 @@ func use_item(cell: Vector2i, item: ItemDef) -> bool:
 					return water(cell)
 		ItemDef.Kind.SEED:
 			return plant(cell, item)
+		ItemDef.Kind.FERTILIZER:
+			return fertilize(cell, item)
 	return false
 
 
@@ -254,6 +275,8 @@ func _draw() -> void:
 		var rect := Rect2(Vector2(cell * TILE), Vector2(TILE, TILE))
 		var soil := TerrainTileSet.SOIL_WET if tile.watered else TerrainTileSet.SOIL
 		draw_texture_rect_region(Art.TILES, rect, Art.tile_region(soil))
+		if tile.fertilizer != "":
+			_draw_fertilizer(rect, tile.fertilizer_item().soil_color)
 		if tile.has_crop():
 			var seed_def := tile.seed_item()
 			var crop_rect := Rect2(crop_stage(tile) * TILE, seed_def.crop_row * TILE, TILE, TILE)
@@ -263,6 +286,15 @@ func _draw() -> void:
 		var glow := 0.6 + 0.3 * sin(_pulse * 4.0)
 		draw_rect(r.grow(-3), Color(1, 0.97, 0.88, 0.12 * glow))
 		draw_texture_rect_region(Art.TILES, r, Art.tile_region(TerrainTileSet.CURSOR), Color(1, 1, 1, glow))
+
+
+## 비료를 준 밭: 흙 위에 등급 색 알갱이 (자리는 항상 같게)
+const FERTILIZER_DOTS: Array[Vector2] = [Vector2(3, 4), Vector2(11, 3), Vector2(6, 9), Vector2(12, 11), Vector2(4, 13), Vector2(9, 6)]
+
+
+func _draw_fertilizer(rect: Rect2, color: Color) -> void:
+	for d in FERTILIZER_DOTS:
+		draw_rect(Rect2(rect.position + d, Vector2(1, 1)), color)
 
 
 ## crops.png 의 칸: 0 씨앗, 1 새싹, 2 어린 잎, 3 다 큰 잎, 4 수확 가능

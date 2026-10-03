@@ -32,11 +32,18 @@ func has_item(item_id: String) -> bool:
 	return _items.has(item_id)
 
 
-## 상점에서 파는 아이템 (구매가가 있는 것)
+## 상점에서 파는 아이템 (구매가가 있는 것). 종류별(씨앗 → 비료 ...)로 묶고 그 안에서 싼 것부터
 func shop_items() -> Array[ItemDef]:
 	var result: Array[ItemDef] = []
 	for item: ItemDef in _items.values():
 		if item.buy_price > 0:
 			result.append(item)
-	result.sort_custom(func(a: ItemDef, b: ItemDef) -> bool: return a.buy_price < b.buy_price)
+	result.sort_custom(func(a: ItemDef, b: ItemDef) -> bool:
+		if a.kind != b.kind:
+			return _shop_order(a.kind) < _shop_order(b.kind)
+		return a.buy_price < b.buy_price)
 	return result
+
+
+static func _shop_order(kind: ItemDef.Kind) -> int:
+	return [ItemDef.Kind.SEED, ItemDef.Kind.FERTILIZER].find(kind) if kind in [ItemDef.Kind.SEED, ItemDef.Kind.FERTILIZER] else 99

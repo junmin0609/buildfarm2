@@ -150,6 +150,9 @@ func _ready() -> void:
 	# ---------- 출하함 + 판매 수익 요약 (§83, §99)
 	await _test_shipping(world, hud)
 
+	# ---------- 비료 (§25~§27)
+	await _test_fertilizer(world)
+
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
 
@@ -900,6 +903,97 @@ func _test_shipping(world: FarmWorld, hud: HUD) -> void:
 	_check(not hud._summary.visible and int(world.day_cycle.last_report.sales.total) == 0, "판 게 없는 날은 요약을 띄우지 않음")
 	_check(SalesSummaryPanel.format_gold(2400) == "2,400" and SalesSummaryPanel.format_gold(1234567) == "1,234,567" and SalesSummaryPanel.format_gold(35) == "35", "금액 쉼표 표시")
 	inv.load_data(saved_inv)
+	await get_tree().process_frame
+
+
+func _test_fertilizer(world: FarmWorld) -> void:
+	var farm := world.farm
+	var inv := GameState.inventory
+	var player := world.player
+	var saved_inv := inv.to_data()
+	var ids := ["basic_fertilizer", "advanced_fertilizer", "premium_fertilizer"]
+
+	# 데이터: 상점 무한 구매, 확률표 = 기획서 §25
+	var shop_ids := ItemDB.shop_items().map(func(it: ItemDef) -> String: return it.id)
+	_check(ids.all(func(id: String) -> bool: return ItemDB.get_item(id) != null and ItemDB.get_item(id).kind == ItemDef.Kind.FERTILIZER and ItemDB.get_item(id).buy_price > 0 and id in shop_ids), "비료 3종, 상점에서 구매 가능")
+	var plan := {"none": [80, 18, 2], "basic": [60, 35, 5], "advanced": [35, 50, 15], "premium": [15, 45, 40]}
+	var chances: Dictionary = DataFile.load_dict(Quality.DATA_PATH).get("harvest_chances", {})
+	var same := true
+	for t: String in plan:
+		var row: Dictionary = chances.get(t, {})
+		same = same and [int(row.get("bronze", -1)), int(row.get("silver", -1)), int(row.get("gold", -1))] == plan[t]
+	_check(same, "품질 확률표 = 기획서 §25 (무비료·기본·고급·최상급)")
+	_check(ids.map(func(id: String) -> String: return ItemDB.get_item(id).quality_table) == ["basic", "advanced", "premium"], "비료 → 확률표 연결")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	var counts := {"bronze": 0, "silver": 0, "gold": 0}
+	for i in 4000:
+		counts[Quality.roll(rng, "premium")] += 1
+	_check(absf(counts.gold / 4000.0 - 0.40) < 0.03 and absf(counts.bronze / 4000.0 - 0.15) < 0.03, "최상급 비료 품질 분포 %s" % counts)
+
+	# 뿌리기 규칙: 갈아 둔 빈 밭에, 심기 전에만
+	var c := _free_clear_cell(world)
+	var basic := ItemDB.get_item("basic_fertilizer")
+	var premium := ItemDB.get_item("premium_fertilizer")
+	var carrot_seed := ItemDB.get_item("carrot_seed")
+	_check(not farm.fertilize(c, basic), "갈지 않은 땅에는 못 뿌림")
+	farm.till(c)
+	_check(farm.fertilize(c, basic) and farm.get_tile(c).fertilizer == "basic_fertilizer", "갈아 둔 빈 밭에 비료")
+	_check(not farm.fertilize(c, premium) and farm.get_tile(c).fertilizer == "basic_fertilizer", "이미 뿌린 밭은 덮어쓰지 않음")
+	farm.get_tile(c).fertilizer = ""
+	farm.plant(c, carrot_seed)
+	_check(not farm.fertilize(c, basic) and farm.get_tile(c).fertilizer == "", "씨앗을 심은 뒤에는 못 뿌림")
+	farm.remove_crop(c)
+
+	# 플레이어가 뿌리면 1개 쓰고, 못 뿌리면 그대로
+	inv.slots[8] = {"id": "premium_fertilizer", "count": 3, "quality": ""}
+	GameState.select_slot(8)
+	player.global_position = world.cell_center(c + Vector2i.UP)
+	player.facing = Vector2i.DOWN
+	player._use_selected()
+	_check(farm.get_tile(c).fertilizer == "premium_fertilizer" and inv.count_of("premium_fertilizer") == 2, "플레이어가 뿌리면 비료 1개 사용")
+	player._use_selected()
+	_check(inv.count_of("premium_fertilizer") == 2, "못 뿌리면 비료가 줄지 않음")
+	GameState.select_slot(0)
+
+	# 수확 품질에 반영
+	farm.plant(c, carrot_seed)
+	farm.get_tile(c).days_grown = carrot_seed.grow_days
+	_check(farm.get_tile(c).quality_table() == "premium", "수확 때 최상급 비료 확률표 사용")
+	farm.rng.seed = 11
+	var gold := 0
+	for i in 400:
+		if farm.roll_harvest(c).quality == "gold":
+			gold += 1
+	_check(gold > 400 * 0.3, "최상급 비료 밭은 골드가 잘 나옴 (%d/400)" % gold)
+	_check(CropInfoPopup.lines(farm.crop_info(c)).any(func(l: Array) -> bool: return l[0] == "비료: 최상급 비료"), "작물 정보에 비료 표시")
+
+	# 저장
+	world.save_manager.save_game("manual")
+	farm.get_tile(c).fertilizer = ""
+	world.save_manager.load_game()
+	_check(farm.get_tile(c) != null and farm.get_tile(c).fertilizer == "premium_fertilizer", "비료 상태 저장·불러오기")
+
+	# 한 번 거두는 작물: 수확하면 비료 끝 (밭은 남음)
+	farm.harvest(c)
+	_check(farm.tiles.has(c) and farm.get_tile(c).fertilizer == "" and not farm.get_tile(c).has_crop(), "한 번 거두는 작물은 수확하면 비료 효과 끝")
+
+	# 다시 열리는 작물: 포기가 살아 있는 동안 유지
+	var strawberry := ItemDB.get_item("strawberry_seed")
+	farm.fertilize(c, basic)
+	farm.plant(c, strawberry)
+	farm.get_tile(c).days_grown = strawberry.grow_days
+	farm.harvest(c)
+	_check(farm.get_tile(c).has_crop() and farm.get_tile(c).fertilizer == "basic_fertilizer", "다시 열리는 작물은 수확 뒤에도 비료 유지")
+	farm.get_tile(c).days_grown = strawberry.regrow_days
+	farm.harvest(c)
+	_check(farm.get_tile(c).fertilizer == "basic_fertilizer", "두 번째 수확 뒤에도 유지")
+	farm.remove_crop(c)
+	_check(farm.get_tile(c).fertilizer == "" and farm.tiles.has(c), "작물을 뽑으면 비료 효과 끝 (밭은 남음)")
+
+	farm.tiles.erase(c)
+	inv.load_data(saved_inv)
+	GameState.select_slot(0)
 	await get_tree().process_frame
 
 

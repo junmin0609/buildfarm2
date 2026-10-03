@@ -19,6 +19,8 @@ func _ready() -> void:
 		for y in range(4, 8):
 			var cell := origin + Vector2i(x - 6, y - 2)
 			farm.till(cell)
+			if y == 4:
+				farm.fertilize(cell, ItemDB.get_item(["basic_fertilizer", "advanced_fertilizer", "premium_fertilizer"][x % 3]))
 			if y > 4:
 				farm.plant(cell, ItemDB.get_item(["carrot_seed", "potato_seed", "strawberry_seed"][x % 3]))
 				farm.get_tile(cell).days_grown = (x - 10) * 2
