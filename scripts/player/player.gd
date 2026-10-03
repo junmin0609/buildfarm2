@@ -53,6 +53,19 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 
+## 새 날 아침: 집 앞에서 아래를 보고 선 채로 시작한다 (움직임·휘두르기 초기화)
+func wake_at(pos: Vector2) -> void:
+	global_position = pos
+	velocity = Vector2.ZERO
+	facing = Vector2i.DOWN
+	_anim_time = 0.0
+	_swing = 0.0
+	_swing_item = null
+	if is_node_ready():
+		_update_sprite(false)
+		camera.reset_smoothing()
+
+
 func _update_sprite(moving: bool) -> void:
 	var row := ROW_SIDE if facing.x != 0 else (ROW_UP if facing == Vector2i.UP else ROW_DOWN)
 	var col := (int(_anim_time / FRAME_TIME) % 4) if moving else 0

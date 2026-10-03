@@ -3,6 +3,8 @@ extends Node
 ## 실행: Godot --headless --path . res://scenes/tests/smoke_test.tscn
 
 var _failures := 0
+## 시작 직후(하루도 지나기 전) 집 근처 장애물 수. 날이 지나면 작은 장애물이 무작위로 다시 자라서 나중에 세면 안 된다.
+var _near_home_at_start := -1
 
 
 func _ready() -> void:
@@ -21,6 +23,8 @@ func _ready() -> void:
 	_check(world.buildings.size() == 3, "건물 3개 배치 (집·씨앗 상점·작물 판매처)")
 	_check(world.fences.get_used_cells().is_empty(), "농장에 울타리 없음")
 	_check(world.objects.get_children().filter(func(n: Node) -> bool: return n is Prop).size() > 100, "나무·바위 소품 배치")
+	var home_cell := world.world_to_cell(world.cell_center(_find_char("@")))
+	_near_home_at_start = world.obstacles.all().filter(func(ob: Obstacle) -> bool: return Vector2(ob.cell).distance_to(Vector2(home_cell)) < 6).size()
 
 	# 밭 위쪽 칸에 서서 아래를 보고 작업
 	var cell := _open_farm_cell(farm)
@@ -47,9 +51,13 @@ func _ready() -> void:
 
 	GameState.sleep()
 	_check(farm.get_tile(cell).days_grown == 0, "물 안 주면 안 자람")
+	_check(player.global_position == world.home_position, "자고 나면 집 앞에서 깨어남")
 
 	_check(WateringCan.water_left(inv, 1) == 12, "물뿌리개는 가득 찬 채로 시작 (12)")
 	for d in 3:
+		# 매일 아침 집에서 깨어나므로 밭으로 다시 간다
+		player.global_position = world.cell_center(cell + Vector2i.UP)
+		player.facing = Vector2i.DOWN
 		GameState.select_slot(1)
 		player._use_selected()
 		_check(farm.get_tile(cell).watered, "%d일째 물 주기" % (d + 1))
@@ -58,6 +66,8 @@ func _ready() -> void:
 	_check(farm.get_tile(cell).is_mature(), "3일 물 주고 당근 다 자람")
 	_check(GameState.day == 5, "5일차 (실제 %d)" % GameState.day)
 
+	player.global_position = world.cell_center(cell + Vector2i.UP)
+	player.facing = Vector2i.DOWN
 	GameState.select_slot(0)
 	player._use_selected()
 	_check(inv.count_of("carrot") == 1, "당근 1개 수확")
@@ -116,6 +126,9 @@ func _ready() -> void:
 
 	# ---------- 시간 (15분 하루, 1분 전 경고, 멈춤 규칙)
 	_test_time(world, hud)
+
+	# ---------- 하루 마감 흐름 (§96)
+	await _test_day_end(world, hud)
 
 	# 맵 밖으로는 못 나감
 	player.global_position = world.cell_center(Vector2i(1, 1))
@@ -287,12 +300,7 @@ func _test_clearing(world: FarmWorld) -> void:
 	_check(obs.count() > farm_n * 0.4 and obs.count() < farm_n * 0.8, "시작 농장 장애물 분포 (약 %d%%)" % (obs.count() * 100 / farm_n))
 	_check(big > farm_n * 0.1 and big < farm_n * 0.3, "강화 도구가 필요한 땅 약 20%% (실제 %d%%)" % (big * 100 / farm_n))
 	_check(kinds.has("weed") and kinds.has("branch") and kinds.has("small_rock") and kinds.has("stump"), "작은 장애물 종류 모두 있음")
-	var home := world.world_to_cell(world.cell_center(_find_char("@")))
-	var near := 0
-	for ob: Obstacle in obs.all():
-		if Vector2(ob.cell).distance_to(Vector2(home)) < 6:
-			near += 1
-	_check(near == 0, "집 근처는 바로 쓸 수 있는 땅")
+	_check(_near_home_at_start == 0, "집 근처는 바로 쓸 수 있는 땅 (시작 시점)")
 	_check(inv.count_of("axe") == 1 and inv.count_of("pickaxe") == 1, "도끼·곡괭이 지급")
 
 	var axe := ItemDB.get_item("axe")
@@ -578,6 +586,95 @@ func _test_time(world: FarmWorld, hud: HUD) -> void:
 	GameState.advance_time(60.0)
 	_check(GameState.day == day + 1 and GameState.day_seconds == 0.0 and GameState.minutes == 7 * 60, "15분이 지나면 다음 날 오전 7시")
 	Events.day_ending_soon.disconnect(on_warn)
+
+
+func _test_day_end(world: FarmWorld, hud: HUD) -> void:
+	var dc := world.day_cycle
+	var player := world.player
+	var home := world.home_position
+	var house: Interactable = world.buildings.filter(func(b: Interactable) -> bool: return b is House)[0]
+	var started := [0]
+	var on_start := func(_d: int) -> void: started[0] += 1
+	Events.day_started.connect(on_start)
+	_check(dc != null and dc.get_parent() == world, "하루 마감 흐름(DayCycle) 준비됨")
+	_check(home == world.cell_center(_find_char("@")), "집 앞 시작 위치")
+
+	# 1) 15분 자동 종료: 광장에서 가방을 연 채로
+	GameState.set_clock(GameState.day_start)
+	player.global_position = world.cell_center(_find_char("p"))
+	player.facing = Vector2i.UP
+	player.velocity = Vector2(30, 0)
+	hud.open_inventory()
+	var day := GameState.day
+	var money := GameState.money
+	var item_count := GameState.inventory.to_data().filter(func(sl: Variant) -> bool: return sl != null).size()
+	GameState.advance_time(GameState.day_length + 1.0)
+	var r: Dictionary = dc.last_report
+	_check(r.reason == "time_up" and r.from_day == day and GameState.day == day + 1, "15분이 지나면 하루 마감 (time_up, %d일 → %d일)" % [day, GameState.day])
+	_check(player.global_position == home and player.facing == Vector2i.DOWN and player.velocity == Vector2.ZERO, "멀리 있어도 다음 날은 집 앞에서 시작")
+	_check(GameState.minutes == 7 * 60 and GameState.day_seconds == 0.0 and not GameState.is_day_ending_soon(), "다음 날 오전 7시 (%s)" % GameState.format_clock(GameState.minutes))
+	_check(not hud._inventory.visible and not GameState.is_input_locked() and not GameState.is_time_paused() and not get_tree().paused, "열린 가방 닫힘, 입력·시간 정상")
+	_check(r.phases == DayCycle.PHASES, "정해진 순서대로 처리")
+	_check(started[0] == 1, "아침 신호는 한 번만")
+	var item_after := GameState.inventory.to_data().filter(func(sl: Variant) -> bool: return sl != null).size()
+	_check(GameState.money == money and item_after == item_count, "강제 종료 패널티 없음 (돈·아이템 그대로)")
+
+	# 2) 집에서 직접 잠자기: 건설 모드를 켠 채로
+	world.build_mode.start_place("scarecrow")
+	player.global_position = house.interact_point()
+	GameState.set_clock(12 * 60)
+	day = GameState.day
+	house.interact(player)
+	r = dc.last_report
+	_check(r.reason == "sleep" and GameState.day == day + 1, "집에서 자면 같은 마감 흐름 (sleep)")
+	_check(player.global_position == home and GameState.minutes == 7 * 60 and GameState.day_seconds == 0.0, "집에서 오전 7시 시작")
+	_check(not world.build_mode.is_active() and not world.build_mode.grid_overlay.visible and not GameState.is_time_paused(), "건설 모드·격자 정리, 시간 다시 흐름")
+	_check(r.phases == DayCycle.PHASES and started[0] == 2, "같은 순서, 아침 신호 한 번")
+
+	# 3) 상점 창이 열린 채로 잠들어도 창이 닫힘
+	Events.shop_requested.emit("buy")
+	GameState.sleep()
+	_check(not hud._shop.visible and not get_tree().paused and not GameState.is_time_paused(), "상점 창 닫힘, 게임 재개")
+
+	# 4) 작물은 하루에 한 번만 자람 (처리가 한 곳에서만 일어남)
+	var farm := world.farm
+	var c := _free_clear_cell(world)
+	farm.till(c)
+	farm.plant(c, ItemDB.get_item("carrot_seed"))
+	farm.water(c)
+	GameState.sleep()
+	_check(farm.get_tile(c).days_grown == 1 and not farm.get_tile(c).watered, "작물은 하루에 한 번 자라고 밭이 마름")
+	farm.remove_crop(c)
+	farm.tiles.erase(c)
+
+	# 5) 새 시스템은 단계에 등록만 하면 된다
+	var calls := []
+	var on_sales := func(rep: Dictionary) -> void: calls.append(["sales", GameState.day])
+	var on_night := func(rep: Dictionary) -> void:
+		calls.append(["night", GameState.day])
+		rep["night_production"] = {"flour": 3}
+	dc.add_step(DayCycle.SETTLE_SALES, on_sales)
+	dc.add_step(DayCycle.NIGHT_PRODUCTION, on_night)
+	day = GameState.day
+	var got := [{}]
+	var on_ended := func(rep: Dictionary) -> void: got[0] = rep
+	Events.day_ended.connect(on_ended)
+	GameState.sleep()
+	_check(calls == [["sales", day], ["night", day + 1]], "판매 정산은 날짜 넘기기 전, 야간 생산은 후 %s" % [calls])
+	_check(got[0].get("night_production") == {"flour": 3}, "단계 결과가 하루 마감 보고(day_ended)에 담김")
+	dc.remove_step(DayCycle.SETTLE_SALES, on_sales)
+	dc.remove_step(DayCycle.NIGHT_PRODUCTION, on_night)
+	Events.day_ended.disconnect(on_ended)
+
+	# 6) 마감 도중 다시 불러도 한 번만
+	var again := func(_rep: Dictionary) -> void: GameState.sleep()
+	dc.add_step(DayCycle.SAVE, again)
+	day = GameState.day
+	GameState.sleep()
+	dc.remove_step(DayCycle.SAVE, again)
+	_check(GameState.day == day + 1, "마감 중 다시 요청해도 하루만 넘어감")
+	Events.day_started.disconnect(on_start)
+	await get_tree().process_frame
 
 
 ## 장애물·밭·시설이 없는 농장 칸

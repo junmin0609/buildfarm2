@@ -17,7 +17,6 @@ var _cells: Dictionary = {}   # Vector2i -> Obstacle
 
 func _ready() -> void:
 	rng.randomize()
-	Events.day_started.connect(_on_day_started)
 
 
 # ---------- 조회
@@ -137,7 +136,8 @@ func _tool_list(tools: Array[String]) -> String:
 
 # ---------- 다시 자라기 (§103)
 
-func _on_day_started(_day: int) -> void:
+## 하루 마감 때 (DayCycle 의 farm_daily 단계)
+func process_day() -> void:
 	regrow()
 
 

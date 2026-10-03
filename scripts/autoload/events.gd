@@ -4,7 +4,14 @@ extends Node
 
 signal money_changed(amount: int)
 signal time_changed(day: int, minutes: int)
+## 새 날 아침 07:00, 플레이어가 집에서 깨어난 뒤 (DayCycle 이 보낸다)
 signal day_started(day: int)
+## 하루를 끝내 달라는 요청. reason: "time_up"(15분 경과) / "sleep"(집에서 잠) → DayCycle.end_day
+signal day_end_requested(reason: String)
+## 하루 마감이 막 시작됨: 열린 창·모드를 닫을 때
+signal day_ending(reason: String)
+## 하루 마감이 다 끝남. report: DayCycle.end_day 의 결과 (판매·야간 생산 요약 등에 쓴다)
+signal day_ended(report: Dictionary)
 ## 하루가 끝나기 직전 (남은 실제 시간, 초). data/time.json 의 warning_seconds_left
 signal day_ending_soon(seconds_left: float)
 signal inventory_changed

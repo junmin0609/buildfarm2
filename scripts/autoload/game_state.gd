@@ -90,8 +90,7 @@ func advance_time(seconds: float) -> void:
 		_warned = true
 		Events.day_ending_soon.emit(seconds_left())
 	if day_seconds >= day_length:
-		Events.toast.emit("하루가 끝났어요. 집으로 돌아가 잠들었어요.")
-		sleep()
+		request_day_end("time_up")
 
 
 func seconds_left() -> float:
@@ -111,6 +110,12 @@ func set_time_paused(reason: String, paused: bool) -> void:
 
 func is_time_paused() -> bool:
 	return not _pause_reasons.is_empty()
+
+
+## 하루가 끝날 때: 시간 정지·입력 잠금을 모두 푼다
+func clear_pauses_and_locks() -> void:
+	_pause_reasons.clear()
+	_input_locks.clear()
 
 
 func set_input_locked(reason: String, locked: bool) -> void:
@@ -162,12 +167,27 @@ func try_spend(amount: int) -> bool:
 
 # ---------- 날짜
 
-## 잠을 자서 다음 날 아침으로 넘어간다. 작물 성장은 day_started 신호를 받은 쪽이 처리한다.
+## 집에서 잠을 자서 하루를 끝낸다 (기존 호출 호환용 이름)
 func sleep() -> void:
+	request_day_end("sleep")
+
+
+## 하루를 끝낸다. 실제 처리 순서는 DayCycle (scripts/time/day_cycle.gd) 한 곳에 있다.
+## reason: "time_up" 15분 경과 / "sleep" 집에서 잠
+func request_day_end(reason: String) -> void:
+	if Events.day_end_requested.get_connections().is_empty():
+		# 월드가 없을 때(단독 실행)만: 날짜만 넘긴다
+		advance_date()
+		Events.day_started.emit(day)
+		Events.time_changed.emit(day, minutes)
+		return
+	Events.day_end_requested.emit(reason)
+
+
+## 날짜 +1, 시계는 다음 날 07:00 (DayCycle 의 advance_date 단계에서 부른다)
+func advance_date() -> void:
 	day += 1
 	_reset_day_clock()
-	Events.day_started.emit(day)
-	Events.time_changed.emit(day, minutes)
 
 
 static func format_clock(total_minutes: int) -> String:

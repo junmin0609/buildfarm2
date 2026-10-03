@@ -18,6 +18,10 @@ const CAMERA_ZOOM := 4.0
 @onready var obstacles: ObstacleGrid = $Obstacles
 
 var buildings: Array[Interactable] = []
+## 매일 아침 플레이어가 깨어나는 곳 (맵의 '@', 집 앞)
+var home_position := Vector2.ZERO
+## 하루 마감 흐름 (scripts/time/day_cycle.gd)
+var day_cycle: DayCycle
 
 
 func _ready() -> void:
@@ -37,6 +41,10 @@ func _ready() -> void:
 	_setup_camera()
 	_add_world_bounds()
 	_setup_daylight()
+	day_cycle = DayCycle.new()
+	day_cycle.name = "DayCycle"
+	day_cycle.world = self
+	add_child(day_cycle)
 
 
 func _build_map() -> void:
@@ -52,7 +60,8 @@ func _build_map() -> void:
 			if ch in MapLayout.FARMABLE:
 				farm.farmable_cells[cell] = true
 			elif ch == "@":
-				player.position = cell_center(cell)
+				home_position = cell_center(cell)
+				player.position = home_position
 			elif MapLayout.PROPS.has(ch):
 				var prop: Node2D = load(MapLayout.PROPS[ch]).instantiate()
 				prop.position = cell_center(cell) + Vector2(0, TILE / 2.0 - 2)

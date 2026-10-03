@@ -11,7 +11,7 @@ extends Node2D
 ## 특별한 동작이 있는 시설은 이 스크립트를 상속해 아래 훅을 덮어쓰면 된다.
 ##   on_placed / on_removed   설치·철거될 때
 ##   on_moved                 옮기거나 돌렸을 때 (상태는 그대로 유지된다 §63)
-##   on_day_started           매일 아침 (자동 물주기, 자동 수확 등)
+##   on_day_started           매일 아침, 플레이어가 깨어날 때 (자동 물주기 등). DayCycle 의 wake_up 단계에서 불린다.
 
 const TILE := Art.TILE
 const DIRS: Array[Vector2i] = [Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP, Vector2i.RIGHT]

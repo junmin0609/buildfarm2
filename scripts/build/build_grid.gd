@@ -16,10 +16,6 @@ var _cells: Dictionary = {}          # Vector2i -> Placeable
 var _objects: Array[Placeable] = []
 
 
-func _ready() -> void:
-	Events.day_started.connect(_on_day_started)
-
-
 # ---------- 조회
 
 func objects() -> Array[Placeable]:
@@ -157,7 +153,8 @@ func _unregister(obj: Placeable) -> void:
 			_cells.erase(c)
 
 
-func _on_day_started(_day: int) -> void:
+## 새 날 아침 (DayCycle 의 wake_up 단계): 시설의 아침 동작 (스프링클러 등)
+func start_day() -> void:
 	for obj in _objects:
 		obj.on_day_started(world)
 

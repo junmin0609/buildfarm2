@@ -26,6 +26,8 @@ var _build: BuildPanel
 var _build_hint: PanelContainer
 var _build_hint_label: Label
 var _crop_info: CropInfoPopup
+## 마지막 하루 마감 이유 ("time_up" / "sleep")
+var _end_reason := ""
 
 
 func _ready() -> void:
@@ -79,6 +81,7 @@ func _ready() -> void:
 	Events.time_changed.connect(_on_time_changed)
 	Events.money_changed.connect(_on_money_changed)
 	Events.day_started.connect(_on_day_started)
+	Events.day_ending.connect(_on_day_ending)
 	Events.day_ending_soon.connect(_on_day_ending_soon)
 	Events.toast.connect(show_toast)
 	Events.prompt_changed.connect(_on_prompt_changed)
@@ -195,12 +198,22 @@ func _on_build_hint(text: String) -> void:
 	_prompt_box.visible = _prompt.text != "" and text == ""
 
 
+## 하루 마감 시작: 열린 창을 모두 닫는다
+func _on_day_ending(reason: String) -> void:
+	_end_reason = reason
+	_close_panels()
+
+
 func _on_day_started(day: int) -> void:
 	_fade.modulate.a = 1.0
 	var tween := create_tween()
 	tween.tween_interval(0.3)
 	tween.tween_property(_fade, "modulate:a", 0.0, 0.8)
-	show_toast("%d일차 아침이 밝았어요. 물을 준 작물이 자랐어요." % day)
+	if _end_reason == "time_up":
+		show_toast("하루가 끝나 집으로 돌아왔어요. %d일차 아침이에요." % day)
+	else:
+		show_toast("%d일차 아침이 밝았어요. 물을 준 작물이 자랐어요." % day)
+	_end_reason = ""
 
 
 func _on_day_ending_soon(seconds_left: float) -> void:

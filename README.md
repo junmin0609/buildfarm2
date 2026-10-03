@@ -21,9 +21,26 @@ Godot 4.7로 만든 2D 픽셀 농장 게임의 기본 버전입니다. 16px 도�
 - 괭이로 농장 땅을 갈고 → 씨앗을 심고 → 물을 주고 → 집에서 자면 다음 날 자랍니다.
 - 물을 준 날만 하루씩 자랍니다. 매일 아침 물은 마릅니다.
 - 물뿌리개는 물이 12번분 들어 있고(`items.json`의 `capacity`), 물가(개울·연못)를 향해 쓰면 다시 가득 찹니다. 우물은 아직 없음.
-- 하루는 실제 15분(시계 오전 7시 → 새벽 2시). 14분이 지나면 "1분 남았어요" 경고, 15분이 되면 다음 날 오전 7시.
+- 하루는 실제 15분(시계 오전 7시 → 새벽 2시). 14분이 지나면 "1분 남았어요" 경고, 15분이 되면 하루가 끝나고 다음 날 오전 7시에 집 앞에서 시작(패널티 없음).
   상점·건설 창, 설치·옮기기·철거 중에는 시간이 멈추고, 가방 창에서는 흐릅니다(가방이 열린 동안은 움직일 수 없음).
 - 씨앗 상점에서 씨앗을 사고, 광장 작물 판매처에서 바로 팝니다(기준가의 80%). 시작 돈은 500G.
+
+## 하루 마감 (BUILD_FARM_PLAN §95~§102)
+15분이 지나 강제로 끝나든(`time_up`) 집에서 자든(`sleep`) 똑같이 `GameState.request_day_end()` → `DayCycle.end_day()` 한 길로 갑니다.
+처리 순서는 `scripts/time/day_cycle.gd`의 `PHASES` 한 곳에만 있습니다.
+
+| 순서 | 단계 | 지금 하는 일 |
+|---|---|---|
+| 1 | `end_activities` | 열린 창(가방·상점·건설)과 건설 모드 닫기, 시간 정지·입력 잠금 풀기 |
+| 2 | `settle_sales` | (출하함 정산 자리, 아직 없음) |
+| 3 | `farm_daily` | 물 준 작물 성장·밭 마르기, 작은 장애물 재생 |
+| 4 | `advance_date` | 날짜 +1, 시계 07:00 |
+| 5~9 | `season` `weather` `night_production` `shop_refresh` `save` | (계절·날씨·야간 생산·상점 특가·자동 저장 자리, 아직 없음) |
+| 10 | `wake_up` | 집 앞(맵의 `@`)에서 아래를 보고 시작, 시설 아침 동작(`Placeable.on_day_started`) |
+
+끝나면 `Events.day_started(day)` → `Events.day_ended(report)`를 보냅니다.
+새 시스템은 하루 끝 처리를 자기 파일에 흩지 말고 `world.day_cycle.add_step(DayCycle.NIGHT_PRODUCTION, func(report): ...)`처럼 단계에 등록합니다.
+결과를 `report`에 적어 두면 아침 요약(§98, §99)에서 쓸 수 있습니다.
 
 ## 작물·품질·판매 (BUILD_FARM_PLAN §24, §36)
 | 작물 | 성장 | 다시 열림 | 수확량 | 씨앗 | 브론즈 / 실버 / 골드 |
@@ -52,7 +69,8 @@ assets/fonts/            Neo둥근모 한글 도트 폰트 (SIL OFL 1.1, NeoDung
 tools/make_art.py        모든 그래픽을 코드로 찍어 내는 생성기
 scenes/                  main / world / player / buildings / ui / tests
 scripts/
-  autoload/   Events(신호 모음), ItemDB(아이템 저장소), GameState(돈·날짜·인벤토리·키 설정)
+  autoload/   Events(신호 모음), ItemDB(아이템 저장소), GameState(돈·날짜·시계·인벤토리·키 설정)
+  time/       DayCycle(하루 마감 흐름)
   core/       ItemDef, Inventory, Quality(품질), DataFile(JSON 읽기), Art(그림·폰트 모음)
   economy/    Pricing(판매 가격 계산)
   world/      MapLayout(글자 지도), TerrainTileSet(타일셋 생성), FarmWorld(맵 조립), Prop(나무·바위)
@@ -162,5 +180,5 @@ func on_day_started(world: FarmWorld) -> void:
 ```
 Godot --headless --path . res://scenes/tests/smoke_test.tscn
 ```
-땅 갈기 → 심기 → 물 주기 → 성장 → 수확 → 판매·구매 → 잠자기 → 상점 창 → 충돌, 건설(설치·불가 판정·밭 위 건설·충돌·이동·철거·환불·시간 정지·격자·회전·불러오기), 개간(분포·도구·등급·자원·가방 가득·재생), 작물 데이터·품질 스택·판매 가격·다시 열리는 작물·수확량·물뿌리개, 시간(15분·경고·멈춤 규칙)까지 138개 항목을 확인합니다.
+땅 갈기 → 심기 → 물 주기 → 성장 → 수확 → 판매·구매 → 잠자기 → 상점 창 → 충돌, 건설(설치·불가 판정·밭 위 건설·충돌·이동·철거·환불·시간 정지·격자·회전·불러오기), 개간(분포·도구·등급·자원·가방 가득·재생), 작물 데이터·품질 스택·판매 가격·다시 열리는 작물·수확량·물뿌리개, 시간(15분·경고·멈춤 규칙), 하루 마감(자동 종료·집에서 잠·집 앞 07:00 시작·창 정리·순서·단계 등록)까지 175개 항목을 확인합니다.
 새 `class_name` 스크립트를 추가한 뒤에는 한 번 `Godot --headless --path . --import`로 클래스 목록을 갱신해야 점검이 돌아갑니다. (맵 좌표는 맵에서 찾아 쓰므로 맵을 바꿔도 그대로 동작)

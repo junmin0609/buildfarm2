@@ -28,7 +28,6 @@ var _hover_info := {}
 
 func _ready() -> void:
 	rng.randomize()
-	Events.day_started.connect(_on_day_started)
 
 
 func _process(delta: float) -> void:
@@ -210,7 +209,8 @@ func set_cursor(cell: Vector2i, visible_now: bool) -> void:
 	queue_redraw()
 
 
-func _on_day_started(_day: int) -> void:
+## 하루 마감 때 (DayCycle 의 farm_daily 단계): 물 준 작물만 자라고 밭이 마른다
+func process_day() -> void:
 	for tile: SoilTile in tiles.values():
 		tile.advance_day()
 	queue_redraw()
