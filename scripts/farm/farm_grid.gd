@@ -123,14 +123,38 @@ func harvest(cell: Vector2i) -> Dictionary:
 	return result
 
 
+## 작물을 뽑는다 (§29). 씨앗은 돌려주지 않고, 밭(갈아 둔 흙·물 준 상태)은 그대로 남는다.
+## 다시 열리는 작물도 포기째 사라진다. 뽑을 작물이 없으면 false.
+func remove_crop(cell: Vector2i) -> bool:
+	var tile := get_tile(cell)
+	if tile == null or not tile.has_crop():
+		return false
+	tile.seed_id = ""
+	tile.days_grown = 0
+	tile.regrowing = false
+	_changed(cell)
+	return true
+
+
+## 작물을 뽑을 수 있는 도구 (§29: 괭이·곡괭이)
+static func removes_crops(item: ItemDef) -> bool:
+	return item != null and item.kind == ItemDef.Kind.TOOL and item.tool_type in ["hoe", "pickaxe"]
+
+
 func mature_produce_at(cell: Vector2i) -> String:
 	var tile := get_tile(cell)
 	return tile.seed_item().grows if tile != null and tile.is_mature() else ""
 
 
 ## 손에 든 아이템을 칸에 쓴다. 새 도구는 여기에 한 줄 추가하면 된다.
+## 괭이·곡괭이로 작물이 있는 칸을 치면 작물을 뽑는다 (다 자란 작물은 그 전에 수확된다: Player 가 수확을 먼저 처리).
 func use_item(cell: Vector2i, item: ItemDef) -> bool:
 	if item == null:
+		return false
+	if removes_crops(item) and get_tile(cell) != null and get_tile(cell).has_crop():
+		if remove_crop(cell):
+			Events.toast.emit("작물을 뽑았어요. (씨앗은 돌아오지 않아요)")
+			return true
 		return false
 	match item.kind:
 		ItemDef.Kind.TOOL:

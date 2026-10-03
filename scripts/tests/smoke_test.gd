@@ -471,6 +471,29 @@ func _test_crops_and_quality(world: FarmWorld, hud: HUD) -> void:
 	_check(lo == 1 and hi == 3, "감자 수확량 1~3개 (%d~%d)" % [lo, hi])
 	farm.get_tile(c).seed_id = ""
 
+	# 작물 뽑기 (§29): 괭이·곡괭이로만. 씨앗은 안 돌아오고 밭은 남는다
+	farm.plant(c, cs)
+	farm.water(c)
+	var seeds_before := inv.count_of("carrot_seed")
+	for tool_id in ["watering_can", "axe"]:
+		farm.use_item(c, ItemDB.get_item(tool_id))
+	_check(farm.get_tile(c).has_crop(), "물뿌리개·도끼로는 작물이 안 뽑힘")
+	_check(farm.use_item(c, ItemDB.get_item("hoe")) and not farm.get_tile(c).has_crop() and farm.get_tile(c).watered, "괭이로 뽑기 (밭·물은 그대로)")
+	_check(inv.count_of("carrot_seed") == seeds_before, "뽑아도 씨앗은 안 돌아옴")
+	farm.plant(c, ss)
+	farm.get_tile(c).regrowing = true
+	_check(farm.use_item(c, ItemDB.get_item("pickaxe")) and not farm.get_tile(c).has_crop() and not farm.get_tile(c).regrowing, "곡괭이로 다시 열리는 포기도 뽑기")
+	_check(farm.tiles.has(c), "뽑은 자리는 갈린 밭으로 남음")
+	farm.plant(c, cs)
+	farm.get_tile(c).days_grown = cs.grow_days
+	player.global_position = world.cell_center(c + Vector2i.UP)
+	player.facing = Vector2i.DOWN
+	GameState.select_slot(0)
+	var carrots := inv.count_of("carrot")
+	player._use_selected()
+	_check(inv.count_of("carrot") == carrots + 1 and not farm.get_tile(c).has_crop(), "다 자란 작물은 괭이로 쳐도 수확이 먼저")
+	farm.get_tile(c).watered = false
+
 	# 물뿌리개 용량 (items.json capacity)
 	var can_slot := -1
 	for i in inv.size():
