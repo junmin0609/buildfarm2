@@ -18,7 +18,7 @@ const SETTLE_SALES := "settle_sales"
 const FARM_DAILY := "farm_daily"
 ## 날짜 +1, 시계 07:00
 const ADVANCE_DATE := "advance_date"
-## 계절 변경 판정 (§30, §34 — 아직 없음)
+## 계절 변경 판정 (§30, §34, §12): 날짜가 새 계절로 넘어가면 작물 시듦·빈 밭 되돌림 → report.season
 const SEASON := "season"
 ## 오늘 날씨 정하기·비 오면 밭 젖히기 (§32, §100 — 아직 없음)
 const WEATHER := "weather"
@@ -60,6 +60,7 @@ func _ready() -> void:
 	Events.day_end_requested.connect(end_day)
 	# 지금 있는 시스템의 하루 처리 (새 시스템은 각자 add_step 으로 붙인다)
 	add_step(SETTLE_SALES, _settle_sales)
+	add_step(SEASON, _change_season)
 	add_step(FARM_DAILY, func(_r: Dictionary) -> void: world.farm.process_day())
 	add_step(FARM_DAILY, func(_r: Dictionary) -> void: world.obstacles.process_day())
 	add_step(WAKE_UP, func(_r: Dictionary) -> void: world.build.start_day())
@@ -109,6 +110,18 @@ func _settle_sales(report: Dictionary) -> void:
 	for amount: Variant in by_channel.values():
 		total += int(amount)
 	report["sales"] = {"by_channel": by_channel, "total": total}
+
+
+## 날짜가 새 계절로 넘어갔으면 농사에 계절 변화를 적용한다.
+## report.season = {"from", "to", "withered", "reverted"} (계절이 그대로면 없음)
+func _change_season(report: Dictionary) -> void:
+	var before := Calendar.season_of(report.from_day)
+	var now := Calendar.season_of(GameState.day)
+	if before == now:
+		return
+	var result := world.farm.change_season(now)
+	report["season"] = {"from": before, "to": now, "withered": result.withered, "reverted": result.reverted}
+	Events.season_changed.emit(now)
 
 
 ## 이 노드가 직접 하는 단계

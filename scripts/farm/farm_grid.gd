@@ -117,6 +117,10 @@ func plant(cell: Vector2i, seed_def: ItemDef) -> bool:
 		return false
 	if tile.has_crop():
 		return false
+	var season := Calendar.season_of(GameState.day)
+	if not Calendar.outdoor_planting_allowed(season):
+		Events.toast.emit("%s에는 바깥 밭에 씨앗을 심을 수 없어요." % Calendar.season_name(season))
+		return false
 	tile.seed_id = seed_def.id
 	tile.days_grown = 0
 	tile.regrowing = false
@@ -190,6 +194,7 @@ func crop_info(cell: Vector2i) -> Dictionary:
 		"days_left": maxi(0, tile.days_needed() - tile.days_grown),
 		"watered": tile.watered,
 		"fertilizer": tile.fertilizer_item().name if tile.fertilizer != "" else "",
+		"withered": tile.withered,
 	}
 
 
@@ -228,6 +233,27 @@ func set_cursor(cell: Vector2i, visible_now: bool) -> void:
 	_cursor_cell = cell
 	_cursor_visible = visible_now
 	queue_redraw()
+
+
+## 계절이 바뀔 때 (DayCycle 의 season 단계, §34·§12)
+##   - 새 계절에 살 수 없는 작물은 시든다 (여러 계절 작물은 새 계절도 허용되면 그대로)
+##   - 비어 있고 마른 밭은 soil_revert_chance 확률로 보통 땅이 된다. 젖은 빈 밭은 그대로
+## 돌려주는 값: {"withered": 시든 칸 수, "reverted": 되돌아간 칸 수}
+func change_season(season: String) -> Dictionary:
+	var withered := 0
+	var reverted := 0
+	var chance := Calendar.soil_revert_chance()
+	for cell: Vector2i in tiles.keys():
+		var tile: SoilTile = tiles[cell]
+		if tile.has_crop():
+			if not tile.withered and not Calendar.crop_allowed(tile.seed_item(), season):
+				tile.wither()
+				withered += 1
+		elif not tile.last_watered and rng.randf() < chance:
+			tiles.erase(cell)
+			reverted += 1
+	queue_redraw()
+	return {"withered": withered, "reverted": reverted}
 
 
 ## 하루 마감 때 (DayCycle 의 farm_daily 단계): 물 준 작물만 자라고 밭이 마른다
@@ -280,12 +306,17 @@ func _draw() -> void:
 		if tile.has_crop():
 			var seed_def := tile.seed_item()
 			var crop_rect := Rect2(crop_stage(tile) * TILE, seed_def.crop_row * TILE, TILE, TILE)
-			draw_texture_rect_region(Art.CROPS, Rect2(rect.position + Vector2(0, -2), rect.size), crop_rect)
+			# 시든 작물은 누렇게 바랜 색
+			var tint := WITHERED_TINT if tile.withered else Color.WHITE
+			draw_texture_rect_region(Art.CROPS, Rect2(rect.position + Vector2(0, -2), rect.size), crop_rect, tint)
 	if _cursor_visible:
 		var r := Rect2(Vector2(_cursor_cell * TILE), Vector2(TILE, TILE))
 		var glow := 0.6 + 0.3 * sin(_pulse * 4.0)
 		draw_rect(r.grow(-3), Color(1, 0.97, 0.88, 0.12 * glow))
 		draw_texture_rect_region(Art.TILES, r, Art.tile_region(TerrainTileSet.CURSOR), Color(1, 1, 1, glow))
+
+
+const WITHERED_TINT := Color(0.78, 0.62, 0.42)
 
 
 ## 비료를 준 밭: 흙 위에 등급 색 알갱이 (자리는 항상 같게)
@@ -301,6 +332,8 @@ func _draw_fertilizer(rect: Rect2, color: Color) -> void:
 ## 다시 열리는 중인 작물은 잎이 다 큰 채로 열매만 기다린다.
 static func crop_stage(tile: SoilTile) -> int:
 	var g := tile.growth()
+	if tile.withered:
+		return clampi(1 + int(g * 2.0), 1, 3)  # 열매 없이 잎만 남은 모습
 	if tile.is_mature():
 		return 4
 	if tile.regrowing:

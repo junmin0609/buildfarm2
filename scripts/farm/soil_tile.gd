@@ -10,6 +10,10 @@ var regrowing := false
 ## 뿌린 비료 아이템 id ("" 이면 없음). 심기 전에만 뿌릴 수 있다 (§26).
 ##   한 번 거두는 작물: 수확하면 끝 / 다시 열리는 작물: 포기가 살아 있는 동안 유지 / 작물을 뽑거나 시들면 끝
 var fertilizer := ""
+## 계절이 바뀌어 시든 작물 (§34): 자라지 않고, 거둘 수 없고, 물을 줘도 살아나지 않는다. 뽑아야 한다.
+var withered := false
+## 하루가 끝나기 직전(밭이 마르기 전) 물을 받았는지. 계절이 바뀔 때 "젖은 빈 밭"을 가리는 데 쓴다 (§12).
+var last_watered := false
 
 
 func has_crop() -> bool:
@@ -26,10 +30,20 @@ func quality_table() -> String:
 	return f.quality_table if f != null and f.quality_table != "" else "none"
 
 
-## 작물을 없앤다 (뽑기·시듦). 비료 효과도 함께 끝난다. 밭과 물 준 상태는 남는다.
+## 작물을 없앤다 (뽑기). 비료 효과도 함께 끝난다. 밭과 물 준 상태는 남는다.
 func clear_crop() -> void:
 	seed_id = ""
 	days_grown = 0
+	regrowing = false
+	fertilizer = ""
+	withered = false
+
+
+## 작물이 시든다 (계절이 맞지 않을 때). 작물은 남아 있지만 죽었고, 비료 효과는 끝난다 (§26).
+func wither() -> void:
+	if not has_crop():
+		return
+	withered = true
 	regrowing = false
 	fertilizer = ""
 
@@ -55,13 +69,14 @@ func growth() -> float:
 
 
 func is_mature() -> bool:
-	return has_crop() and growth() >= 1.0
+	return has_crop() and not withered and growth() >= 1.0
 
 
-## 하루가 지날 때. 물을 준 작물만 자란다.
+## 하루가 지날 때. 물을 준 작물만 자란다 (시든 작물은 자라지 않는다).
 func advance_day() -> void:
-	if has_crop() and watered and not is_mature():
+	if has_crop() and watered and not withered and not is_mature():
 		days_grown += 1
+	last_watered = watered
 	watered = false
 
 
@@ -78,7 +93,7 @@ func after_harvest() -> void:
 
 
 func to_dict() -> Dictionary:
-	return {"watered": watered, "seed_id": seed_id, "days_grown": days_grown, "regrowing": regrowing, "fertilizer": fertilizer}
+	return {"watered": watered, "seed_id": seed_id, "days_grown": days_grown, "regrowing": regrowing, "fertilizer": fertilizer, "withered": withered}
 
 
 static func from_dict(d: Dictionary) -> SoilTile:
@@ -91,6 +106,7 @@ static func from_dict(d: Dictionary) -> SoilTile:
 		tile.seed_id = seed_id
 		tile.days_grown = maxi(0, int(d.get("days_grown", 0)))
 		tile.regrowing = d.get("regrowing", false) == true
+		tile.withered = d.get("withered", false) == true
 	var fert := ItemDB.get_item(str(d.get("fertilizer", "")))
 	if fert != null and fert.kind == ItemDef.Kind.FERTILIZER:
 		tile.fertilizer = fert.id

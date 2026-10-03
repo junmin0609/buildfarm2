@@ -57,6 +57,8 @@ func show_info(info: Dictionary) -> void:
 ## 본문 줄들: [글, 색]
 static func lines(info: Dictionary) -> Array:
 	var fert: Array = [["비료: %s" % info.fertilizer, TEXT_SOFT]] if str(info.get("fertilizer", "")) != "" else []
+	if info.get("withered", false):
+		return [["시들었어요", ACCENT], ["괭이·곡괭이로 뽑아 주세요", TEXT_SOFT]]
 	if info.mature:
 		return [["수확할 수 있어요", GOOD]] + fert
 	var result := []

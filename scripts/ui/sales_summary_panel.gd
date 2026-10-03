@@ -38,7 +38,7 @@ func _ready() -> void:
 
 ## sales: {"by_channel": {채널: 금액}, "total": 금액}
 func open(day: int, sales: Dictionary) -> void:
-	_title.text = "%d일차 판매" % day
+	_title.text = "%s 판매" % Calendar.date_text(day)
 	for child in _lines.get_children():
 		_lines.remove_child(child)
 		child.queue_free()

@@ -236,7 +236,7 @@ func _close_panels() -> void:
 # ---------- 표시 갱신
 
 func _on_time_changed(day: int, minutes: int) -> void:
-	_day_label.text = "%d일차 (%s)" % [day, WEEKDAYS[(day - 1) % 7]]
+	_day_label.text = "%s (%s)" % [Calendar.date_text(day), WEEKDAYS[(day - 1) % 7]]
 	_time_label.text = GameState.format_clock(minutes)
 	_time_label.add_theme_color_override("font_color", ACCENT if GameState.is_day_ending_soon() else TEXT)
 	_clock_icon.texture = _icon(1 if minutes >= 18 * 60 else 0)
@@ -269,10 +269,13 @@ func _on_day_started(day: int) -> void:
 	var tween := create_tween()
 	tween.tween_interval(0.3)
 	tween.tween_property(_fade, "modulate:a", 0.0, 0.8)
-	if _end_reason == "time_up":
-		show_toast("하루가 끝나 집으로 돌아왔어요. %d일차 아침이에요." % day)
+	var date := Calendar.date_text(day)
+	if day > 1 and Calendar.day_in_season(day) == 1:
+		show_toast("%s이 시작됐어요! 계절에 맞지 않는 작물은 시들었어요." % Calendar.season_name(Calendar.season_of(day)))
+	elif _end_reason == "time_up":
+		show_toast("하루가 끝나 집으로 돌아왔어요. %s 아침이에요." % date)
 	else:
-		show_toast("%d일차 아침이 밝았어요. 물을 준 작물이 자랐어요." % day)
+		show_toast("%s 아침이 밝았어요. 물을 준 작물이 자랐어요." % date)
 	_end_reason = ""
 
 

@@ -1,0 +1,9 @@
+{
+	"_comment": "날짜·계절 (BUILD_FARM_PLAN §30, §12, §35). 1년 = 계절 수 × days_per_season. 작물이 자랄 수 있는 계절은 items.json 씨앗의 seasons.",
+	"days_per_season": 28,
+	"seasons": ["spring", "summer", "autumn", "winter"],
+	"names": {"spring": "봄", "summer": "여름", "autumn": "가을", "winter": "겨울"},
+	"no_outdoor_planting": ["winter"],
+	"_soil_revert": "계절이 바뀔 때 비어 있고 마른 밭이 보통 땅으로 돌아갈 확률 (젖은 빈 밭은 유지)",
+	"soil_revert_chance": 0.35
+}

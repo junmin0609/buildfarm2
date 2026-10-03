@@ -160,7 +160,7 @@ func start_new_game() -> void:
 	get_tree().reload_current_scene()
 
 
-## 메뉴에 보여 줄 저장 설명 ("3일차 오전 9:20 · 수동 저장"). 없거나 읽을 수 없으면 "".
+## 메뉴에 보여 줄 저장 설명 ("봄 3일 · 수동 저장"). 없거나 읽을 수 없으면 "".
 static func describe_save() -> String:
 	if not FileAccess.file_exists(slot_path):
 		return ""
@@ -172,7 +172,7 @@ static func describe_save() -> String:
 	if not game is Dictionary:
 		return "읽을 수 없음"
 	var kind := "자동 저장" if json.data.get("kind") == "auto" else "수동 저장"
-	return "%d일차 · %s" % [int(game.get("day", 1)), kind]
+	return "%s · %s" % [Calendar.date_text(int(game.get("day", 1))), kind]
 
 
 static func _abs(path: String) -> String:

@@ -153,6 +153,9 @@ func _ready() -> void:
 	# ---------- 비료 (§25~§27)
 	await _test_fertilizer(world)
 
+	# ---------- 날짜 / 계절 (§30, §34, §12)
+	await _test_seasons(world, hud)
+
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
 
@@ -996,6 +999,100 @@ func _test_fertilizer(world: FarmWorld) -> void:
 	farm.tiles.erase(c)
 	inv.load_data(saved_inv)
 	GameState.select_slot(0)
+	await get_tree().process_frame
+
+
+func _test_seasons(world: FarmWorld, hud: HUD) -> void:
+	var farm := world.farm
+	var start_day := GameState.day
+	# 날짜 계산 (계절 28일, 봄 → 여름 → 가을 → 겨울 → 봄)
+	_check(Calendar.days_per_season() == 28 and Calendar.seasons() == ["spring", "summer", "autumn", "winter"], "계절 4개, 28일씩 (calendar.json)")
+	var table := [[1, "spring", 1, 1], [28, "spring", 28, 1], [29, "summer", 1, 1], [57, "autumn", 1, 1], [85, "winter", 1, 1], [112, "winter", 28, 1], [113, "spring", 1, 2]]
+	var calc_ok := true
+	for row: Array in table:
+		calc_ok = calc_ok and Calendar.season_of(row[0]) == row[1] and Calendar.day_in_season(row[0]) == row[2] and Calendar.year_of(row[0]) == row[3]
+	_check(calc_ok, "날짜 → 계절·날·연차 계산 (113일 = 2년차 봄 1일)")
+	_check(Calendar.date_text(30) == "여름 2일" and Calendar.date_text(113) == "2년차 봄 1일", "날짜 글자")
+	_check(ItemDB.get_item("carrot_seed").seasons == ["spring"], "작물 계절 데이터 사용 (당근 = 봄)")
+
+	# 점검용 여러 계절 작물 (봄·여름)
+	ItemDB._items["test_multi_seed"] = ItemDef.from_dict("test_multi_seed", {"kind": "seed", "grows": "carrot", "grow_days": 9, "seasons": ["spring", "summer"], "crop_row": 0})
+
+	# 봄 마지막 날에 밭을 꾸린다
+	GameState.day = 28
+	var cells := []
+	for c: Vector2i in farm.farmable_cells.keys():
+		if cells.size() >= 5:
+			break
+		if not world.obstacles.is_blocked(c) and not world.build.is_occupied(c) and not farm.tiles.has(c):
+			cells.append(c)
+	var spring_c: Vector2i = cells[0]   # 봄 작물 (비료)
+	var multi_c: Vector2i = cells[1]    # 봄·여름 작물
+	var dry_c: Vector2i = cells[2]      # 빈 마른 밭
+	var wet_c: Vector2i = cells[3]      # 빈 젖은 밭
+	for c: Vector2i in cells.slice(0, 4):
+		farm.till(c)
+	farm.fertilize(spring_c, ItemDB.get_item("basic_fertilizer"))
+	farm.plant(spring_c, ItemDB.get_item("carrot_seed"))
+	farm.plant(multi_c, ItemDB._items["test_multi_seed"])
+	farm.water(wet_c)
+	farm.water(spring_c)
+	farm.rng.seed = 5
+	GameState.sleep()
+	hud._close_panels()
+	var r: Dictionary = world.day_cycle.last_report
+	_check(Calendar.season_of(GameState.day) == "summer" and r.has("season") and r.season.from == "spring" and r.season.to == "summer", "28일이 끝나면 여름 (%s)" % Calendar.date_text(GameState.day))
+	var t := farm.get_tile(spring_c)
+	_check(t.withered and t.has_crop() and not t.is_mature() and t.fertilizer == "", "봄 작물은 여름이 되면 시듦, 비료 효과 끝")
+	_check(not farm.get_tile(multi_c).withered, "봄·여름 작물은 여름에도 살아 있음")
+	_check(farm.tiles.has(wet_c), "젖은 빈 밭은 그대로")
+	_check(hud._day_label.text.begins_with("여름 1일"), "날짜 표시에 계절 (%s)" % hud._day_label.text)
+
+	# 시든 작물: 자라지 않고, 거둘 수 없고, 물로 살아나지 않고, 뽑아야 함
+	var grown := t.days_grown
+	farm.water(spring_c)
+	GameState.sleep()
+	hud._close_panels()
+	t = farm.get_tile(spring_c)
+	_check(t.withered and t.days_grown == grown and farm.roll_harvest(spring_c).is_empty(), "시든 작물은 물을 줘도 안 자라고 거둘 수 없음")
+	_check(CropInfoPopup.lines(farm.crop_info(spring_c))[0][0] == "시들었어요", "작물 정보: 시들었어요")
+	world.save_manager.save_game("manual")
+	t.withered = false
+	world.save_manager.load_game()
+	_check(farm.get_tile(spring_c).withered, "시든 상태 저장·불러오기")
+	_check(farm.use_item(spring_c, ItemDB.get_item("hoe")) and not farm.get_tile(spring_c).has_crop() and not farm.get_tile(spring_c).withered, "시든 작물은 괭이로 뽑음 (밭은 남음)")
+
+	# 빈 마른 밭 약 35% 되돌림 (많은 칸으로 확인)
+	var empty_cells := []
+	for c: Vector2i in farm.farmable_cells.keys():
+		if not farm.tiles.has(c) and not world.obstacles.is_blocked(c) and not world.build.is_occupied(c):
+			empty_cells.append(c)
+		if empty_cells.size() >= 300:
+			break
+	for c: Vector2i in empty_cells:
+		farm.tiles[c] = SoilTile.new()
+	var wet_keep: Vector2i = empty_cells[0]
+	farm.tiles[wet_keep].last_watered = true
+	farm.rng.seed = 21
+	var res := farm.change_season("autumn")
+	var ratio := float(res.reverted) / (empty_cells.size() - 1)
+	_check(absf(ratio - 0.35) < 0.08 and farm.tiles.has(wet_keep), "빈 마른 밭 약 35%% 되돌림 (%d%%), 젖은 밭은 유지" % roundi(ratio * 100))
+	_check(farm.get_tile(multi_c).withered, "여러 계절 작물도 허용 안 되는 계절(가을)이 되면 시듦")
+	for c: Vector2i in empty_cells:
+		farm.tiles.erase(c)
+
+	# 겨울: 바깥 밭에 새 작물을 심을 수 없음
+	GameState.day = 85
+	farm.till(dry_c)
+	_check(Calendar.season_of(GameState.day) == "winter" and not farm.plant(dry_c, ItemDB.get_item("carrot_seed")), "겨울에는 바깥 밭에 심을 수 없음")
+	GameState.day = 113
+	_check(farm.plant(dry_c, ItemDB.get_item("carrot_seed")), "다시 봄이 오면 심을 수 있음")
+
+	# 정리
+	for c: Vector2i in cells:
+		farm.tiles.erase(c)
+	ItemDB._items.erase("test_multi_seed")
+	GameState.day = start_day
 	await get_tree().process_frame
 
 
