@@ -37,6 +37,9 @@ signal save_requested
 signal load_requested
 signal new_game_requested
 
+## 마우스가 올라간 아이템 칸 (ItemSlot, 벗어나면 null) → 아이템 툴팁 §45
+signal item_hover_changed(slot: Node)
+
 ## 마우스 아래 작물 정보 (FarmGrid.crop_info 형식, 빈 사전이면 숨김) §19
 signal crop_hover_changed(info: Dictionary)
 

@@ -1,12 +1,11 @@
 class_name InventoryPanel
 extends PanelContainer
-## 가방 창. 칸을 하나 누르고 다른 칸을 누르면 두 칸이 자리를 바꾼다. 맨 윗줄이 핫바다.
+## 가방 창. 칸을 끌어다 놓으면 자리를 바꾸거나 같은 물건끼리 합친다 (핫바와도). 맨 윗줄이 핫바다.
+## 설명은 아래 고정 칸 대신 커서 옆 툴팁(ItemTooltip)으로 보여 준다 (§45).
 
 signal close_requested
 
 var _slots: Array[ItemSlot] = []
-var _picked := -1
-var _info: Label
 
 
 func _ready() -> void:
@@ -28,7 +27,7 @@ func _ready() -> void:
 	box.add_child(header)
 
 	var hint := Label.new()
-	hint.text = "맨 윗줄이 핫바예요. 칸을 누른 뒤 다른 칸을 누르면 자리가 바뀌어요."
+	hint.text = "끌어다 놓으면 자리가 바뀌거나 같은 물건끼리 합쳐져요. 맨 윗줄이 핫바예요."
 	hint.add_theme_font_size_override("font_size", Art.FONT_SIZE_SMALL)
 	hint.add_theme_color_override("font_color", Color("9a7457"))
 	box.add_child(hint)
@@ -42,23 +41,16 @@ func _ready() -> void:
 		var slot := ItemSlot.new()
 		slot.index = i
 		slot.show_number = i < Inventory.HOTBAR_SIZE
+		slot.draggable = true
 		slot.clicked.connect(_on_slot_clicked)
-		slot.mouse_entered.connect(_show_info.bind(i))
 		grid.add_child(slot)
 		_slots.append(slot)
-
-	_info = Label.new()
-	_info.custom_minimum_size = Vector2(0, 60)
-	_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(_info)
 
 	Events.inventory_changed.connect(refresh)
 	refresh()
 
 
 func open() -> void:
-	_picked = -1
-	_info.text = ""
 	refresh()
 	show()
 
@@ -66,29 +58,10 @@ func open() -> void:
 func refresh() -> void:
 	for i in _slots.size():
 		_slots[i].set_slot(GameState.inventory.get_slot(i))
-		_slots[i].picked = i == _picked
 		_slots[i].set_selected(i == GameState.selected_slot and i < Inventory.HOTBAR_SIZE)
 
 
+## 맨 윗줄(핫바) 칸을 누르면 그 칸을 손에 든다
 func _on_slot_clicked(index: int) -> void:
-	if _picked == -1:
-		if GameState.inventory.get_slot(index) != null:
-			_picked = index
-	else:
-		GameState.inventory.swap(_picked, index)
-		_picked = -1
-	refresh()
-
-
-func _show_info(index: int) -> void:
-	var inv := GameState.inventory
-	var item := inv.item_at(index)
-	if item == null:
-		_info.text = ""
-		return
-	var q := inv.quality_at(index)
-	var price := "  ·  기준가 %d G" % Pricing.quality_price(item, q) if item.is_sellable() else ""
-	var water := int(inv.slot_value(index, "water", -1)) if item.capacity > 0 else -1
-	var lines := ItemSlot.describe(item, q, water).split("\n")
-	lines[0] += price
-	_info.text = "\n".join(lines)
+	if index < Inventory.HOTBAR_SIZE:
+		GameState.select_slot(index)

@@ -84,6 +84,13 @@ func _ready() -> void:
 	get_tree().paused = true
 	await get_tree().create_timer(0.5).timeout
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_inv.png"))
+	# 아이템 툴팁 (씨앗 칸에 마우스)
+	var seed_slot: Control = main.get_node("HUD")._inventory._slots[2]
+	Input.warp_mouse(seed_slot.get_global_rect().get_center())
+	Events.item_hover_changed.emit(seed_slot)
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_tooltip.png"))
+	Events.item_hover_changed.emit(null)
 	main.get_node("HUD")._close_panels()
 	main.get_node("HUD").open_menu()
 	await get_tree().create_timer(0.4).timeout

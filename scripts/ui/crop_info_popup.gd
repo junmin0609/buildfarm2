@@ -80,11 +80,4 @@ func _refresh_visible() -> void:
 func _process(_delta: float) -> void:
 	if not visible:
 		return
-	var view := get_viewport_rect().size
-	var mouse := get_viewport().get_mouse_position()
-	var pos := mouse + OFFSET
-	if pos.x + size.x > view.x:
-		pos.x = mouse.x - OFFSET.x - size.x
-	if pos.y + size.y > view.y:
-		pos.y = mouse.y - OFFSET.y - size.y
-	position = pos.floor()
+	CursorTooltip.place(self)

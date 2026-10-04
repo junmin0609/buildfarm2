@@ -27,6 +27,7 @@ var _build_hint: PanelContainer
 var _build_hint_label: Label
 var _crop_info: CropInfoPopup
 var _weather_fx: WeatherOverlay
+var _item_tip: ItemTooltip
 var _menu: SystemMenu
 var _bin_panel: ShippingBinPanel
 var _summary: SalesSummaryPanel
@@ -94,6 +95,11 @@ func _ready() -> void:
 	_crop_info = CropInfoPopup.new()
 	_crop_info.add_theme_stylebox_override("panel", _panel_style(10))
 	_root.add_child(_crop_info)
+
+	# 아이템 툴팁은 모든 창 위에
+	_item_tip = ItemTooltip.new()
+	_item_tip.add_theme_stylebox_override("panel", _panel_style(10))
+	_root.add_child(_item_tip)
 
 	_fade = ColorRect.new()
 	_fade.color = Color("3b2a20")

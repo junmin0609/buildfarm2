@@ -167,6 +167,9 @@ func _ready() -> void:
 	# ---------- 여름·가을 작물, 제철 씨앗만 심기·판매 (§36~§38)
 	await _test_seasonal_crops(world, hud)
 
+	# ---------- 가방 드래그 / 아이템 툴팁 (§44, §45)
+	await _test_drag_and_tooltip(hud)
+
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
 
@@ -1408,6 +1411,95 @@ func _test_seasonal_crops(world: FarmWorld, hud: HUD) -> void:
 	for c: Vector2i in cells:
 		farm.tiles.erase(c)
 	GameState.day = start_day
+	await get_tree().process_frame
+
+
+func _test_drag_and_tooltip(hud: HUD) -> void:
+	var inv := GameState.inventory
+	var saved_inv := inv.to_data()
+	inv.load_data([])
+	inv.slots[9] = {"id": "potato", "count": 3, "quality": "gold"}
+	inv.slots[10] = {"id": "potato", "count": 4, "quality": "gold"}
+	inv.slots[11] = {"id": "potato", "count": 2, "quality": "silver"}
+	inv.slots[12] = {"id": "hoe", "count": 1, "quality": ""}
+	inv.slots[13] = {"id": "potato", "count": 98, "quality": "gold"}
+	inv.move(9, 10)
+	_check(inv.get_slot(9) == null and inv.get_slot(10).count == 7, "같은 물건·같은 품질은 합쳐짐")
+	inv.move(11, 10)
+	_check(inv.get_slot(10).quality == "silver" and inv.get_slot(11).quality == "gold" and inv.get_slot(11).count == 7, "품질이 다르면 합치지 않고 자리 바꿈")
+	inv.move(11, 13)
+	_check(inv.get_slot(13).count == 99 and inv.get_slot(11).count == 6, "가득 차면 넘치는 만큼은 원래 칸에 남음")
+	inv.move(12, 0)
+	_check(inv.get_slot(0) != null and inv.get_slot(0).id == "hoe" and inv.get_slot(12) == null, "가방 → 핫바로 옮기기")
+	inv.move(0, 20)
+	_check(inv.get_slot(20).id == "hoe" and inv.get_slot(0) == null, "핫바 → 가방으로 옮기기")
+
+	# 칸의 끌어다 놓기 (가방 창 ↔ 화면 아래 핫바)
+	hud.open_inventory()
+	await get_tree().process_frame
+	var bag: Array[ItemSlot] = hud._inventory._slots
+	var bar: Array[ItemSlot] = hud._hotbar._slots
+	_check(bag[20].drag_data() == {"from": 20} and bag[5].drag_data() == null, "물건 칸만 끌 수 있음")
+	_check(bar[3]._can_drop_data(Vector2.ZERO, bag[20].drag_data()), "핫바 칸에 놓을 수 있음")
+	bar[3]._drop_data(Vector2.ZERO, bag[20].drag_data())
+	_check(inv.get_slot(3) != null and inv.get_slot(3).id == "hoe" and inv.get_slot(20) == null, "가방 창의 칸을 화면 핫바에 놓기")
+	bag[25]._drop_data(Vector2.ZERO, bar[3].drag_data())
+	_check(inv.get_slot(25) != null and inv.get_slot(25).id == "hoe" and inv.get_slot(3) == null, "핫바 칸을 가방 창에 놓기")
+	_check(hud._inventory.get("_info") == null, "가방 창 아래 고정 설명 칸 없음")
+
+	# 실제 마우스로 끌기: 누르기 → 움직이기 → 놓기
+	var from_c := bag[13].get_global_rect().get_center()
+	var to_c := bag[22].get_global_rect().get_center()
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = from_c
+	press.global_position = from_c
+	get_viewport().push_input(press, true)
+	for k in range(1, 9):
+		var motion := InputEventMouseMotion.new()
+		motion.position = from_c.lerp(to_c, k / 8.0)
+		motion.global_position = motion.position
+		motion.relative = (to_c - from_c) / 8.0
+		motion.button_mask = MOUSE_BUTTON_MASK_LEFT
+		get_viewport().push_input(motion, true)
+		await get_tree().process_frame
+	var release := press.duplicate()
+	release.pressed = false
+	release.position = to_c
+	release.global_position = to_c
+	get_viewport().push_input(release, true)
+	await get_tree().process_frame
+	_check(inv.get_slot(22) != null and inv.get_slot(22).count == 99 and inv.get_slot(13) == null, "마우스로 끌어다 놓기 (실제 입력)")
+
+	# 툴팁
+	inv.slots[2] = {"id": "tomato_seed", "count": 5, "quality": ""}
+	inv.slots[4] = {"id": "watering_can", "count": 1, "quality": "", "water": 5}
+	inv.changed.emit()
+	await get_tree().process_frame
+	Events.item_hover_changed.emit(bag[2])
+	var tip := hud._item_tip
+	var texts := tip._body.get_children().map(func(l: Label) -> String: return l.text)
+	_check(tip.visible and tip._title.text == "토마토 씨앗", "마우스를 올리면 커서 옆 툴팁")
+	var need := ["성장 6일", "다시 열림: 3일마다", "수확량 1~3개", "계절: 여름", "씨앗 가격 90 G", "토마토 기본 판매가 38 G"]
+	_check(need.all(func(t: String) -> bool: return t in texts), "씨앗 툴팁: 성장·다시 열림·수확량·계절·씨앗 가격·판매가 %s" % [texts])
+	var can_lines := ItemTooltip.lines(ItemDB.get_item("watering_can"), "", 5).map(func(l: Array) -> String: return l[0])
+	_check("등급 1" in can_lines and "물 5 / 12" in can_lines and "대장간에서 강화할 수 있어요" in can_lines, "도구 툴팁: 등급·물·강화 가능")
+	var hoe2_lines := ItemTooltip.lines(ItemDB.get_item("hoe_2")).map(func(l: Array) -> String: return l[0])
+	_check("등급 2" in hoe2_lines and "한 번에 3칸 갈기" in hoe2_lines, "강화 도구 툴팁: 등급·범위")
+	var crop_lines := ItemTooltip.lines(ItemDB.get_item("potato"), "gold").map(func(l: Array) -> String: return l[0])
+	_check("기준가 48 G" in crop_lines and "출하함 48 G · 광장 38 G" in crop_lines, "작물 툴팁: 품질 기준가·판매 방식별 가격")
+	var fert_lines := ItemTooltip.lines(ItemDB.get_item("premium_fertilizer")).map(func(l: Array) -> String: return l[0])
+	_check("수확 품질: 브론즈 15% · 실버 45% · 골드 40%" in fert_lines, "비료 툴팁: 품질 확률")
+	Events.item_hover_changed.emit(null)
+	_check(not tip.visible, "칸에서 벗어나면 툴팁 숨김")
+	_check(CursorTooltip.position_for(Vector2(100, 100), Vector2(200, 80), Vector2(1280, 720)) == Vector2(122, 122) 			and CursorTooltip.position_for(Vector2(1260, 700), Vector2(200, 80), Vector2(1280, 720)) == Vector2(1038, 598), "화면 밖으로 나가면 반대쪽으로 뒤집기")
+	Events.item_hover_changed.emit(bag[2])
+	hud._close_panels()
+	await get_tree().process_frame
+	_check(not tip.visible, "가방을 닫으면 툴팁도 숨김")
+
+	inv.load_data(saved_inv)
 	await get_tree().process_frame
 
 

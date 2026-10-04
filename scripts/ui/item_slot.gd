@@ -2,6 +2,8 @@ class_name ItemSlot
 extends Control
 ## 아이템 한 칸. 도트 테두리 + 3배 확대한 아이콘 + 개수.
 ## 품질이 있으면 오른쪽 위에 품질 색 보석, 물뿌리개는 아래에 남은 물 막대.
+## draggable 이면 가방(GameState.inventory)의 index 칸으로 다뤄 끌어다 놓을 수 있다 (가방 창 ↔ 핫바 모두).
+## 마우스를 올리면 Events.item_hover_changed 로 알려 커서 옆 툴팁(ItemTooltip)이 뜬다.
 
 signal clicked(index: int)
 
@@ -22,6 +24,8 @@ var quality := Quality.NONE
 var water := -1
 var selected := false
 var picked := false
+## 가방 칸으로 끌어다 놓을 수 있는가 (가방 창·핫바 칸만 true)
+var draggable := false
 
 var _hover := false
 
@@ -31,6 +35,9 @@ func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	mouse_entered.connect(_set_hover.bind(true))
 	mouse_exited.connect(_set_hover.bind(false))
+	visibility_changed.connect(func() -> void:
+		if not is_visible_in_tree() and _hover:
+			_set_hover(false))
 	if _box == null:
 		_box = Art.box(Art.UI_SLOT, 4, 0)
 		_box_selected = Art.box(Art.UI_SLOT_SELECTED, 4, 0)
@@ -39,6 +46,8 @@ func _init() -> void:
 func _set_hover(value: bool) -> void:
 	_hover = value
 	queue_redraw()
+	if mouse_filter != Control.MOUSE_FILTER_IGNORE:
+		Events.item_hover_changed.emit(self if value and item != null else null)
 
 
 func set_slot(slot: Variant) -> void:
@@ -46,22 +55,50 @@ func set_slot(slot: Variant) -> void:
 	count = slot["count"] if slot != null else 0
 	quality = slot.get("quality", Quality.NONE) if slot != null else Quality.NONE
 	water = int(slot.get("water", -1)) if slot != null and item != null and item.capacity > 0 else -1
-	tooltip_text = describe(item, quality, water) if item else ""
 	queue_redraw()
-
-
-## 이름 (품질) + 설명 (+ 남은 물)
-static func describe(def: ItemDef, q: String, water_left := -1) -> String:
-	var title := def.name if q == Quality.NONE else "%s (%s)" % [def.name, Quality.name_of(q)]
-	var text := "%s\n%s" % [title, def.description]
-	if water_left >= 0:
-		text += "\n물 %d / %d" % [water_left, def.capacity]
-	return text
+	if _hover and mouse_filter != Control.MOUSE_FILTER_IGNORE:
+		Events.item_hover_changed.emit(self if item != null else null)  # 내용이 바뀌면 툴팁도 새로
 
 
 func set_selected(value: bool) -> void:
 	selected = value
 	queue_redraw()
+
+
+# ---------- 끌어다 놓기 (Godot 기본 드래그 앤 드롭)
+
+## 끌기 시작할 때 넘길 데이터. 빈 칸·끌 수 없는 칸이면 null.
+func drag_data() -> Variant:
+	if not draggable or item == null:
+		return null
+	return {"from": index}
+
+
+func _get_drag_data(_at: Vector2) -> Variant:
+	var data: Variant = drag_data()
+	if data == null:
+		return null
+	var preview := TextureRect.new()
+	var icon := AtlasTexture.new()
+	icon.atlas = Art.ITEMS
+	icon.region = Art.item_region(item)
+	preview.texture = icon
+	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	preview.size = Vector2(16, 16) * ICON_SCALE
+	preview.position = -preview.size / 2.0
+	var holder := Control.new()
+	holder.add_child(preview)
+	set_drag_preview(holder)
+	Events.item_hover_changed.emit(null)
+	return data
+
+
+func _can_drop_data(_at: Vector2, data: Variant) -> bool:
+	return draggable and data is Dictionary and data.has("from")
+
+
+func _drop_data(_at: Vector2, data: Variant) -> void:
+	GameState.inventory.move(int(data["from"]), index)
 
 
 func _gui_input(event: InputEvent) -> void:

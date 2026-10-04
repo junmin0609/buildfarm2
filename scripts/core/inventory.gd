@@ -156,6 +156,26 @@ func stacks() -> Array[Dictionary]:
 	return result
 
 
+## 칸 from 의 물건을 칸 to 로 옮긴다 (끌어다 놓기).
+##   같은 아이템·같은 품질이면 to 에 합친다 (넘치는 만큼은 from 에 남음). 그 밖에는 두 칸을 바꾼다.
+##   품질이 다르면 합치지 않는다 (다른 스택).
+func move(from: int, to: int) -> void:
+	if from == to or get_slot(from) == null or to < 0 or to >= slots.size():
+		return
+	var a: Dictionary = slots[from]
+	var b: Variant = slots[to]
+	var item := ItemDB.get_item(a["id"])
+	if b != null and _same_stack(b, a["id"], a.get("quality", Quality.NONE)) and b["count"] < item.max_stack:
+		var moved := mini(a["count"], item.max_stack - b["count"])
+		b["count"] += moved
+		a["count"] -= moved
+		if a["count"] <= 0:
+			slots[from] = null
+		changed.emit()
+		return
+	swap(from, to)
+
+
 func swap(a: int, b: int) -> void:
 	if a == b:
 		return

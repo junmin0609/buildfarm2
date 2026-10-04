@@ -1,6 +1,6 @@
 class_name Hotbar
 extends PanelContainer
-## 화면 아래 핫바. 숫자키 1~9, 마우스 휠, 클릭으로 고른다.
+## 화면 아래 핫바. 숫자키 1~9, 마우스 휠, 클릭으로 고른다. 가방 창과 끌어다 놓기로 물건을 주고받는다.
 
 var _slots: Array[ItemSlot] = []
 
@@ -13,6 +13,7 @@ func _ready() -> void:
 		var slot := ItemSlot.new()
 		slot.index = i
 		slot.show_number = true
+		slot.draggable = true
 		slot.clicked.connect(GameState.select_slot)
 		row.add_child(slot)
 		_slots.append(slot)
