@@ -124,6 +124,10 @@ func plant(cell: Vector2i, seed_def: ItemDef) -> bool:
 	if not Calendar.outdoor_planting_allowed(season):
 		Events.toast.emit("%s에는 바깥 밭에 씨앗을 심을 수 없어요." % Calendar.season_name(season))
 		return false
+	# 제철이 아닌 씨앗은 심지 않는다 (여러 계절 작물은 허용된 계절이면 된다)
+	if not Calendar.crop_allowed(seed_def, season):
+		Events.toast.emit("이 계절에는 심을 수 없어요. (%s)" % Calendar.seasons_text(seed_def))
+		return false
 	tile.seed_id = seed_def.id
 	tile.days_grown = 0
 	tile.regrowing = false

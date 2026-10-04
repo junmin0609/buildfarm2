@@ -89,6 +89,8 @@ func refresh() -> void:
 	_money_label.text = "가진 돈  %d G" % GameState.money
 	_clear(_buy_list)
 	for item in ItemDB.shop_items():
+		if not Calendar.in_season_for_shop(item, GameState.day):
+			continue  # 이번 계절에 심을 수 없는 씨앗은 팔지 않는다
 		var row := item_row(item, "%d G" % item.buy_price)
 		for qty: int in [1, 5]:
 			var btn := Button.new()

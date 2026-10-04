@@ -226,5 +226,214 @@
 		"icon": 19,
 		"power": 2,
 		"description": "더 빨리 깨고, 큰 바위도 깰 수 있어요."
+	},
+	"wheat_seed": {
+		"name": "밀 씨앗",
+		"kind": "seed",
+		"grows": "wheat",
+		"grow_days": 4,
+		"regrow_days": 0,
+		"yield_min": 1,
+		"yield_max": 1,
+		"seasons": [
+			"spring",
+			"summer"
+		],
+		"buy_price": 25,
+		"description": "봄·여름에 4일이면 자라요. 가공 재료로 쓰여요.",
+		"icon": 20,
+		"crop_row": 3
+	},
+	"wheat": {
+		"name": "밀",
+		"kind": "crop",
+		"sell_price": 35,
+		"description": "고소한 밀. 나중에 가루로 만들 수 있어요.",
+		"icon": 21
+	},
+	"tomato_seed": {
+		"name": "토마토 씨앗",
+		"kind": "seed",
+		"grows": "tomato",
+		"grow_days": 6,
+		"regrow_days": 3,
+		"yield_min": 1,
+		"yield_max": 3,
+		"seasons": [
+			"summer"
+		],
+		"buy_price": 90,
+		"description": "6일이면 열리고, 그 뒤 3일마다 다시 열려요.",
+		"icon": 22,
+		"crop_row": 4
+	},
+	"tomato": {
+		"name": "토마토",
+		"kind": "crop",
+		"sell_price": 38,
+		"description": "새빨간 토마토.",
+		"icon": 23
+	},
+	"blueberry_seed": {
+		"name": "블루베리 씨앗",
+		"kind": "seed",
+		"grows": "blueberry",
+		"grow_days": 8,
+		"regrow_days": 4,
+		"yield_min": 2,
+		"yield_max": 4,
+		"seasons": [
+			"summer"
+		],
+		"buy_price": 140,
+		"description": "8일이면 열리고, 4일마다 2~4개씩 다시 열려요.",
+		"icon": 24,
+		"crop_row": 5
+	},
+	"blueberry": {
+		"name": "블루베리",
+		"kind": "crop",
+		"sell_price": 32,
+		"description": "새콤달콤한 블루베리.",
+		"icon": 25
+	},
+	"corn_seed": {
+		"name": "옥수수 씨앗",
+		"kind": "seed",
+		"grows": "corn",
+		"grow_days": 9,
+		"regrow_days": 4,
+		"yield_min": 1,
+		"yield_max": 2,
+		"seasons": [
+			"summer",
+			"autumn"
+		],
+		"buy_price": 110,
+		"description": "여름·가을에 자라요. 9일 뒤 열리고 4일마다 다시 열려요.",
+		"icon": 26,
+		"crop_row": 6
+	},
+	"corn": {
+		"name": "옥수수",
+		"kind": "crop",
+		"sell_price": 60,
+		"description": "알이 꽉 찬 옥수수.",
+		"icon": 27
+	},
+	"watermelon_seed": {
+		"name": "수박 씨앗",
+		"kind": "seed",
+		"grows": "watermelon",
+		"grow_days": 10,
+		"regrow_days": 5,
+		"yield_min": 1,
+		"yield_max": 1,
+		"seasons": [
+			"summer"
+		],
+		"buy_price": 120,
+		"description": "10일이면 열리고, 5일마다 다시 열려요.",
+		"icon": 28,
+		"crop_row": 7
+	},
+	"watermelon": {
+		"name": "수박",
+		"kind": "crop",
+		"sell_price": 110,
+		"description": "시원한 수박.",
+		"icon": 29
+	},
+	"sweet_potato_seed": {
+		"name": "고구마 씨앗",
+		"kind": "seed",
+		"grows": "sweet_potato",
+		"grow_days": 5,
+		"regrow_days": 0,
+		"yield_min": 1,
+		"yield_max": 3,
+		"seasons": [
+			"autumn"
+		],
+		"buy_price": 65,
+		"description": "5일이면 자라요. 한 번에 1~3개를 캘 수 있어요.",
+		"icon": 30,
+		"crop_row": 8
+	},
+	"sweet_potato": {
+		"name": "고구마",
+		"kind": "crop",
+		"sell_price": 50,
+		"description": "달콤한 고구마.",
+		"icon": 31
+	},
+	"eggplant_seed": {
+		"name": "가지 씨앗",
+		"kind": "seed",
+		"grows": "eggplant",
+		"grow_days": 6,
+		"regrow_days": 3,
+		"yield_min": 1,
+		"yield_max": 2,
+		"seasons": [
+			"autumn"
+		],
+		"buy_price": 100,
+		"description": "6일이면 열리고, 3일마다 다시 열려요.",
+		"icon": 32,
+		"crop_row": 9
+	},
+	"eggplant": {
+		"name": "가지",
+		"kind": "crop",
+		"sell_price": 60,
+		"description": "윤기 나는 가지.",
+		"icon": 33
+	},
+	"pumpkin_seed": {
+		"name": "호박 씨앗",
+		"kind": "seed",
+		"grows": "pumpkin",
+		"grow_days": 10,
+		"regrow_days": 0,
+		"yield_min": 1,
+		"yield_max": 1,
+		"seasons": [
+			"autumn"
+		],
+		"buy_price": 140,
+		"description": "10일이 걸리지만 아주 비싸게 팔려요.",
+		"icon": 34,
+		"crop_row": 10
+	},
+	"pumpkin": {
+		"name": "호박",
+		"kind": "crop",
+		"sell_price": 300,
+		"description": "커다란 호박.",
+		"icon": 35
+	},
+	"radish_seed": {
+		"name": "무 씨앗",
+		"kind": "seed",
+		"grows": "radish",
+		"grow_days": 4,
+		"regrow_days": 0,
+		"yield_min": 1,
+		"yield_max": 1,
+		"seasons": [
+			"autumn"
+		],
+		"buy_price": 35,
+		"description": "4일이면 자라는 가을 무예요.",
+		"icon": 36,
+		"crop_row": 11
+	},
+	"radish": {
+		"name": "무",
+		"kind": "crop",
+		"sell_price": 60,
+		"description": "시원한 가을 무.",
+		"icon": 37
 	}
 }

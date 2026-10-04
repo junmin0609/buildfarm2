@@ -164,6 +164,9 @@ func _ready() -> void:
 	# ---------- 대장간 / 도구 강화 (§43, §47)
 	await _test_blacksmith(world, hud)
 
+	# ---------- 여름·가을 작물, 제철 씨앗만 심기·판매 (§36~§38)
+	await _test_seasonal_crops(world, hud)
+
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
 
@@ -1314,6 +1317,97 @@ func _test_blacksmith(world: FarmWorld, hud: HUD) -> void:
 	inv.load_data(saved_inv)
 	GameState.money = money0
 	GameState.select_slot(0)
+	await get_tree().process_frame
+
+
+func _test_seasonal_crops(world: FarmWorld, hud: HUD) -> void:
+	var farm := world.farm
+	var start_day := GameState.day
+	# 기획서 수치: [성장, 재수확, 수확량 최소, 최대, 씨앗가, 판매가(브론즈), 계절]
+	var plan := {
+		"wheat": [4, 0, 1, 1, 25, 35, ["spring", "summer"]],
+		"tomato": [6, 3, 1, 3, 90, 38, ["summer"]],
+		"blueberry": [8, 4, 2, 4, 140, 32, ["summer"]],
+		"corn": [9, 4, 1, 2, 110, 60, ["summer", "autumn"]],
+		"watermelon": [10, 5, 1, 1, 120, 110, ["summer"]],
+		"sweet_potato": [5, 0, 1, 3, 65, 50, ["autumn"]],
+		"eggplant": [6, 3, 1, 2, 100, 60, ["autumn"]],
+		"pumpkin": [10, 0, 1, 1, 140, 300, ["autumn"]],
+		"radish": [4, 0, 1, 1, 35, 60, ["autumn"]],
+	}
+	var bad := []
+	for id: String in plan:
+		var row: Array = plan[id]
+		var sd := ItemDB.get_item(id + "_seed")
+		var crop := ItemDB.get_item(id)
+		if sd == null or crop == null or sd.grows != id or [sd.grow_days, sd.regrow_days, sd.yield_min, sd.yield_max, sd.buy_price, crop.sell_price] != row.slice(0, 6) or sd.seasons != row[6]:
+			bad.append(id)
+	_check(bad.is_empty(), "여름·가을 작물 9종 = 기획서 §36~§38 (성장·재수확·수확량·씨앗가·판매가·계절) %s" % [bad])
+	var q_ok := true
+	for row: Array in [["tomato", [38, 48, 61]], ["blueberry", [32, 40, 51]], ["watermelon", [110, 138, 176]], ["pumpkin", [300, 375, 480]]]:
+		var it := ItemDB.get_item(row[0])
+		q_ok = q_ok and Quality.ids().map(func(q: String) -> int: return Pricing.quality_price(it, q)) == row[1]
+	_check(q_ok, "품질 가격 = 기획서 (토마토 38/48/61, 호박 300/375/480 ...)")
+	_check(ItemDB.get_item("golden_pumpkin") == null and ItemDB.get_item("golden_pumpkin_seed") == null, "황금호박 같은 특수작물은 아직 없음")
+	var rows := {}
+	var art_ok := true
+	for id: String in plan:
+		var sd := ItemDB.get_item(id + "_seed")
+		art_ok = art_ok and not rows.has(sd.crop_row) and (sd.crop_row + 1) * Art.TILE <= Art.CROPS.get_height() 				and (ItemDB.get_item(id).icon + 1) * Art.TILE <= Art.ITEMS.get_width()
+		rows[sd.crop_row] = true
+	_check(art_ok, "작물 그림 줄·아이콘이 그림 파일 안에 있음")
+
+	# 상점: 지금 계절에 심을 수 있는 씨앗만
+	var shop_seeds := func(day: int) -> Array:
+		var ids := []
+		for it: ItemDef in ItemDB.shop_items():
+			if it.kind == ItemDef.Kind.SEED and Calendar.in_season_for_shop(it, day):
+				ids.append(it.grows)
+		ids.sort()
+		return ids
+	_check(shop_seeds.call(1) == ["carrot", "potato", "strawberry", "wheat"], "봄 상점 씨앗 %s" % [shop_seeds.call(1)])
+	_check(shop_seeds.call(29) == ["blueberry", "corn", "tomato", "watermelon", "wheat"], "여름 상점 씨앗 %s" % [shop_seeds.call(29)])
+	_check(shop_seeds.call(57) == ["corn", "eggplant", "pumpkin", "radish", "sweet_potato"], "가을 상점 씨앗 %s" % [shop_seeds.call(57)])
+	_check(shop_seeds.call(85).is_empty() and ItemDB.shop_items().any(func(it: ItemDef) -> bool: return it.kind == ItemDef.Kind.FERTILIZER and Calendar.in_season_for_shop(it, 85)), "겨울에는 씨앗 없음 (비료는 판매)")
+	GameState.day = 29
+	Events.shop_requested.emit("buy")
+	var names := hud._shop._buy_list.get_children().map(func(r: Node) -> String: return r.get_child(1).text)
+	_check("토마토 씨앗" in names and not "당근 씨앗" in names and "기본 비료" in names, "상점 창도 여름 씨앗만 진열")
+	hud._close_panels()
+
+	# 심기: 제철이 아닌 씨앗은 막고, 여러 계절 작물은 허용된 계절 모두
+	var cells := []
+	for c: Vector2i in farm.farmable_cells.keys():
+		if cells.size() >= 3:
+			break
+		if not world.obstacles.is_blocked(c) and not world.build.is_occupied(c) and not farm.tiles.has(c):
+			cells.append(c)
+	for c: Vector2i in cells:
+		farm.till(c)
+	var a: Vector2i = cells[0]
+	var b: Vector2i = cells[1]
+	var corn_c: Vector2i = cells[2]
+	_check(not farm.plant(a, ItemDB.get_item("carrot_seed")) and not farm.get_tile(a).has_crop(), "여름에는 봄 씨앗(당근)을 심을 수 없음")
+	_check(farm.plant(a, ItemDB.get_item("tomato_seed")) and farm.plant(b, ItemDB.get_item("wheat_seed")) and farm.plant(corn_c, ItemDB.get_item("corn_seed")), "여름 씨앗·밀(봄여름)·옥수수(여름가을) 심기")
+
+	# 토마토: 6일 뒤 열리고 3일마다 다시
+	farm.get_tile(a).days_grown = 6
+	var got := farm.harvest(a)
+	_check(got.get("id") == "tomato" and got.count >= 1 and got.count <= 3 and farm.get_tile(a).regrowing, "토마토 수확 (%d개), 포기 남음" % got.get("count", 0))
+	farm.get_tile(a).days_grown = 3
+	_check(farm.get_tile(a).is_mature(), "3일 뒤 다시 열림")
+
+	# 옥수수는 여름 → 가을 살아남고, 가을 → 겨울에 시듦. 밀은 가을에 시듦
+	farm.change_season("autumn")
+	_check(not farm.get_tile(corn_c).withered and farm.get_tile(b).withered and farm.get_tile(a).withered, "가을: 옥수수는 살아 있고, 밀·토마토는 시듦")
+	GameState.day = 57
+	_check(farm.plant(cells[0], ItemDB.get_item("corn_seed")) == false, "시든 작물이 있는 칸에는 못 심음")
+	farm.change_season("winter")
+	_check(farm.get_tile(corn_c).withered, "겨울: 옥수수도 시듦")
+
+	for c: Vector2i in cells:
+		farm.tiles.erase(c)
+	GameState.day = start_day
 	await get_tree().process_frame
 
 

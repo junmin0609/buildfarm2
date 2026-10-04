@@ -55,6 +55,21 @@ static func crop_allowed(seed_def: ItemDef, season: String) -> bool:
 	return seed_def == null or seed_def.seasons.is_empty() or season in seed_def.seasons
 
 
+## 씨앗이 자라는 계절 글자 ("봄·여름"). 계절 제한이 없으면 "모든 계절"
+static func seasons_text(seed_def: ItemDef) -> String:
+	if seed_def == null or seed_def.seasons.is_empty():
+		return "모든 계절"
+	return "·".join(seed_def.seasons.map(func(s: String) -> String: return season_name(s)))
+
+
+## 오늘 상점에 진열할 아이템인가: 씨앗은 지금 계절에 심을 수 있어야 한다 (비료 등은 항상)
+static func in_season_for_shop(item: ItemDef, day: int) -> bool:
+	if item == null or item.kind != ItemDef.Kind.SEED:
+		return true
+	var season := season_of(day)
+	return outdoor_planting_allowed(season) and crop_allowed(item, season)
+
+
 ## "봄 3일", 2년차부터 "2년차 봄 3일"
 static func date_text(day: int) -> String:
 	var text := "%s %d일" % [season_name(season_of(day)), day_in_season(day)]

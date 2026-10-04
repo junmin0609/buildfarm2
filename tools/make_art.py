@@ -1086,6 +1086,33 @@ CROPS = {
     "carrot": P["leaf"],
     "potato": [hexc("3d6b35"), hexc("4a8442"), hexc("5f9f50"), hexc("7cba62"), hexc("a2d47e")],
     "strawberry": [hexc("3d6b35"), hexc("4f8a3f"), hexc("67aa4a"), hexc("86c75e"), hexc("aee283")],
+    # 여름·가을 작물 (BUILD_FARM_PLAN §36 밀, §37, §38). 줄 순서 = items.json 의 crop_row
+    "wheat": [hexc("6b6a2e"), hexc("8a8a3a"), hexc("a8a84c"), hexc("c4c063"), hexc("dcd88a")],
+    "tomato": [hexc("3d6b35"), hexc("4a8442"), hexc("5f9f50"), hexc("7cba62"), hexc("a2d47e")],
+    "blueberry": [hexc("35603f"), hexc("447a4f"), hexc("569463"), hexc("72ad7c"), hexc("9ccca2")],
+    "corn": [hexc("3d6b35"), hexc("528d40"), hexc("6aa84e"), hexc("8cc463"), hexc("b4dc88")],
+    "watermelon": [hexc("3d6b35"), hexc("4a8442"), hexc("5f9f50"), hexc("7cba62"), hexc("a2d47e")],
+    "sweet_potato": [hexc("3f5f33"), hexc("547a3f"), hexc("6b944c"), hexc("88ae62"), hexc("b0cc88")],
+    "eggplant": [hexc("3d6b35"), hexc("4f7d44"), hexc("639656"), hexc("80b06b"), hexc("a8cc90")],
+    "pumpkin": [hexc("4a6b2e"), hexc("5f8a3a"), hexc("78a64a"), hexc("95c060"), hexc("bcd888")],
+    "radish": [hexc("3d6b35"), hexc("4f8a3f"), hexc("64a64a"), hexc("7fc05a"), hexc("a8dc78")],
+}
+
+# 작물별 그림 정보 (나중에 그림을 바꿀 때 여기와 produce() 만 고치면 된다)
+#   field_y: 밭에서 다 자란 열매를 그릴 높이, seed: 씨앗 봉지 색
+CROP_ART = {
+    "carrot": {"field_y": 12, "seed": "f0913a"},
+    "potato": {"field_y": 12.5, "seed": "d9a868"},
+    "strawberry": {"field_y": 8, "seed": "ef5b5b"},
+    "wheat": {"field_y": 5, "seed": "e3c45a"},
+    "tomato": {"field_y": 8, "seed": "e5483f"},
+    "blueberry": {"field_y": 8, "seed": "4f6fc4"},
+    "corn": {"field_y": 7, "seed": "f2d14b"},
+    "watermelon": {"field_y": 12, "seed": "3f9a4a"},
+    "sweet_potato": {"field_y": 12.5, "seed": "b85a86"},
+    "eggplant": {"field_y": 9, "seed": "7b4a9e"},
+    "pumpkin": {"field_y": 12, "seed": "f08a2c"},
+    "radish": {"field_y": 12, "seed": "e9e4d4"},
 }
 
 
@@ -1142,6 +1169,8 @@ def produce(c, kind, cx, cy, big=False):
             c.ellipse(cx + dx * k, cy + dy * k, 2.6 * k, 2.0 * k, hexc("e0b97f"))
             c.set(int(cx + dx * k - 1), int(cy + dy * k - 1), hexc("f4d8a6"))
             c.set(int(cx + dx * k + 1), int(cy + dy * k + 1), hexc("b88a50"))
+    elif kind in CROP_ART and kind not in ("carrot", "potato", "strawberry"):
+        produce_more(c, kind, cx, cy, big)
     elif kind == "strawberry":
         spots = ((-3, 0), (3, -1), (0, 2)) if not big else ((0, 0),)
         for dx, dy in spots:
@@ -1155,14 +1184,94 @@ def produce(c, kind, cx, cy, big=False):
             c.rect(int(x - 1), int(y - r * 1.1), 3, 1, hexc("67aa4a"))
 
 
+def produce_more(c, kind, cx, cy, big):
+    """여름·가을 작물의 열매. big=True 는 아이콘(16x16 가득), False 는 밭(잎 사이에 작게)."""
+    if kind == "wheat":
+        gold, light, stalk = hexc("e3c45a"), hexc("f6e39a"), hexc("b59a3a")
+        xs = (-3.5, 0, 3.5) if big else (-3, 0, 3)
+        for dx in xs:
+            x = cx + dx
+            if big:
+                c.rect(int(x), int(cy), 1, 7, stalk)
+            c.ellipse(x, cy - (1 if big else 0), 1.6 if big else 1.1, 3.4 if big else 2.4, gold)
+            c.set(int(x), int(cy - (3 if big else 2)), light)
+    elif kind == "tomato":
+        red, light = hexc("e5483f"), hexc("ff8a7a")
+        spots = ((0, 0.5),) if big else ((-3, 0), (2.5, 1))
+        for dx, dy in spots:
+            r = 5.0 if big else 1.9
+            c.ellipse(cx + dx, cy + dy, r, r * 0.9, red)
+            c.ellipse(cx + dx - r * 0.35, cy + dy - r * 0.35, r * 0.35, r * 0.3, light)
+            c.rect(int(cx + dx - 1), int(cy + dy - r * 0.9), 3, 1, hexc("5f9f50"))
+    elif kind == "blueberry":
+        blue, dark, light = hexc("4f6fc4"), hexc("3a52a0"), hexc("a8bdf0")
+        spots = ((-2.5, 1), (2.5, 1.5), (0, -2)) if big else ((-3, 0), (-1.5, 1.5), (2.5, 0.5), (3.5, 2))
+        for dx, dy in spots:
+            r = 2.8 if big else 1.2
+            c.ellipse(cx + dx, cy + dy, r, r, blue)
+            c.set(int(cx + dx), int(cy + dy + r * 0.5), dark)
+            c.set(int(cx + dx - r * 0.4), int(cy + dy - r * 0.4), light)
+    elif kind == "corn":
+        yellow, light, husk = hexc("f2d14b"), hexc("fff0a0"), hexc("7cba62")
+        rx, ry = (2.8, 6.0) if big else (1.6, 3.2)
+        c.ellipse(cx - rx * 0.9, cy + ry * 0.35, rx * 0.7, ry * 0.7, husk)
+        c.ellipse(cx + rx * 0.9, cy + ry * 0.35, rx * 0.7, ry * 0.7, husk)
+        c.ellipse(cx, cy, rx, ry, yellow)
+        for k in range(-2, 3):
+            c.set(int(cx), int(cy + k * ry / 3), light)
+    elif kind == "watermelon":
+        green, dark, light = hexc("4fa654"), hexc("2f7a3a"), hexc("8cd48a")
+        rx, ry = (6.2, 4.6) if big else (3.8, 2.4)
+        c.ellipse(cx, cy, rx, ry, green)
+        for dx in (-rx * 0.55, 0, rx * 0.55):
+            c.rect(int(cx + dx), int(cy - ry * 0.7), 1, int(ry * 1.4) + 1, dark)
+        c.ellipse(cx - rx * 0.4, cy - ry * 0.45, rx * 0.25, ry * 0.2, light)
+    elif kind == "sweet_potato":
+        skin, light, dark = hexc("c25f8a"), hexc("e892b4"), hexc("8f3f66")
+        if big:
+            for t in range(9):
+                r = 2.6 + 0.9 * (1 - abs(t - 4) / 4)
+                c.ellipse(cx - 4 + t, cy + 1.5 - t * 0.35, r, r * 0.85, skin)
+            c.set(int(cx - 2), int(cy), light); c.set(int(cx + 1), int(cy - 1), light)
+            c.set(int(cx + 2), int(cy + 1), dark)
+        else:
+            c.ellipse(cx, cy, 3.2, 1.6, skin)
+            c.set(int(cx - 1), int(cy - 1), light)
+    elif kind == "eggplant":
+        purple, light, cap = hexc("7b4a9e"), hexc("a77bd0"), hexc("5f9f50")
+        rx, ry = (3.8, 5.2) if big else (1.8, 2.8)
+        c.ellipse(cx, cy + ry * 0.25, rx, ry, purple)
+        c.ellipse(cx - rx * 0.4, cy - ry * 0.05, rx * 0.3, ry * 0.3, light)
+        c.ellipse(cx, cy - ry * 0.65, rx * 0.8, ry * 0.25, cap)
+        c.rect(int(cx), int(cy - ry * 1.0), 1, 2, cap)
+    elif kind == "pumpkin":
+        orange, dark, light, stem = hexc("f08a2c"), hexc("c96a1a"), hexc("ffb866"), hexc("6b8a3a")
+        rx, ry = (6.4, 4.8) if big else (3.8, 2.6)
+        c.ellipse(cx, cy, rx, ry, orange)
+        for dx in (-rx * 0.45, rx * 0.45):
+            c.rect(int(cx + dx), int(cy - ry * 0.6), 1, int(ry * 1.2) + 1, dark)
+        c.ellipse(cx - rx * 0.55, cy - ry * 0.4, rx * 0.18, ry * 0.25, light)
+        c.rect(int(cx), int(cy - ry - 1), 2, 2, stem)
+    elif kind == "radish":
+        white, shade, top = hexc("f4f1e6"), hexc("d9d3c0"), hexc("c9e3a0")
+        if big:
+            c.ellipse(cx - 2, cy - 5, 1.6, 3, hexc("7fc05a")); c.ellipse(cx + 2, cy - 5, 1.6, 2.6, hexc("64a64a"))
+            c.ellipse(cx, cy + 1.5, 3.0, 5.0, white)
+            c.ellipse(cx, cy - 2.2, 2.8, 1.4, top)
+            c.set(int(cx + 1), int(cy + 3), shade); c.set(int(cx - 1), int(cy + 5), shade)
+        else:
+            c.ellipse(cx, cy, 2.6, 1.8, white)
+            c.ellipse(cx, cy - 1, 2.4, 0.9, top)
+
+
 def make_crops():
-    atlas = Canvas(5 * T, 3 * T)
+    atlas = Canvas(5 * T, len(CROPS) * T)
     for row, (kind, pal) in enumerate(CROPS.items()):
         for stage in range(5):
             c, done = sub(atlas, stage, row)
             plant(c, stage, pal)
             if stage == 4:
-                produce(c, kind, 8.5, {"carrot": 12, "potato": 12.5, "strawberry": 8}[kind])
+                produce(c, kind, 8.5, CROP_ART[kind]["field_y"])
             if stage > 0:
                 c.outline(pal[0])
             done()
@@ -1307,6 +1416,9 @@ def make_items():
              "axe", "pickaxe", "fiber", "wood", "stone",
              "basic_fertilizer", "advanced_fertilizer", "premium_fertilizer",
              "hoe_2", "watering_can_2", "axe_2", "pickaxe_2"]
+    # 여름·가을 작물: 씨앗, 작물 순서로 (아이콘 20번부터)
+    for kind in ("wheat", "tomato", "blueberry", "corn", "watermelon", "sweet_potato", "eggplant", "pumpkin", "radish"):
+        order += [kind + "_seed", kind]
     atlas = Canvas(len(order) * T, T)
     for col, item in enumerate(order):
         c, done = sub(atlas, col, 0)
@@ -1326,7 +1438,7 @@ def make_items():
         elif item.endswith("_fertilizer"):
             fertilizer_bag(c, item)
         elif item.endswith("_seed"):
-            seed_packet(c, {"carrot_seed": hexc("f0913a"), "potato_seed": hexc("d9a868"), "strawberry_seed": hexc("ef5b5b")}[item])
+            seed_packet(c, hexc(CROP_ART[item[:-5]]["seed"]))
         else:
             pal = CROPS[item]
             if item == "carrot":
@@ -1337,8 +1449,10 @@ def make_items():
                 c.ellipse(6.5, 7.5, 2.5, 1.5, hexc("f4d8a6"))
                 for x, y in ((5, 10), (10, 8), (9, 11)):
                     c.set(x, y, hexc("b88a50"))
-            else:
+            elif item == "strawberry":
                 produce(c, item, 8, 9.5, big=True)
+            else:
+                produce(c, item, 8, 8.5, big=True)
             c.outline(INK)
         done()
     atlas.save("items.png")
