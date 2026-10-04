@@ -157,7 +157,7 @@ func _start_swing(item: ItemDef) -> void:
 
 
 func _interact() -> void:
-	var target := _nearest_interactable()
+	var target: Variant = _nearest_interactable()
 	if target:
 		target.interact(self)
 		return
@@ -179,12 +179,14 @@ func _try_harvest(cell: Vector2i) -> bool:
 	return true
 
 
-func _nearest_interactable() -> Interactable:
-	var best: Interactable = null
+## 가장 가까운 [E] 대상. Interactable 건물과 [E] 로 쓰는 설치 시설(퇴비통 등)을 함께 찾는다.
+## 둘 다 prompt / interact_point / can_interact / interact 를 가진다.
+func _nearest_interactable() -> Node2D:
+	var best: Node2D = null
 	var best_dist := INF
 	for node in get_tree().get_nodes_in_group("interactables"):
-		var it := node as Interactable
-		if it and it.can_interact(global_position):
+		var it: Variant = node
+		if it is Node2D and it.can_interact(global_position):
 			var d := global_position.distance_to(it.interact_point())
 			if d < best_dist:
 				best = it
@@ -193,8 +195,8 @@ func _nearest_interactable() -> Interactable:
 
 
 func _update_prompt() -> void:
-	var target := _nearest_interactable()
-	var text := target.prompt if target else ""
+	var target: Variant = _nearest_interactable()
+	var text: String = target.prompt if target else ""
 	if text != _prompt_text:
 		_prompt_text = text
 		Events.prompt_changed.emit(text)

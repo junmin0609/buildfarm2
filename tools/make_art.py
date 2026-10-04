@@ -797,6 +797,30 @@ def make_placeables():
     c.save("shed.png")
 
 
+# ---------------------------------------------------------------- 퇴비통 (2x1칸, 그림 32x28)
+
+def make_compost_bin():
+    w = P["wood"]
+    c = Canvas(32, 28)
+    c.ellipse(16, 26.5, 15, 1.4, SOFT_SHADOW)
+    # 나무판을 엮은 상자 (앞면)
+    rrect(c, 2, 11, 28, 16, 1.5, w[1])
+    for y in range(12, 26, 4):
+        c.rect(3, y, 26, 3, w[2])
+        c.rect(3, y, 26, 1, w[3])
+    for x in (2, 15, 28):
+        c.rect(x, 9, 2, 18, w[0])
+        c.rect(x, 9, 1, 18, w[1])
+    # 위에서 들여다본 퇴비 더미 (짙은 흙 + 풀잎 조각)
+    c.ellipse(16, 10, 13.5, 4.2, w[0])
+    c.ellipse(16, 9.5, 12, 3.2, hexc("5a3d28"))
+    c.ellipse(13, 8.5, 6, 1.8, hexc("6e4a30"))
+    for x, y, col in ((9, 9, "7fb069"), (14, 8, "a6cf8c"), (20, 10, "7fb069"), (23, 9, "e3c45a"), (17, 11, "8a6044"), (11, 11, "a6cf8c")):
+        c.set(x, y, hexc(col)); c.set(x + 1, y, hexc(col))
+    c.outline(INK)
+    c.save("compost_bin.png")
+
+
 # ---------------------------------------------------------------- 온실 (8x7칸, 그림 128x132)
 #   지붕 없이 유리벽만 그린다 (안쪽 밭이 보이게). 게임에서는 뒷벽(위 36px)·옆벽·앞벽(아래 16px)으로 잘라 쓴다:
 #   위 20px 는 발자리 위로 솟은 뒷벽, 그 아래 한 줄(16px)이 뒷벽 자리, 맨 아래 한 줄이 앞벽, 양옆 16px 가 옆벽.
@@ -1665,6 +1689,7 @@ if __name__ == "__main__":
     make_plaza_props()
     make_placeables()
     make_greenhouse()
+    make_compost_bin()
     make_well()
     make_shipping_bin()
     make_blacksmith()

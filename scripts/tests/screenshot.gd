@@ -207,6 +207,28 @@ func _ready() -> void:
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_build_panel.png"))
 	hud._close_panels()
 
+	# 퇴비통: 결과물 아이콘, 창
+	var cb_at := gh_at + Vector2i(9, 2)
+	for fc in [cb_at, cb_at + Vector2i(1, 0), cb_at + Vector2i(0, 1), cb_at + Vector2i(1, 1)]:
+		world.obstacles.remove(fc)
+	var cb := world.build.place(PlaceableDB.get_def("compost_bin"), cb_at) as CompostBin
+	GameState.inventory.add("fiber", 14)
+	GameState.inventory.add("carrot", 2)
+	cb.deposit(GameState.inventory, "fiber", "", 10)
+	cb.deposit(GameState.inventory, "fiber", "", 4)
+	cb.batch_days = 2
+	cb.output = 2
+	cb._changed()
+	world.player.global_position = cb.interact_point() + Vector2(0, 4)
+	world.player.facing = Vector2i.UP
+	world.player.camera.reset_smoothing()
+	await get_tree().create_timer(0.8).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_compost.png"))
+	hud.open_compost_bin(cb)
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_compost_panel.png"))
+	hud._close_panels()
+
 	# 맵 전체 내려다보기
 	get_tree().paused = false
 	main.get_node("HUD").visible = false

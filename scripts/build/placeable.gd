@@ -14,6 +14,12 @@ extends Node2D
 ##   on_day_started           매일 아침, 플레이어가 깨어날 때 (자동 물주기 등). DayCycle 의 wake_up 단계에서 불린다.
 ##   removal_problem          옮기거나 철거하면 안 되는 이유 (안에 작물이 있는 온실 등 §105). 괜찮으면 ""
 ##   allows_farming           차지한 칸이라도 괭이질·심기를 허락하는 칸인가 (온실 안쪽 밭)
+##   on_day_end               하루 마감의 farm_daily 단계 (퇴비 익히기 같은 일 단위 처리). report 에 결과를 적을 수 있다
+##   contents                 안에 든 아이템 (칸 형식 배열). 철거하면 가방으로 돌려주고, 자리가 없으면 철거를 막는다 (§106)
+##   take_contents            철거 직전: 안의 아이템을 비운다 (가방에 넣는 건 BuildMode 가 한다)
+##   save_state / load_state  내부 상태 저장 (to_data 의 "state"). 옮겨도 노드 그대로라 상태가 유지된다 (§63)
+## [E] 로 쓰는 시설은 "interactables" 그룹에 넣고 prompt / interact_point / can_interact / interact 를 만든다
+## (Interactable 건물과 같은 이름이라 Player 가 같이 찾는다).
 
 const TILE := Art.TILE
 const DIRS: Array[Vector2i] = [Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP, Vector2i.RIGHT]
@@ -144,7 +150,32 @@ func allows_farming(_cell: Vector2i) -> bool:
 	return false
 
 
+func on_day_end(_world: FarmWorld, _report: Dictionary) -> void:
+	pass
+
+
+func contents() -> Array:
+	return []
+
+
+func take_contents() -> void:
+	pass
+
+
+func save_state() -> Dictionary:
+	return {}
+
+
+## 모양이 틀린 값은 건너뛰고 멈추지 않아야 한다
+func load_state(_data: Dictionary) -> void:
+	pass
+
+
 # ---------- 저장용
 
 func to_data() -> Dictionary:
-	return {"id": def.id, "cell": [cell.x, cell.y], "turns": turns}
+	var out := {"id": def.id, "cell": [cell.x, cell.y], "turns": turns}
+	var state := save_state()
+	if not state.is_empty():
+		out["state"] = state
+	return out

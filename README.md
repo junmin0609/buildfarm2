@@ -54,6 +54,17 @@ Godot 4.7로 만든 2D 픽셀 농장 게임의 기본 버전입니다. 16px 도�
 - 화면: 날짜 옆에 날씨 이름, 비·눈 효과(`WeatherOverlay`), 흐림·비·눈은 화면 색이 조금 바뀜
 - 코드: `scripts/time/weather.gd`(`Weather`), 하루 마감의 `weather` 단계, 지금 날씨는 `GameState.weather` (저장됨)
 
+## 퇴비통 (BUILD_FARM_PLAN §28)
+- 건설 창(B)에서 짓는 2x1 시설. **200 G + 나무 30** (임시 값). 앞에서 [E] → 퇴비통 창 (출하함처럼 시간 정지)
+- 재료와 점수 (`data/placeables.json`의 `compost.inputs`): 식물 섬유 1점, 밀·감자·당근 2점 (값싼 작물, 품질 상관없음)
+- **10점**이 모이면 바로 한 번 분량을 떼어 익히기 시작 → 하루 마감(farm_daily 단계)마다 하루씩 → **3일** 뒤 **기본 비료 1개**가 퇴비통 안에 쌓임
+- 익히기 전 "넣어 둔 재료"는 다시 꺼낼 수 있음 (최대 50점). 익히는 중인 분량은 꺼낼 수 없음
+- 결과물은 플레이어가 직접 꺼냄. 가방에 들어가는 만큼만 꺼내고 나머지는 그대로. 결과물이 30개(한도)면 다 익은 퇴비는 기다렸다가 꺼내는 즉시 채워짐 (아무것도 사라지지 않음)
+- 결과물이 있으면 퇴비통 위에 비료 아이콘이 뜸. 하루 마감 결과 `report.compost` = 그날 밤 만든 개수
+- 옮겨도 내용물·진행 그대로. 철거하면 넣어 둔 재료·익히던 재료·결과물·건설비를 모두 돌려받고, 가방에 자리가 없으면 철거를 막음 (§106)
+- 저장: 넣어 둔 재료·익히는 재료·진행 일수·결과물 (`build` 섹션의 시설 `state`)
+- 코드: `scripts/farm/compost_bin.gd`(`CompostBin`), `scripts/ui/compost_bin_panel.gd`. 자동 투입은 나중에 `deposit` / `take_output`을 부르면 됨
+
 ## 대장간 / 도구 강화 (BUILD_FARM_PLAN §43, §47)
 - 메인 광장 동쪽 시설 터의 **대장간**(`K`, 3x2). [E] → 강화 창 (상점처럼 시간 정지). 강화는 즉시 완료
 - 강화 경로·비용은 `items.json` 도구의 `"upgrade": {"to", "price", "materials"}` (**가격·재료·용량은 임시 값**)
@@ -167,10 +178,10 @@ scripts/
   core/       ItemDef, Inventory, Quality(품질), DataFile(JSON 읽기), Art(그림·폰트 모음)
   economy/    Pricing(판매 가격 계산), ToolUpgrade(도구 강화), DailySpecial(일일 특별 상품)
   world/      MapLayout(글자 지도), TerrainTileSet(타일셋 생성), FarmWorld(맵 조립), Prop(나무·바위)
-  farm/       SoilTile(밭 한 칸), FarmGrid(격자 농사), WateringCan(물뿌리개 물), Greenhouse(온실)
+  farm/       SoilTile(밭 한 칸), FarmGrid(격자 농사), WateringCan(물뿌리개 물), Greenhouse(온실), CompostBin(퇴비통)
   player/     Player
   buildings/  Interactable(공통), House, ShopStall, Well(우물, 물 공급원), ShippingBin(출하함), Blacksmith(대장간)
-  ui/         HUD, Hotbar, InventoryPanel, ShopPanel, ItemSlot
+  ui/         HUD, Hotbar, InventoryPanel, ShopPanel, ItemSlot, CompostBinPanel(퇴비통 창)
   tests/      smoke_test(자동 점검), screenshot(화면 캡처)
 ```
 
@@ -242,7 +253,7 @@ python tools/make_art.py
 |---|---|
 | `data/placeables.json` | 시설 정의 (이름·크기·그림·가격·재료·통과 여부·전용 스크립트) |
 | `scripts/build/placeable_def.gd`, `placeable_db.gd` | 정의와 저장소 |
-| `scripts/build/placeable.gd` | 설치된 시설의 공통 부모. `turns`(회전 0~3), `facing()`, `rotate_dir()`(포트 방향용). 훅: `on_placed` / `on_removed` / `on_moved` / `on_day_started` / `removal_problem`(옮기기·철거 막기) / `allows_farming`(차지한 칸에서 농사 허용) |
+| `scripts/build/placeable.gd` | 설치된 시설의 공통 부모. `turns`(회전 0~3), `facing()`, `rotate_dir()`(포트 방향용). 훅: `on_placed` / `on_removed` / `on_moved` / `on_day_started` / `removal_problem`(옮기기·철거 막기) / `allows_farming`(차지한 칸에서 농사 허용) / `on_day_end`(하루 마감 farm_daily) / `contents`·`take_contents`(철거 때 돌려줄 내용물) / `save_state`·`load_state`(내부 상태 저장) |
 | `scripts/build/build_grid_overlay.gd` | 건설 모드 격자 (밭 위·나무 아래에 그림) |
 | `scripts/build/build_grid.gd` | 칸 점유 관리, `check`·`place`·`move`·`remove`, 저장용 `to_data/load_data` |
 | `scripts/build/build_mode.gd` | 미리보기와 입력, 돈 계산 |
@@ -274,7 +285,7 @@ func on_day_started(world: FarmWorld) -> void:
 ```
 Godot --headless --path . res://scenes/tests/smoke_test.tscn
 ```
-땅 갈기 → 심기 → 물 주기 → 성장 → 수확 → 판매·구매 → 잠자기 → 상점 창 → 충돌, 건설(설치·불가 판정·밭 위 건설·충돌·이동·철거·환불·시간 정지·격자·회전·불러오기), 개간(분포·도구·등급·자원·가방 가득·재생), 작물 데이터·품질 스택·판매 가격·다시 열리는 작물·수확량·물뿌리개, 시간(15분·경고·멈춤 규칙), 하루 마감(자동 종료·집에서 잠·집 앞 07:00 시작·창 정리·순서·단계 등록·저장 자리), 우물(위치·[E] 충전·클릭 충전·여러 물뿌리개·물가 충전 없음), 저장/불러오기(자동·수동·재개·손상 파일·일부 손상·버전·이어하기·새 게임), 출하함(넣기·꺼내기·가득 찬 가방·저장·정산·판매 요약·광장 장부), 비료(확률표·뿌리기 규칙·소모·품질 반영·유지/종료·저장), 여름·가을 작물(기획서 수치·품질가·계절별 상점·제철 심기·재수확·계절 넘김), 계절(날짜 계산·시듦·여러 계절 작물·밭 되돌림·겨울 심기 금지·저장), 날씨(확률 데이터·장마·비로 젖음·새로 간 밭·하루 고정·저장·눈), 대장간(위치·시간 정지·강화 경로·비용 부족·즉시 강화·괭이 3칸·빨라진 도끼/곡괭이·강한 장애물·저장), 가방(합치기·품질별 분리·가방↔핫바·실제 마우스 드래그)·툴팁(씨앗·도구·작물·비료·위치 뒤집기·숨김), 일일 특별 상품(후보·계절·하루마다 교체·상점 표시·반복 구매·돈/가방 부족·저장), 온실(재료 부족·설치비·안쪽 30칸·벽/문·겨울 심기·모든 계절 작물·비 영향 없음·시들지 않음·벽 충돌·문으로 들어가기·저장·작물 있으면 철거/옮기기 불가·환불)·겨울 작물(상점·툴팁)까지 384개 항목을 확인합니다.
+땅 갈기 → 심기 → 물 주기 → 성장 → 수확 → 판매·구매 → 잠자기 → 상점 창 → 충돌, 건설(설치·불가 판정·밭 위 건설·충돌·이동·철거·환불·시간 정지·격자·회전·불러오기), 개간(분포·도구·등급·자원·가방 가득·재생), 작물 데이터·품질 스택·판매 가격·다시 열리는 작물·수확량·물뿌리개, 시간(15분·경고·멈춤 규칙), 하루 마감(자동 종료·집에서 잠·집 앞 07:00 시작·창 정리·순서·단계 등록·저장 자리), 우물(위치·[E] 충전·클릭 충전·여러 물뿌리개·물가 충전 없음), 저장/불러오기(자동·수동·재개·손상 파일·일부 손상·버전·이어하기·새 게임), 출하함(넣기·꺼내기·가득 찬 가방·저장·정산·판매 요약·광장 장부), 비료(확률표·뿌리기 규칙·소모·품질 반영·유지/종료·저장), 여름·가을 작물(기획서 수치·품질가·계절별 상점·제철 심기·재수확·계절 넘김), 계절(날짜 계산·시듦·여러 계절 작물·밭 되돌림·겨울 심기 금지·저장), 날씨(확률 데이터·장마·비로 젖음·새로 간 밭·하루 고정·저장·눈), 대장간(위치·시간 정지·강화 경로·비용 부족·즉시 강화·괭이 3칸·빨라진 도끼/곡괭이·강한 장애물·저장), 가방(합치기·품질별 분리·가방↔핫바·실제 마우스 드래그)·툴팁(씨앗·도구·작물·비료·위치 뒤집기·숨김), 일일 특별 상품(후보·계절·하루마다 교체·상점 표시·반복 구매·돈/가방 부족·저장), 온실(재료 부족·설치비·안쪽 30칸·벽/문·겨울 심기·모든 계절 작물·비 영향 없음·시들지 않음·벽 충돌·문으로 들어가기·저장·작물 있으면 철거/옮기기 불가·환불)·겨울 작물(상점·툴팁), 퇴비통(설치·[E] 창·받는 재료·점수 한도·꺼내기·하루 단위 익힘·결과물 쌓임·저장·가방 가득·결과물 한도·옮기기·철거 보호/환불)까지 412개 항목을 확인합니다.
 점검은 날씨를 맑음으로 고정(`Weather.forced`)하고 날씨 점검에서만 바꿉니다.
 점검은 진짜 저장 파일을 건드리지 않도록 `user://smoke_test_save.json`을 쓰고 끝나면 지웁니다.
 새 `class_name` 스크립트를 추가한 뒤에는 한 번 `Godot --headless --path . --import`로 클래스 목록을 갱신해야 점검이 돌아갑니다. (맵 좌표는 맵에서 찾아 쓰므로 맵을 바꿔도 그대로 동작)

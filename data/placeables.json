@@ -30,5 +30,27 @@
 		"solid": false,
 		"rotatable": false,
 		"script": "res://scripts/farm/greenhouse.gd"
+	},
+	"compost_bin": {
+		"name": "퇴비통",
+		"category": "농업",
+		"description": "식물 섬유·값싼 작물을 넣어 두면 며칠 뒤 기본 비료가 돼요.",
+		"_comment": "§28. 값·재료·퇴비 수치는 임시 밸런스. 재료 점수가 batch_points 만큼 모이면 한 번 익히기 시작해 batch_days 하루 마감 뒤 output 이 생긴다",
+		"size": [2, 1],
+		"texture": "res://assets/art/compost_bin.png",
+		"price": 200,
+		"materials": {"wood": 30},
+		"solid": true,
+		"rotatable": false,
+		"script": "res://scripts/farm/compost_bin.gd",
+		"compost": {
+			"inputs": {"fiber": 1, "wheat": 2, "potato": 2, "carrot": 2},
+			"batch_points": 10,
+			"batch_days": 3,
+			"output": "basic_fertilizer",
+			"output_count": 1,
+			"max_waiting_points": 50,
+			"max_output": 30
+		}
 	}
 }

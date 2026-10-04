@@ -220,17 +220,23 @@ func try_remove(cell: Vector2i) -> bool:
 	var obj := _world().build.object_at(cell)
 	if obj == null:
 		return false
+	# 안에 든 아이템 + 재료가 가방에 다 들어가야 철거한다 (§106, 아이템이 사라지지 않게)
+	var inv := GameState.inventory
+	var back: Array = obj.contents().duplicate(true)
+	for mat_id: String in obj.def.materials:
+		back.append({"id": mat_id, "count": int(obj.def.materials[mat_id]), "quality": Quality.NONE})
 	var problem := obj.removal_problem(_world())
-	if problem == "" and not GameState.inventory.can_add_all(obj.def.materials):
-		problem = "가방에 돌려받을 재료를 넣을 자리가 없어요."
+	if problem == "" and not inv.can_add_stacks(back):
+		problem = "가방에 돌려받을 물건을 넣을 자리가 없어요."
 	if problem != "":
 		Events.toast.emit(problem)
 		return false
 	var def := obj.def
+	obj.take_contents()
 	_world().build.remove(obj)
 	GameState.add_money(def.price)
-	for mat_id: String in def.materials:
-		GameState.inventory.add(mat_id, int(def.materials[mat_id]))
+	for st: Dictionary in back:
+		inv.add(st.id, int(st.count), st.quality)
 	Events.toast.emit("%s 철거 (+%s)" % [def.name, def.cost_text()])
 	return true
 

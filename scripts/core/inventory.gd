@@ -102,6 +102,16 @@ func can_add(item_id: String, count: int = 1, quality: String = Quality.NONE) ->
 	return false
 
 
+## 칸 형식 묶음({"id", "count", "quality"} 배열)이 품질까지 그대로 한꺼번에 다 들어가는지
+func can_add_stacks(stacks: Array) -> bool:
+	var trial := Inventory.new(slots.size())
+	trial.slots = slots.duplicate(true)
+	for st: Dictionary in stacks:
+		if trial.add(str(st.get("id", "")), int(st.get("count", 0)), str(st.get("quality", Quality.NONE))) > 0:
+			return false
+	return true
+
+
 ## 여러 아이템이 한꺼번에 다 들어가는지 ({아이템 id: 개수}). 복사본에 넣어 보고 판단한다.
 func can_add_all(items: Dictionary) -> bool:
 	var trial := Inventory.new(slots.size())

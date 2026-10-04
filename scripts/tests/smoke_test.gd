@@ -176,6 +176,9 @@ func _ready() -> void:
 	# ---------- 온실 + 겨울 작물 (§35, §40)
 	await _test_greenhouse(world, hud)
 
+	# ---------- 퇴비통 (§28)
+	await _test_compost(world, hud)
+
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
 
@@ -1683,7 +1686,13 @@ func _test_greenhouse(world: FarmWorld, hud: HUD) -> void:
 		player.velocity = Vector2(240, 0)
 		player.move_and_slide()
 	_check(world.world_to_cell(player.global_position).x < origin.x, "온실 옆벽에 막힘")
-	player.global_position = world.cell_center(door + Vector2i.DOWN) + Vector2(Art.TILE / 2.0, 0)
+	# 문 앞 칸에 장애물이 다시 자라 있으면 그 안에서 시작해 옆으로 밀려나므로 치우고, 문 칸 가운데에서 출발한다
+	for d in gh.door_cells():
+		world.obstacles.remove(d + Vector2i.DOWN)
+	# 치운 장애물 노드(충돌체)는 프레임이 끝나야 사라진다
+	await get_tree().process_frame
+	await get_tree().physics_frame
+	player.global_position = world.cell_center(door + Vector2i.DOWN)
 	for i in 30:
 		player.velocity = Vector2(0, -240)
 		player.move_and_slide()
@@ -1712,6 +1721,139 @@ func _test_greenhouse(world: FarmWorld, hud: HUD) -> void:
 
 	# 정리
 	GameState.day = start_day
+	inv.load_data(saved_inv)
+	hud._close_panels()
+	await get_tree().process_frame
+
+
+func _test_compost(world: FarmWorld, hud: HUD) -> void:
+	var grid := world.build
+	var bm := world.build_mode
+	var inv := GameState.inventory
+	var saved_inv := inv.to_data()
+	var player := world.player
+	var def := PlaceableDB.get_def("compost_bin")
+	_check(def != null and def.size == Vector2i(2, 1) and def.cost_text() == "200 G + 나무 30", "퇴비통 정의 (2x1, %s)" % (def.cost_text() if def else ""))
+
+	# 짓기 (기존 건설 규칙: 돈 + 재료)
+	var origin := Vector2i(-1, -1)
+	var cells: Array = world.farm.farmable_cells.keys()
+	cells.sort()
+	for c: Vector2i in cells:
+		var ok := true
+		for fc in Placeable.footprint_of(def, c) + [c + Vector2i(0, 1), c + Vector2i(1, 1), c + Vector2i(0, 2)]:
+			if not grid.is_buildable_ground(fc) or grid.is_occupied(fc) or world.farm.tiles.has(fc):
+				ok = false
+		if ok:
+			origin = c
+			break
+	for fc in [origin, origin + Vector2i(1, 0), origin + Vector2i(0, 1), origin + Vector2i(1, 1), origin + Vector2i(0, 2), origin + Vector2i(1, 2)]:
+		world.obstacles.remove(fc)
+	player.global_position = world.cell_center(_find_char("s"))
+	inv.remove("wood", inv.count_of("wood"))
+	inv.add("wood", 30)
+	GameState.add_money(500)
+	bm.start_place("compost_bin")
+	_check(bm.try_place(origin) and inv.count_of("wood") == 0, "퇴비통 짓기 (나무 30 사용)")
+	bm.stop()
+	var bin := grid.object_at(origin) as CompostBin
+	_check(bin != null and bin.is_empty() and bin.days_needed() == 3 and bin.batch_points_needed() == 10, "퇴비통: 10점 → 3일 → 기본 비료 1개 (데이터)")
+
+	# [E] 로 창 열기 (시간 정지)
+	player.global_position = bin.interact_point()
+	await get_tree().physics_frame
+	_check(player._nearest_interactable() == bin, "퇴비통 앞에서 [E] 안내")
+	player._interact()
+	_check(hud._compost.visible and get_tree().paused and GameState.is_time_paused(), "퇴비통 창 열면 게임·시간 멈춤")
+	_check(hud._compost._bag_list.get_child_count() >= 1, "창에 가방 재료 목록")
+	hud._close_panels()
+	_check(not get_tree().paused, "닫으면 재개")
+
+	# 넣기: 받는 재료만, 점수 한도까지
+	inv.remove("fiber", inv.count_of("fiber"))
+	inv.add("fiber", 80)
+	inv.add("carrot", 3, "silver")
+	inv.add("pumpkin", 1, "gold")
+	_check(bin.deposit(inv, "pumpkin", "gold", 1) == 0 and inv.count_of("pumpkin", "gold") == 1, "값비싼 작물(호박)은 안 받음")
+	_check(bin.deposit(inv, "fiber", "", 7) == 7 and inv.count_of("fiber") == 73 and not bin.is_working(), "섬유 7개(7점) 넣기 → 아직 시작 안 함")
+	_check(bin.withdraw(inv, "fiber", "", 2) == 2 and bin.waiting_points() == 5 and inv.count_of("fiber") == 75, "익기 전 재료는 다시 꺼냄")
+	bin.deposit(inv, "fiber", "", 2)
+	_check(bin.deposit(inv, "carrot", "silver", 2) == 2 and bin.is_working() and bin.waiting.is_empty(), "당근(실버) 2개(4점) 더해 11점 → 한 번 분량 익히기 시작")
+	_check(bin.batch.any(func(st: Dictionary) -> bool: return st.id == "carrot" and st.quality == "silver"), "익히는 재료에 품질 그대로")
+	_check(bin.deposit(inv, "fiber", "", 80) == 50 and bin.waiting_points() == 50, "대기 재료는 최대 50점까지만 (나머지는 가방에)")
+	_check(bin.withdraw(inv, "fiber", "", 40) == 40, "대기 재료 40개 꺼냄 (10점 남김)")
+
+	# 하루 단위로 익음 (하루 마감 farm_daily 단계)
+	var fert_start := inv.count_of("basic_fertilizer")
+	GameState.sleep()
+	hud._close_panels()
+	bin = grid.object_at(origin) as CompostBin
+	_check(bin.batch_days == 1 and bin.output == 0, "하루 지나면 1/3일")
+	GameState.sleep()
+	hud._close_panels()
+	GameState.sleep()
+	hud._close_panels()
+	var report: Dictionary = world.day_cycle.last_report
+	_check(bin.output == 1 and int(report.get("compost", 0)) == 1, "3일 뒤 기본 비료 1개가 퇴비통 안에 생김 (report.compost)")
+	_check(bin.is_working() and bin.batch_days == 0 and bin.waiting.is_empty(), "대기 재료 10점으로 다음 분량 바로 시작")
+	_check(inv.count_of("basic_fertilizer") == fert_start, "결과물은 저절로 가방에 들어가지 않음 (직접 꺼냄)")
+	var fert_before := inv.count_of("basic_fertilizer")
+
+	# 저장 / 불러오기: 대기 재료·진행 일수·결과물
+	bin.deposit(inv, "fiber", "", 4)
+	GameState.sleep()
+	hud._close_panels()
+	bin = grid.object_at(origin) as CompostBin
+	var state := bin.save_state()
+	world.save_manager.save_game("manual")
+	bin.take_contents()
+	world.save_manager.load_game()
+	bin = grid.object_at(origin) as CompostBin
+	_check(bin != null and bin.save_state() == state and bin.output == 1 and bin.batch_days == 1 and bin.waiting_points() == 4, "퇴비통 상태 저장·불러오기 %s" % state)
+
+	# 가방이 꽉 차면 결과물은 퇴비통에 그대로
+	_check(bin.take_output(Inventory.new(0)) == 0 and bin.output == 1, "가방에 자리가 없으면 결과물이 그대로 남음")
+	_check(bin.take_output(inv) == 1 and bin.output == 0 and inv.count_of("basic_fertilizer") == fert_before + 1, "결과물 직접 꺼내기")
+
+	# 결과물 칸이 가득 차면 다 익은 퇴비는 기다림 (사라지지 않음)
+	bin.output = bin.max_output()
+	bin.batch_days = bin.days_needed() - 1
+	bin.on_day_end(world, {})
+	_check(bin.is_done() and bin.output == bin.max_output(), "결과물 칸이 가득 차면 다 익은 퇴비는 대기")
+	var taken := bin.take_output(inv)
+	_check(taken == bin.max_output() and bin.output == bin.output_per_batch() and not bin.is_done(), "꺼내면 기다리던 퇴비가 바로 채워짐")
+	bin.take_output(inv)
+
+	# 옮겨도 내용물 유지
+	bin.deposit(inv, "fiber", "", 3)
+	state = bin.save_state()
+	# 밤새 다시 자란 장애물이 있을 수 있어 옮길 자리를 치운다
+	world.obstacles.remove(origin + Vector2i(0, 1))
+	world.obstacles.remove(origin + Vector2i(1, 1))
+	bm.start(BuildMode.Mode.MOVE)
+	_check(bm.pick(origin), "퇴비통 집기")
+	_check(bm.try_drop(origin + Vector2i(0, 1)) and grid.object_at(origin + Vector2i(0, 1)) == bin and bin.save_state() == state, "옮겨도 안의 재료·진행 유지")
+	origin += Vector2i(0, 1)
+
+	# 철거: 가방에 자리가 없으면 막고, 있으면 안의 물건 + 재료 모두 돌려받음
+	bm.start(BuildMode.Mode.REMOVE)
+	var filler := 99 * inv.size()
+	var left := inv.add("stone", filler)
+	var added := filler - left
+	_check(not bm.try_remove(origin) and grid.object_at(origin) == bin, "가방이 꽉 차면 철거 불가 (내용물 보호)")
+	inv.remove("stone", added)
+	var expect := {}
+	for st: Dictionary in bin.contents():
+		expect[st.id + "|" + st.quality] = inv.count_of(st.id, st.quality) + int(st.count)
+	var money := GameState.money
+	_check(bm.try_remove(origin) and grid.object_at(origin) == null, "퇴비통 철거")
+	var all_back := true
+	for key: String in expect:
+		var parts := key.split("|")
+		all_back = all_back and inv.count_of(parts[0], parts[1]) == expect[key]
+	_check(all_back and inv.count_of("wood") == 30 and GameState.money == money + 200, "철거하면 안의 재료·익히던 재료·결과물·건설비 모두 돌려받음")
+	bm.stop()
+
 	inv.load_data(saved_inv)
 	hud._close_panels()
 	await get_tree().process_frame

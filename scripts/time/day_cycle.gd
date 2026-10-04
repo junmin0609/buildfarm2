@@ -69,6 +69,7 @@ func _ready() -> void:
 	add_step(SHOP_REFRESH, _refresh_shop)
 	add_step(FARM_DAILY, func(_r: Dictionary) -> void: world.farm.process_day())
 	add_step(FARM_DAILY, func(_r: Dictionary) -> void: world.obstacles.process_day())
+	add_step(FARM_DAILY, func(r: Dictionary) -> void: world.build.end_day(r))
 	add_step(WAKE_UP, func(_r: Dictionary) -> void: world.build.start_day())
 
 

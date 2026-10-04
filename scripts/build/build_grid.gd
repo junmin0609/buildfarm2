@@ -159,6 +159,12 @@ func _unregister(obj: Placeable) -> void:
 			_cells.erase(c)
 
 
+## 하루 마감의 farm_daily 단계: 시설의 일 단위 처리 (퇴비통 등)
+func end_day(report: Dictionary) -> void:
+	for obj in _objects:
+		obj.on_day_end(world, report)
+
+
 ## 새 날 아침 (DayCycle 의 wake_up 단계): 시설의 아침 동작 (스프링클러 등)
 func start_day() -> void:
 	for obj in _objects:
@@ -191,7 +197,9 @@ func load_data(data: Variant) -> Array:
 			push_error("시설을 불러오지 못했습니다: %s" % entry)
 			failed.append(entry)
 			continue
-		_spawn(def, origin, turns)
+		var obj := _spawn(def, origin, turns)
+		if entry.get("state") is Dictionary:
+			obj.load_state(entry.state)
 	return failed
 
 
