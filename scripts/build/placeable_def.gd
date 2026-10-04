@@ -10,6 +10,8 @@ extends RefCounted
 ##   "rotatable": true/false      R 로 돌릴 수 있는지. 없으면: 방향이 있거나 직사각형이면 true, 정사각형이면 false
 ##   "rotated_textures": [...]    방향(0 아래, 1 왼쪽, 2 위, 3 오른쪽)별 그림. 2개면 가로/세로로 번갈아 쓴다.
 ##                                없으면 모든 방향에서 "texture" 를 쓴다.
+##   "materials": {"wood": 100}   돈("price") 말고 함께 드는 재료. 철거하면 돈과 함께 돌려받는다.
+## 시설 전용 값(온실의 "door_width" 등)은 data 에서 그대로 꺼내 쓴다.
 
 var id := ""
 var name := ""
@@ -20,12 +22,16 @@ var size := Vector2i.ONE
 var texture: Texture2D
 var rotated_textures: Array[Texture2D] = []
 var price := 0
+## 재료 아이템 id -> 개수
+var materials := {}
 ## true 면 플레이어가 지나갈 수 없다 (장식 깔개 같은 건 false)
 var solid := true
 var directional := false
 var rotatable := false
 ## 비어 있으면 기본 Placeable, 아니면 그 스크립트 (Placeable 상속)
 var script_path := ""
+## JSON 항목 그대로 (시설 스크립트가 자기 전용 값을 읽는다)
+var data := {}
 
 
 static func from_dict(def_id: String, d: Dictionary) -> PlaceableDef:
@@ -44,6 +50,11 @@ static func from_dict(def_id: String, d: Dictionary) -> PlaceableDef:
 	def.directional = d.get("directional", false)
 	def.rotatable = d.get("rotatable", def.directional or def.size.x != def.size.y)
 	def.script_path = d.get("script", "")
+	var mats: Variant = d.get("materials", {})
+	if mats is Dictionary:
+		for mat_id: String in mats:
+			def.materials[mat_id] = int(mats[mat_id])
+	def.data = d
 	return def
 
 
@@ -56,3 +67,23 @@ func texture_for(turns: int) -> Texture2D:
 	if rotated_textures.is_empty():
 		return texture
 	return rotated_textures[posmod(turns, 4) % rotated_textures.size()]
+
+
+## "3000 G + 나무 100 + 돌 100"
+func cost_text() -> String:
+	var parts := ["%d G" % price]
+	for mat_id: String in materials:
+		var mat := ItemDB.get_item(mat_id)
+		parts.append("%s %d" % [mat.name if mat else mat_id, materials[mat_id]])
+	return " + ".join(parts)
+
+
+## 설치할 돈·재료가 있는지. 모자라면 이유, 충분하면 ""
+func afford_problem(inv: Inventory) -> String:
+	if GameState.money < price:
+		return "돈이 부족해요. (%d G 필요)" % price
+	for mat_id: String in materials:
+		if inv.count_of(mat_id) < int(materials[mat_id]):
+			var mat := ItemDB.get_item(mat_id)
+			return "%s이(가) 부족해요. (%d개 필요)" % [mat.name if mat else mat_id, materials[mat_id]]
+	return ""

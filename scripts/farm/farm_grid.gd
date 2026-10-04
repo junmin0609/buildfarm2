@@ -9,6 +9,9 @@ const TILE := Art.TILE
 
 ## 밭으로 갈 수 있는 칸 (맵에서 'd')
 var farmable_cells: Dictionary = {}  # Vector2i -> true
+## 온실 안쪽 밭 칸 (Greenhouse 가 지어질 때 넣고, 옮기거나 철거하면 뺀다). 맵 글자와 상관없이 갈 수 있다.
+##   계절 제한 없음(어느 계절 작물이든, 시들지 않음, 빈 밭도 되돌아가지 않음), 비에 젖지 않음 (§35, §16)
+var indoor_cells: Dictionary = {}  # Vector2i -> true
 ## 갈아 놓은 칸
 var tiles: Dictionary = {}  # Vector2i -> SoilTile
 ## 칸이 다른 것(설치된 시설 등)으로 막혀 있는지 알려 주는 함수. FarmWorld 가 넣어 준다.
@@ -51,7 +54,11 @@ func _update_hover() -> void:
 # ---------- 밭 조작 (자동화·저장 기능도 이 함수들을 쓴다)
 
 func is_farmable(cell: Vector2i) -> bool:
-	return farmable_cells.has(cell)
+	return farmable_cells.has(cell) or indoor_cells.has(cell)
+
+
+func is_indoor(cell: Vector2i) -> bool:
+	return indoor_cells.has(cell)
 
 
 func get_tile(cell: Vector2i) -> SoilTile:
@@ -64,8 +71,8 @@ func till(cell: Vector2i) -> bool:
 	if blocked.is_valid() and blocked.call(cell):
 		return false
 	var tile := SoilTile.new()
-	# 비 오는 날 새로 간 밭도 젖는다 (§16)
-	tile.watered = Weather.waters_soil(GameState.weather)
+	# 비 오는 날 새로 간 바깥 밭도 젖는다 (§16). 온실 안은 비를 맞지 않는다
+	tile.watered = not is_indoor(cell) and Weather.waters_soil(GameState.weather)
 	tiles[cell] = tile
 	_changed(cell)
 	return true
@@ -120,13 +127,14 @@ func plant(cell: Vector2i, seed_def: ItemDef) -> bool:
 		return false
 	if tile.has_crop():
 		return false
+	# 온실 안은 계절과 상관없이 어떤 작물이든 심는다 (§35)
 	var season := Calendar.season_of(GameState.day)
-	if not Calendar.outdoor_planting_allowed(season):
-		Events.toast.emit("%s에는 바깥 밭에 씨앗을 심을 수 없어요." % Calendar.season_name(season))
+	if not is_indoor(cell) and not Calendar.outdoor_planting_allowed(season):
+		Events.toast.emit("%s에는 바깥 밭에 씨앗을 심을 수 없어요. 온실에서 키워 보세요." % Calendar.season_name(season))
 		return false
-	# 제철이 아닌 씨앗은 심지 않는다 (여러 계절 작물은 허용된 계절이면 된다)
-	if not Calendar.crop_allowed(seed_def, season):
-		Events.toast.emit("이 계절에는 심을 수 없어요. (%s)" % Calendar.seasons_text(seed_def))
+	# 제철이 아닌 씨앗은 바깥에 심지 않는다 (여러 계절 작물은 허용된 계절이면 된다)
+	if not is_indoor(cell) and not Calendar.crop_allowed(seed_def, season):
+		Events.toast.emit("이 계절에는 바깥에 심을 수 없어요. (%s)" % Calendar.seasons_text(seed_def))
 		return false
 	tile.seed_id = seed_def.id
 	tile.days_grown = 0
@@ -256,12 +264,15 @@ func set_cursor(cell: Vector2i, visible_now: bool) -> void:
 ## 계절이 바뀔 때 (DayCycle 의 season 단계, §34·§12)
 ##   - 새 계절에 살 수 없는 작물은 시든다 (여러 계절 작물은 새 계절도 허용되면 그대로)
 ##   - 비어 있고 마른 밭은 soil_revert_chance 확률로 보통 땅이 된다. 젖은 빈 밭은 그대로
+##   - 온실 안 밭은 계절을 타지 않는다 (시들지도, 되돌아가지도 않음)
 ## 돌려주는 값: {"withered": 시든 칸 수, "reverted": 되돌아간 칸 수}
 func change_season(season: String) -> Dictionary:
 	var withered := 0
 	var reverted := 0
 	var chance := Calendar.soil_revert_chance()
 	for cell: Vector2i in tiles.keys():
+		if is_indoor(cell):
+			continue
 		var tile: SoilTile = tiles[cell]
 		if tile.has_crop():
 			if not tile.withered and not Calendar.crop_allowed(tile.seed_item(), season):
@@ -275,11 +286,12 @@ func change_season(season: String) -> Dictionary:
 
 
 ## 비 오는 날 아침 (DayCycle 의 weather 단계, §100): 바깥 밭을 모두 적신다. 적신 칸 수를 돌려준다.
-## 온실이 생기면 온실 안 밭은 여기서 빼야 한다 (§16 온실은 비의 영향을 받지 않음).
+## 온실 안 밭은 비를 맞지 않는다 (§35, §16).
 func water_outdoor() -> int:
 	var count := 0
-	for tile: SoilTile in tiles.values():
-		if not tile.watered:
+	for cell: Vector2i in tiles:
+		var tile: SoilTile = tiles[cell]
+		if not is_indoor(cell) and not tile.watered:
 			tile.watered = true
 			count += 1
 	queue_redraw()
@@ -308,6 +320,7 @@ func to_data() -> Dictionary:
 
 
 ## 저장된 밭을 되살린다. 모양이 틀린 항목·농장 땅이 아닌 칸은 건너뛴다. 받은 데이터가 통째로 틀리면 false.
+## 온실 안 밭도 되살리려면 시설(온실)을 먼저 불러와야 한다 (SaveManager 의 불러오는 순서).
 func load_data(data: Variant) -> bool:
 	if not data is Dictionary:
 		return false

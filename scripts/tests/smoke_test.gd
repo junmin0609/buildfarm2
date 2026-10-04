@@ -173,6 +173,9 @@ func _ready() -> void:
 	# ---------- 일일 특별 상품 (§101)
 	await _test_daily_special(world, hud)
 
+	# ---------- 온실 + 겨울 작물 (§35, §40)
+	await _test_greenhouse(world, hud)
+
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
 
@@ -1374,7 +1377,7 @@ func _test_seasonal_crops(world: FarmWorld, hud: HUD) -> void:
 	_check(shop_seeds.call(1) == ["carrot", "potato", "strawberry", "wheat"], "봄 상점 씨앗 %s" % [shop_seeds.call(1)])
 	_check(shop_seeds.call(29) == ["blueberry", "corn", "tomato", "watermelon", "wheat"], "여름 상점 씨앗 %s" % [shop_seeds.call(29)])
 	_check(shop_seeds.call(57) == ["corn", "eggplant", "pumpkin", "radish", "sweet_potato"], "가을 상점 씨앗 %s" % [shop_seeds.call(57)])
-	_check(shop_seeds.call(85).is_empty() and ItemDB.shop_items().any(func(it: ItemDef) -> bool: return it.kind == ItemDef.Kind.FERTILIZER and Calendar.in_season_for_shop(it, 85)), "겨울에는 씨앗 없음 (비료는 판매)")
+	_check(shop_seeds.call(85) == ["broccoli", "spinach", "sugar_beet"] and ItemDB.shop_items().any(func(it: ItemDef) -> bool: return it.kind == ItemDef.Kind.FERTILIZER and Calendar.in_season_for_shop(it, 85)), "겨울 상점은 겨울 작물 씨앗만 %s (비료는 판매)" % [shop_seeds.call(85)])
 	GameState.day = 29
 	Events.shop_requested.emit("buy")
 	var names := hud._shop._buy_list.get_children().map(func(r: Node) -> String: return r.get_child(1).text)
@@ -1574,6 +1577,143 @@ func _test_daily_special(world: FarmWorld, hud: HUD) -> void:
 
 	inv.load_data(saved_inv)
 	GameState.money = money0
+	await get_tree().process_frame
+
+
+func _test_greenhouse(world: FarmWorld, hud: HUD) -> void:
+	var farm := world.farm
+	var grid := world.build
+	var bm := world.build_mode
+	var inv := GameState.inventory
+	var start_day := GameState.day
+	var saved_inv := inv.to_data()
+	var def := PlaceableDB.get_def("greenhouse")
+	_check(def != null and def.size == Vector2i(8, 7) and not def.rotatable and def.materials == {"wood": 100, "stone": 100} and def.price == 3000, "온실 정의 (8x7, 3000 G + 나무 100 + 돌 100, 회전 없음)")
+	_check(def.cost_text() == "3000 G + 나무 100 + 돌 100", "건설비 글자 (%s)" % def.cost_text())
+
+	# 온실 자리: 장애물만 치우면 지을 수 있는 농장 땅
+	var origin := Vector2i(-1, -1)
+	var cells: Array = farm.farmable_cells.keys()
+	cells.sort()
+	for c: Vector2i in cells:
+		var ok := true
+		for fc in Placeable.footprint_of(def, c):
+			if not grid.is_buildable_ground(fc) or grid.is_occupied(fc) or (farm.get_tile(fc) != null and farm.get_tile(fc).has_crop()):
+				ok = false
+				break
+		if ok:
+			origin = c
+			break
+	_check(origin.x >= 0, "온실 지을 자리 찾음 %s" % origin)
+	for fc in Placeable.footprint_of(def, origin):
+		world.obstacles.remove(fc)
+	world.player.global_position = world.cell_center(_find_char("s"))
+
+	# 재료가 모자라면 못 지음 (돈도 그대로)
+	inv.remove("wood", inv.count_of("wood"))
+	inv.remove("stone", inv.count_of("stone"))
+	GameState.add_money(5000)
+	var money := GameState.money
+	bm.start_place("greenhouse")
+	_check(not bm.try_place(origin) and GameState.money == money and grid.object_at(origin) == null, "재료가 모자라면 온실을 못 지음")
+	inv.add("wood", 100)
+	inv.add("stone", 120)
+	_check(bm.try_place(origin), "온실 짓기")
+	bm.stop()
+	var gh := grid.object_at(origin) as Greenhouse
+	_check(gh != null and GameState.money == money - 3000 and inv.count_of("wood") == 0 and inv.count_of("stone") == 20, "돈·재료를 냄 (남은 돌 %d)" % inv.count_of("stone"))
+	_check(gh.indoor_cells().size() == 30 and farm.indoor_cells.size() == 30, "안쪽 밭 6x5 = 30칸")
+	var inside: Vector2i = origin + Vector2i(1, 1)
+	var corner: Vector2i = origin + Vector2i(6, 5)
+	var wall: Vector2i = origin + Vector2i(0, 3)
+	var door: Vector2i = gh.door_cells()[0]
+	_check(gh.door_cells() == [origin + Vector2i(3, 6), origin + Vector2i(4, 6)], "앞벽 가운데 문 2칸")
+	_check(farm.till(inside) and farm.till(corner), "온실 안쪽은 괭이로 갈 수 있음")
+	_check(not farm.till(wall) and not farm.till(door), "벽·문 칸은 못 갊")
+	_check(not grid.check(PlaceableDB.get_def("scarecrow"), origin + Vector2i(2, 2)).ok, "온실 안에는 다른 시설을 못 놓음")
+	_check(gh.y_sort_enabled and gh._pieces.size() == 4 and not gh._sprite.visible, "벽 그림을 4조각으로 나눠 Y 정렬")
+
+	# 겨울: 바깥에는 못 심지만 온실 안에는 어떤 계절 작물이든 심음
+	GameState.day = 85
+	var out_c := _free_clear_cell(world)
+	farm.till(out_c)
+	_check(not farm.plant(out_c, ItemDB.get_item("spinach_seed")), "겨울 작물도 바깥 밭에는 못 심음")
+	_check(farm.plant(inside, ItemDB.get_item("spinach_seed")), "겨울에 온실에서 시금치 심기")
+	_check(farm.plant(corner, ItemDB.get_item("carrot_seed")), "겨울에 온실에서 봄 작물(당근)도 심기")
+	_check(Calendar.greenhouse_only(ItemDB.get_item("spinach_seed")) and not Calendar.greenhouse_only(ItemDB.get_item("carrot_seed")), "온실 전용 씨앗 구분")
+	var tip := ItemTooltip.lines(ItemDB.get_item("broccoli_seed"))
+	_check(tip.any(func(l: Array) -> bool: return str(l[0]) == "계절: 겨울 (온실 전용)"), "툴팁: 겨울 (온실 전용)")
+
+	# 비는 온실 안을 적시지 않음
+	var r := farm.water_outdoor()
+	_check(r >= 1 and farm.get_tile(out_c).watered and not farm.get_tile(inside).watered, "비는 바깥 밭만 적심 (온실 안은 그대로)")
+	farm.tiles.erase(out_c)
+	farm.till(out_c)
+	GameState.weather = "rain"
+	var in_empty: Vector2i = origin + Vector2i(3, 3)
+	farm.till(in_empty)
+	_check(farm.get_tile(out_c) != null and not farm.get_tile(in_empty).watered, "비 오는 날 새로 간 온실 밭은 마른 채")
+	GameState.weather = "sunny"
+	farm.tiles.erase(out_c)
+
+	# 물 주면 자람 (4일이면 시금치 수확)
+	for d in 4:
+		farm.water(inside)
+		farm.water(corner)
+		farm.process_day()
+	_check(farm.get_tile(inside).is_mature(), "온실 시금치 4일 만에 다 자람")
+	farm.rng.seed = 3
+	var got := farm.harvest(inside)
+	_check(got.get("id") == "spinach" and int(got.get("count", 0)) == 1, "시금치 수확 %s" % got)
+
+	# 계절이 바뀌어도 온실 작물은 시들지 않고, 빈 마른 밭도 되돌아가지 않음
+	var saved_chance: Variant = Calendar._cfg().get("soil_revert_chance")
+	Calendar._data["soil_revert_chance"] = 1.0
+	farm.change_season("spring")
+	farm.change_season("summer")
+	_check(not farm.get_tile(corner).withered, "계절이 바뀌어도 온실 작물은 안 시듦")
+	_check(farm.tiles.has(inside) and farm.tiles.has(in_empty), "온실 빈 밭은 계절이 바뀌어도 그대로")
+	Calendar._data["soil_revert_chance"] = saved_chance
+
+	# 벽은 못 지나가고, 문으로는 들어감
+	var player := world.player
+	var left_of_wall := world.cell_center(origin + Vector2i(-1, 3))
+	player.global_position = left_of_wall
+	for i in 30:
+		player.velocity = Vector2(240, 0)
+		player.move_and_slide()
+	_check(world.world_to_cell(player.global_position).x < origin.x, "온실 옆벽에 막힘")
+	player.global_position = world.cell_center(door + Vector2i.DOWN) + Vector2(Art.TILE / 2.0, 0)
+	for i in 30:
+		player.velocity = Vector2(0, -240)
+		player.move_and_slide()
+	var in_cell := world.world_to_cell(player.global_position)
+	_check(farm.is_indoor(in_cell) and in_cell.y == origin.y + 1, "문으로 들어가 뒷벽 앞까지 걸어감 (%s)" % in_cell)
+
+	# 저장 / 불러오기: 온실과 안의 작물이 그대로
+	world.save_manager.save_game("manual")
+	world.save_manager.load_game()
+	gh = grid.object_at(origin) as Greenhouse
+	_check(gh != null and farm.indoor_cells.size() == 30 and farm.get_tile(corner) != null and farm.get_tile(corner).seed_id == "carrot_seed", "온실·안의 작물 저장·불러오기")
+
+	# 안에 작물이 있으면 옮기기·철거 불가
+	bm.start(BuildMode.Mode.REMOVE)
+	money = GameState.money
+	_check(not bm.try_remove(origin) and grid.object_at(origin) == gh and GameState.money == money, "작물이 있으면 철거 불가")
+	bm.start(BuildMode.Mode.MOVE)
+	_check(not bm.pick(origin + Vector2i(2, 2)), "작물이 있으면 옮기기 불가")
+	farm.remove_crop(corner)
+	bm.start(BuildMode.Mode.REMOVE)
+	var stone := inv.count_of("stone")
+	_check(bm.try_remove(origin + Vector2i(2, 2)) and grid.object_at(origin) == null, "작물을 뽑으면 철거 가능")
+	_check(GameState.money == money + 3000 and inv.count_of("wood") == 100 and inv.count_of("stone") == stone + 100, "철거하면 돈·재료 돌려받음")
+	_check(farm.indoor_cells.is_empty() and not farm.tiles.has(corner) and not farm.tiles.has(inside), "철거하면 온실 밭은 보통 땅")
+	bm.stop()
+
+	# 정리
+	GameState.day = start_day
+	inv.load_data(saved_inv)
+	hud._close_panels()
 	await get_tree().process_frame
 
 

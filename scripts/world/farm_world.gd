@@ -31,8 +31,8 @@ var save_manager: SaveManager
 func _ready() -> void:
 	build.world = self
 	obstacles.world = self
-	# 시설이나 장애물이 있는 칸은 괭이로 갈 수 없다
-	farm.blocked = func(cell: Vector2i) -> bool: return build.is_occupied(cell) or obstacles.is_blocked(cell)
+	# 시설이나 장애물이 있는 칸은 괭이로 갈 수 없다 (온실 안쪽 밭은 된다)
+	farm.blocked = func(cell: Vector2i) -> bool: return build.blocks_farming(cell) or obstacles.is_blocked(cell)
 	var tile_set := TerrainTileSet.build()
 	ground.tile_set = tile_set
 	edges.tile_set = tile_set

@@ -5,7 +5,8 @@ extends Node2D
 ##   R              시계 방향 90° 회전 (설치할 때, 옮길 때. 돌릴 수 있는 시설만 §54)
 ## 건설 모드인 동안 농장 땅에 격자를 보여 준다 (BuildGridOverlay, §49).
 ## 마우스를 움직이면 마우스 칸을, 키보드로 걸으면 플레이어 앞 칸을 기준으로 놓는다.
-## 돈은 설치할 때 내고, 철거하면 전액 돌려받는다. 이동은 무료.
+## 돈·재료는 설치할 때 내고, 철거하면 전부 돌려받는다. 이동은 무료.
+## 안에 작물이 있는 온실처럼 시설이 막으면(Placeable.removal_problem) 옮기거나 철거할 수 없다.
 ## 설치·이동·철거 모드인 동안은 시간이 멈춘다 (BUILD_FARM_PLAN §49, §94).
 
 enum Mode { OFF, PLACE, MOVE, REMOVE }
@@ -107,11 +108,11 @@ func _update_hint() -> void:
 	var rotate_hint := " · R 회전" if def and def.rotatable else ""
 	match mode:
 		Mode.PLACE:
-			text = "%s 배치 (%d G) · 클릭 설치%s · 우클릭/Esc 끝내기" % [place_def.name, place_def.price, rotate_hint]
+			text = "%s 배치 (%s) · 클릭 설치%s · 우클릭/Esc 끝내기" % [place_def.name, place_def.cost_text(), rotate_hint]
 		Mode.MOVE:
 			text = ("%s 옮기는 중 · 클릭 내려놓기%s · 우클릭 취소" % [moving.def.name, rotate_hint]) if moving else "옮길 시설을 클릭 · 우클릭/Esc 끝내기"
 		Mode.REMOVE:
-			text = "철거할 시설을 클릭 (값은 모두 돌려받아요) · 우클릭/Esc 끝내기"
+			text = "철거할 시설을 클릭 (값·재료는 모두 돌려받아요) · 우클릭/Esc 끝내기"
 	Events.build_hint_changed.emit(text)
 
 
@@ -176,9 +177,13 @@ func try_place(origin: Vector2i) -> bool:
 	if not result.ok:
 		Events.toast.emit(result.reason)
 		return false
-	if not GameState.try_spend(place_def.price):
-		Events.toast.emit("돈이 부족해요. (%d G 필요)" % place_def.price)
+	var inv := GameState.inventory
+	var short := place_def.afford_problem(inv)
+	if short != "" or not GameState.try_spend(place_def.price):
+		Events.toast.emit(short if short != "" else "돈이 부족해요. (%d G 필요)" % place_def.price)
 		return false
+	for mat_id: String in place_def.materials:
+		inv.remove(mat_id, int(place_def.materials[mat_id]))
 	grid.place(place_def, origin, turns)
 	Events.toast.emit("%s 설치!" % place_def.name)
 	return true
@@ -187,6 +192,10 @@ func try_place(origin: Vector2i) -> bool:
 func pick(cell: Vector2i) -> bool:
 	var obj := _world().build.object_at(cell)
 	if obj == null:
+		return false
+	var problem := obj.removal_problem(_world())
+	if problem != "":
+		Events.toast.emit(problem)
 		return false
 	moving = obj
 	moving.modulate.a = 0.35
@@ -211,11 +220,18 @@ func try_remove(cell: Vector2i) -> bool:
 	var obj := _world().build.object_at(cell)
 	if obj == null:
 		return false
-	var refund := obj.def.price
-	var obj_name := obj.def.name
+	var problem := obj.removal_problem(_world())
+	if problem == "" and not GameState.inventory.can_add_all(obj.def.materials):
+		problem = "가방에 돌려받을 재료를 넣을 자리가 없어요."
+	if problem != "":
+		Events.toast.emit(problem)
+		return false
+	var def := obj.def
 	_world().build.remove(obj)
-	GameState.add_money(refund)
-	Events.toast.emit("%s 철거 (+%d G)" % [obj_name, refund])
+	GameState.add_money(def.price)
+	for mat_id: String in def.materials:
+		GameState.inventory.add(mat_id, int(def.materials[mat_id]))
+	Events.toast.emit("%s 철거 (+%s)" % [def.name, def.cost_text()])
 	return true
 
 

@@ -30,11 +30,12 @@ var _sections: Array[Dictionary] = []   # {"key", "save": Callable, "load": Call
 
 
 func _ready() -> void:
-	# 불러오는 순서: 돈·시간·가방 → 밭 → 장애물 → 시설 → 플레이어 위치
+	# 불러오는 순서: 돈·시간·가방 → 시설 → 밭 → 장애물 → 플레이어 위치
+	# 시설이 밭보다 먼저: 온실이 있어야 온실 안 밭 칸을 되살릴 수 있다
 	register("game", GameState.to_data, GameState.load_data)
+	register("build", world.build.to_data, func(d: Variant) -> bool: return world.build.load_data(d) != [null])
 	register("farm", world.farm.to_data, world.farm.load_data)
 	register("obstacles", world.obstacles.to_data, world.obstacles.load_data)
-	register("build", world.build.to_data, func(d: Variant) -> bool: return world.build.load_data(d) != [null])
 	register("player", world.player.to_data, world.player.load_data)
 	if world.shipping_bin:
 		register("shipping_bin", world.shipping_bin.to_data, world.shipping_bin.load_data)

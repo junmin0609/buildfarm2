@@ -16,5 +16,19 @@
 		"texture": "res://assets/art/shed.png",
 		"price": 300,
 		"solid": true
+	},
+	"greenhouse": {
+		"name": "온실",
+		"category": "건물",
+		"description": "계절·날씨와 상관없이 어떤 작물이든 키우는 유리 온실. 안쪽 6x5칸이 밭이에요.",
+		"_comment": "§35. 바깥 한 줄은 유리벽, 앞벽 가운데 door_width 칸이 문. 값·재료는 임시 밸런스 (§110 건설 조건 미정)",
+		"size": [8, 7],
+		"door_width": 2,
+		"texture": "res://assets/art/greenhouse.png",
+		"price": 3000,
+		"materials": {"wood": 100, "stone": 100},
+		"solid": false,
+		"rotatable": false,
+		"script": "res://scripts/farm/greenhouse.gd"
 	}
 }

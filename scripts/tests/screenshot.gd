@@ -165,6 +165,48 @@ func _ready() -> void:
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_sales_summary.png"))
 	hud._close_panels()
 
+	# 온실: 겉모습, 안에서 자라는 작물, 플레이어가 벽 앞뒤로 가려지는지, 겨울 상점
+	var gh_def := PlaceableDB.get_def("greenhouse")
+	var gh_at := Vector2i(6, 24)
+	for fc in Placeable.footprint_of(gh_def, gh_at):
+		world.obstacles.remove(fc)
+		var tile := farm.get_tile(fc)
+		if tile:
+			tile.clear_crop()
+			farm.untill(fc)
+	world.player.global_position = world.cell_center(gh_at + Vector2i(3, 9))
+	var gh := world.build.place(gh_def, gh_at) as Greenhouse
+	var seeds := ["spinach_seed", "broccoli_seed", "sugar_beet_seed", "carrot_seed", "tomato_seed", "pumpkin_seed"]
+	for c in gh.indoor_cells():
+		var rel := c - gh_at
+		farm.till(c)
+		if rel.y <= 3:
+			farm.plant(c, ItemDB.get_item(seeds[rel.x - 1]))
+			farm.get_tile(c).days_grown = (rel.y - 1) * 4 + 2 * (rel.x % 2)
+		if (rel.x + rel.y) % 2 == 0:
+			farm.water(c)
+	world.player.global_position = world.cell_center(gh_at + Vector2i(2, 1)) + Vector2(0, 2)
+	world.player.facing = Vector2i.UP
+	world.player.camera.reset_smoothing()
+	await get_tree().create_timer(0.8).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_greenhouse.png"))
+	world.player.global_position = world.cell_center(gh_at + Vector2i(1, 5)) + Vector2(0, 2)
+	world.player.facing = Vector2i.DOWN
+	await get_tree().create_timer(0.5).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_greenhouse_front.png"))
+	var day_before := GameState.day
+	GameState.day = 85
+	Events.shop_requested.emit("buy")
+	await get_tree().create_timer(0.5).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_shop_winter.png"))
+	hud._close_panels()
+	GameState.day = day_before
+	hud._build.open()
+	get_tree().paused = true
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_build_panel.png"))
+	hud._close_panels()
+
 	# 맵 전체 내려다보기
 	get_tree().paused = false
 	main.get_node("HUD").visible = false

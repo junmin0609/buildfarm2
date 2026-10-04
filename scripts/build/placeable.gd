@@ -12,6 +12,8 @@ extends Node2D
 ##   on_placed / on_removed   설치·철거될 때
 ##   on_moved                 옮기거나 돌렸을 때 (상태는 그대로 유지된다 §63)
 ##   on_day_started           매일 아침, 플레이어가 깨어날 때 (자동 물주기 등). DayCycle 의 wake_up 단계에서 불린다.
+##   removal_problem          옮기거나 철거하면 안 되는 이유 (안에 작물이 있는 온실 등 §105). 괜찮으면 ""
+##   allows_farming           차지한 칸이라도 괭이질·심기를 허락하는 칸인가 (온실 안쪽 밭)
 
 const TILE := Art.TILE
 const DIRS: Array[Vector2i] = [Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP, Vector2i.RIGHT]
@@ -132,6 +134,14 @@ func on_moved(_world: FarmWorld) -> void:
 
 func on_day_started(_world: FarmWorld) -> void:
 	pass
+
+
+func removal_problem(_world: FarmWorld) -> String:
+	return ""
+
+
+func allows_farming(_cell: Vector2i) -> bool:
+	return false
 
 
 # ---------- 저장용

@@ -435,5 +435,74 @@
 		"sell_price": 60,
 		"description": "시원한 가을 무.",
 		"icon": 37
+	},
+	"spinach_seed": {
+		"name": "시금치 씨앗",
+		"kind": "seed",
+		"grows": "spinach",
+		"grow_days": 4,
+		"regrow_days": 0,
+		"yield_min": 1,
+		"yield_max": 1,
+		"seasons": [
+			"winter"
+		],
+		"buy_price": 30,
+		"description": "4일이면 자라는 겨울 시금치예요. 온실에서 키워요.",
+		"icon": 38,
+		"crop_row": 12
+	},
+	"spinach": {
+		"name": "시금치",
+		"kind": "crop",
+		"sell_price": 55,
+		"description": "추위를 견딘 달큰한 시금치.",
+		"icon": 39
+	},
+	"broccoli_seed": {
+		"name": "브로콜리 씨앗",
+		"kind": "seed",
+		"grows": "broccoli",
+		"grow_days": 7,
+		"regrow_days": 3,
+		"yield_min": 1,
+		"yield_max": 1,
+		"seasons": [
+			"winter"
+		],
+		"buy_price": 80,
+		"description": "7일이면 열리고, 거둔 뒤에도 3일마다 다시 열려요. 온실에서 키워요.",
+		"icon": 40,
+		"crop_row": 13
+	},
+	"broccoli": {
+		"name": "브로콜리",
+		"kind": "crop",
+		"sell_price": 45,
+		"description": "송이송이 단단한 브로콜리.",
+		"icon": 41
+	},
+	"sugar_beet_seed": {
+		"name": "사탕무 씨앗",
+		"kind": "seed",
+		"grows": "sugar_beet",
+		"grow_days": 8,
+		"regrow_days": 0,
+		"yield_min": 1,
+		"yield_max": 1,
+		"seasons": [
+			"winter"
+		],
+		"buy_price": 90,
+		"description": "8일이 걸리지만 비싸게 팔려요. 온실에서 키워요.",
+		"icon": 42,
+		"crop_row": 14
+	},
+	"sugar_beet": {
+		"name": "사탕무",
+		"kind": "crop",
+		"sell_price": 160,
+		"description": "설탕을 만들 수 있는 하얀 사탕무.",
+		"icon": 43
 	}
 }

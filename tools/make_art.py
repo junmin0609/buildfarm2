@@ -797,6 +797,70 @@ def make_placeables():
     c.save("shed.png")
 
 
+# ---------------------------------------------------------------- 온실 (8x7칸, 그림 128x132)
+#   지붕 없이 유리벽만 그린다 (안쪽 밭이 보이게). 게임에서는 뒷벽(위 36px)·옆벽·앞벽(아래 16px)으로 잘라 쓴다:
+#   위 20px 는 발자리 위로 솟은 뒷벽, 그 아래 한 줄(16px)이 뒷벽 자리, 맨 아래 한 줄이 앞벽, 양옆 16px 가 옆벽.
+
+GH_W, GH_H, GH_ROOF = 8, 7, 20
+
+
+def glass_panel(c, x, y, w, h):
+    """유리 칸: 옅은 하늘색 반투명 + 비스듬한 반사광"""
+    glass, light = hexc("bfe6f2", 210), hexc("ffffff", 190)
+    c.rect(x, y, w, h, glass)
+    for k in range(0, w + h, 9):
+        for t in range(3):
+            xx, yy = x + k - t, y + t
+            if x <= xx < x + w and y <= yy < y + h:
+                c.set(xx, yy, light)
+
+
+def make_greenhouse():
+    W, H, R = GH_W * T, GH_H * T, GH_ROOF
+    frame, shade = hexc("f4f1e6"), hexc("cfc6b0")
+    st = P["stone"]
+    c = Canvas(W, H + R)
+    # 뒷벽: 위쪽 끝이 둥근 큰 유리벽 + 돌 기초
+    rrect(c, 1, 2, W - 2, R + T - 2, 3, frame)
+    glass_panel(c, 3, 5, W - 6, R + T - 11)
+    for x in range(1, W, 16):
+        c.rect(x, 4, 2, R + T - 8, frame)
+    c.rect(1, 17, W - 2, 2, frame)
+    c.rect(4, 2, W - 8, 1, hexc("ffffff"))
+    c.rect(1, R + T - 5, W - 2, 5, st[1])
+    c.rect(1, R + T - 5, W - 2, 1, st[2])
+    for x in range(6, W - 2, 10):
+        c.set(x, R + T - 2, st[0])
+    # 옆벽 (위에서 내려다본 낮은 유리벽)
+    for x0 in (1, W - T + 1):
+        top = R + T
+        c.rect(x0, top, T - 2, H - 2 * T, frame)
+        glass_panel(c, x0 + 3, top, T - 8, H - 2 * T)
+        c.rect(x0 + T - 4, top, 1, H - 2 * T, shade)
+        for y in range(top + 14, top + H - 2 * T, 16):
+            c.rect(x0, y, T - 2, 2, frame)
+    # 앞벽: 낮은 유리벽 + 돌 기초, 가운데 문 (두 칸)
+    y0 = R + H - T
+    door0, door1 = (GH_W - 2) // 2 * T, (GH_W - 2) // 2 * T + 2 * T
+    for x_from, x_to in ((1, door0 - 1), (door1 + 1, W - 1)):
+        c.rect(x_from, y0, x_to - x_from, 3, frame)
+        glass_panel(c, x_from, y0 + 3, x_to - x_from, 8)
+        for x in range(x_from, x_to, 16):
+            c.rect(x, y0 + 3, 2, 8, frame)
+        c.rect(x_to - 2, y0 + 3, 2, 8, frame)
+        c.rect(x_from, y0 + 11, x_to - x_from, 5, st[1])
+        c.rect(x_from, y0 + 11, x_to - x_from, 1, st[2])
+    # 문틀 기둥 (문 칸은 비워 둔다. 앞벽 줄 안에만 그려야 게임에서 잘리지 않는다)
+    for x in (door0 - 3, door1 + 1):
+        c.rect(x, y0, 3, 16, frame)
+        c.rect(x + 2, y0, 1, 16, shade)
+    c.outline(INK)
+    # 문턱 돌 (외곽선 없이 바닥에 깔린 느낌)
+    for x in range(door0 + 2, door1 - 2, 7):
+        rrect(c, x, y0 + 12, 6, 3, 1, st[2])
+    c.save("greenhouse.png")
+
+
 # ---------------------------------------------------------------- 우물 (농장 물 긷는 곳, 2x2칸, 그림 32x40)
 
 def make_well():
@@ -1096,6 +1160,10 @@ CROPS = {
     "eggplant": [hexc("3d6b35"), hexc("4f7d44"), hexc("639656"), hexc("80b06b"), hexc("a8cc90")],
     "pumpkin": [hexc("4a6b2e"), hexc("5f8a3a"), hexc("78a64a"), hexc("95c060"), hexc("bcd888")],
     "radish": [hexc("3d6b35"), hexc("4f8a3f"), hexc("64a64a"), hexc("7fc05a"), hexc("a8dc78")],
+    # 겨울 작물 (§40, 온실 전용)
+    "spinach": [hexc("2f5a2e"), hexc("3b7038"), hexc("4a8a44"), hexc("62a55a"), hexc("8cc47e")],
+    "broccoli": [hexc("35603f"), hexc("447a4f"), hexc("5a9463"), hexc("78ad7c"), hexc("a2cca2")],
+    "sugar_beet": [hexc("3d6b35"), hexc("4f8a3f"), hexc("64a64a"), hexc("7fc05a"), hexc("a8dc78")],
 }
 
 # 작물별 그림 정보 (나중에 그림을 바꿀 때 여기와 produce() 만 고치면 된다)
@@ -1113,6 +1181,9 @@ CROP_ART = {
     "eggplant": {"field_y": 9, "seed": "7b4a9e"},
     "pumpkin": {"field_y": 12, "seed": "f08a2c"},
     "radish": {"field_y": 12, "seed": "e9e4d4"},
+    "spinach": {"field_y": 10, "seed": "3f8a3a"},
+    "broccoli": {"field_y": 7, "seed": "5aa04a"},
+    "sugar_beet": {"field_y": 12, "seed": "d65a7a"},
 }
 
 
@@ -1262,6 +1333,43 @@ def produce_more(c, kind, cx, cy, big):
         else:
             c.ellipse(cx, cy, 2.6, 1.8, white)
             c.ellipse(cx, cy - 1, 2.4, 0.9, top)
+    elif kind == "spinach":
+        dark, mid, light, vein = hexc("2f6b2e"), hexc("3f8a3a"), hexc("62a55a"), hexc("9ccf8a")
+        if not big:  # 밭에서는 잎 사이에서 보이도록 밝은 새 잎
+            dark, mid, light, vein = hexc("4f8a3f"), hexc("8cd06e"), hexc("c4eba0"), hexc("e4f7cc")
+        leaves = ((-3, 1, -0.6), (3, 1, 0.6), (0, -1.5, 0)) if big else ((-2.5, 0, -0.6), (2.5, 0, 0.6))
+        for dx, dy, tilt in leaves:
+            rx, ry = (3.0, 4.6) if big else (1.8, 2.4)
+            for t in range(int(ry * 2)):
+                yy = cy + dy - ry + t
+                c.ellipse(cx + dx + tilt * (t - ry) * 0.4, yy, rx * (1 - abs(t - ry) / (ry + 1)), 0.8, mid)
+            c.rect(int(cx + dx), int(cy + dy - ry + 1), 1, int(ry * 2) - 1, vein)
+            c.set(int(cx + dx - 1), int(cy + dy - 1), light)
+            c.set(int(cx + dx + 1), int(cy + dy + ry - 1), dark)
+    elif kind == "broccoli":
+        head, dark, light, stem = hexc("4f9a3f"), hexc("33702e"), hexc("86c46a"), hexc("a8d48a")
+        if big:
+            c.rect(int(cx - 1), int(cy + 1), 3, 6, stem)
+            spots = ((-3, -1, 2.8), (3, -1, 2.8), (0, -3, 3.0), (-1.5, 1, 2.6), (1.5, 1, 2.6))
+        else:
+            spots = ((-1.5, 0, 1.6), (1.5, 0, 1.6), (0, -1.2, 1.7))
+        for dx, dy, r in spots:
+            c.ellipse(cx + dx, cy + dy, r, r * 0.9, head)
+            c.set(int(cx + dx - r * 0.4), int(cy + dy - r * 0.4), light)
+            c.set(int(cx + dx + r * 0.3), int(cy + dy + r * 0.4), dark)
+    elif kind == "sugar_beet":
+        root, shade, top = hexc("efe3c8"), hexc("cdb994"), hexc("d65a7a")
+        if big:
+            c.ellipse(cx - 2, cy - 5, 1.6, 3, hexc("7fc05a")); c.ellipse(cx + 2, cy - 5, 1.6, 2.6, hexc("64a64a"))
+            for t in range(9):
+                r = max(3.6 - t * 0.38, 0.7)
+                c.ellipse(cx, cy - 1.5 + t, r, 1.0, root)
+            c.ellipse(cx, cy - 2.2, 3.2, 1.2, top)
+            c.set(int(cx + 1), int(cy + 2), shade); c.set(int(cx - 1), int(cy + 4), shade)
+        else:
+            c.ellipse(cx, cy, 3.0, 2.0, root)
+            c.ellipse(cx, cy - 1.2, 2.6, 0.9, top)
+            c.set(int(cx + 1), int(cy + 1), shade)
 
 
 def make_crops():
@@ -1417,7 +1525,9 @@ def make_items():
              "basic_fertilizer", "advanced_fertilizer", "premium_fertilizer",
              "hoe_2", "watering_can_2", "axe_2", "pickaxe_2"]
     # 여름·가을 작물: 씨앗, 작물 순서로 (아이콘 20번부터)
-    for kind in ("wheat", "tomato", "blueberry", "corn", "watermelon", "sweet_potato", "eggplant", "pumpkin", "radish"):
+    # 겨울 작물 (아이콘 38번부터)
+    for kind in ("wheat", "tomato", "blueberry", "corn", "watermelon", "sweet_potato", "eggplant", "pumpkin", "radish",
+                 "spinach", "broccoli", "sugar_beet"):
         order += [kind + "_seed", kind]
     atlas = Canvas(len(order) * T, T)
     for col, item in enumerate(order):
@@ -1554,6 +1664,7 @@ if __name__ == "__main__":
     make_shop_decor()
     make_plaza_props()
     make_placeables()
+    make_greenhouse()
     make_well()
     make_shipping_bin()
     make_blacksmith()

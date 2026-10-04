@@ -30,6 +30,12 @@ func is_occupied(cell: Vector2i) -> bool:
 	return _cells.has(cell)
 
 
+## 시설 때문에 이 칸에서 농사를 못 짓는가 (온실 안쪽 밭처럼 시설이 허락하는 칸은 false)
+func blocks_farming(cell: Vector2i) -> bool:
+	var obj: Placeable = _cells.get(cell)
+	return obj != null and not obj.allows_farming(cell)
+
+
 ## 시설을 지을 수 있는 땅인가 (지금은 농장 땅)
 func is_buildable_ground(cell: Vector2i) -> bool:
 	return MapLayout.char_at(cell) in MapLayout.BUILDABLE

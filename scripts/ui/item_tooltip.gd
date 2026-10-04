@@ -70,7 +70,7 @@ static func lines(item: ItemDef, quality := Quality.NONE, water := -1) -> Array:
 			out.append(["다시 열림: %d일마다" % item.regrow_days if item.regrows() else "다시 열림: 없음 (한 번 수확)", TEXT_SOFT])
 			if item.yield_max > 1:
 				out.append(["수확량 %d~%d개" % [item.yield_min, item.yield_max], TEXT_SOFT])
-			out.append(["계절: %s" % Calendar.seasons_text(item), TEXT_SOFT])
+			out.append(["계절: %s%s" % [Calendar.seasons_text(item), " (온실 전용)" if Calendar.greenhouse_only(item) else ""], TEXT_SOFT])
 			out.append(["씨앗 가격 %d G" % item.buy_price, GOLD])
 			if crop:
 				out.append(["%s 기본 판매가 %d G" % [crop.name, crop.sell_price], GOLD])
