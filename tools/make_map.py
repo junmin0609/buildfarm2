@@ -130,6 +130,9 @@ for x, y, ch in [(40, 14, "c"), (45, 14, "f"), (51, 13, "b"), (55, 13, "f"),
 for cx, cy, rx, ry in [(59, 14, 2.4, 2.0), (41.5, 29, 3.0, 2.0), (57.5, 28.5, 2.6, 2.0)]:
     ellipse(cx, cy, rx, ry, "x", over=".")
 
+# 대장간 (§43, 3x2, 57~59 / 12~13). 광장 동쪽 시설 터 위쪽, 아래 두 줄은 다음 시설 터로 남긴다
+put(57, 12, "K")
+
 # ================================================================ 4.5 구역 경계: 개울 양쪽 숲띠 + 넓은 개울
 
 stroke(RIVER, "T", radius=4.3, over=".")       # 농장·광장 사이 빈 땅을 숲으로 메운다
@@ -216,7 +219,7 @@ put(OX, OY, "O")
 
 rows = ["".join(r) for r in g]
 assert all(len(r) == W for r in rows)
-for ch in "HMSWO@":
+for ch in "HMSWOK@":
     assert sum(r.count(ch) for r in rows) == 1, ch
 
 layout = ROOT / "scripts" / "world" / "map_layout.gd"

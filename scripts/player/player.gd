@@ -98,6 +98,16 @@ func target_cell() -> Vector2i:
 	return pick_target(my_cell(), world.world_to_cell(get_global_mouse_position()))
 
 
+## cell 쪽으로 일하는 방향: 내 칸에서 그 칸으로 더 많이 떨어진 축. 내 칸이면 바라보는 방향.
+func work_dir(cell: Vector2i) -> Vector2i:
+	var d := cell - my_cell()
+	if d == Vector2i.ZERO:
+		return facing
+	if absi(d.x) >= absi(d.y):
+		return Vector2i(signi(d.x), 0)
+	return Vector2i(0, signi(d.y))
+
+
 func my_cell() -> Vector2i:
 	return _world().world_to_cell(global_position + Vector2(0, -3))
 
@@ -137,7 +147,7 @@ func _use_selected() -> void:
 	if item.tool_type == "watering_can":
 		WateringCan.use(_world(), cell, GameState.inventory, GameState.selected_slot)
 		return
-	if _world().farm.use_item(cell, item) and item.kind in [ItemDef.Kind.SEED, ItemDef.Kind.FERTILIZER]:
+	if _world().farm.use_item(cell, item, work_dir(cell)) and item.kind in [ItemDef.Kind.SEED, ItemDef.Kind.FERTILIZER]:
 		GameState.inventory.remove_at(GameState.selected_slot, 1)
 
 

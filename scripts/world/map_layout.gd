@@ -17,6 +17,7 @@ extends RefCounted
 ##   F  분수   Q  퀘스트 게시판   h  벤치   L  가로등
 ##   H  집 (왼쪽 위 기준 4x3칸)   M  씨앗 상점 (3x2칸)   S  작물 판매처 (3x2칸)
 ##   W  우물 (2x2칸, 물뿌리개를 채우는 곳)   O  출하함 (2x1칸, 하루가 끝나면 넣어 둔 것을 판다)
+##   K  대장간 (3x2칸, 도구 강화)
 ##   @  플레이어 시작 위치
 
 const ROWS := [
@@ -32,7 +33,7 @@ const ROWS := [
 	"TTTY......ss...................TT~~~~TTTB.,,,,....ss...,,,,...TT",
 	"TTT.......@ss......ssssss.....BTTT~~~TTT...,......ss.........YTT",
 	"TTTY.......sssssssssssssssss..BTTT~~~~TTY.....B...ss..........TT",
-	"TTTB......................ssss.TTT~~~~TTT.........ssS....xxxx.TT",
+	"TTTB......................ssss.TTT~~~~TTT.........ssS....Kxxx.TT",
 	"TTTB........................sssYTT~~~~TTT.M.......sbpppf.xxxxBTT",
 	"TTT....gggggg.ddd..ggggggg...ss.TTT~~~~Tcppppf..Q.pppppppxxxxYTT",
 	"TTT...gggggdddddddddgggggggg..ss.TT~~~~Tppppppp....ppppp.xxxx.TT",
@@ -98,6 +99,7 @@ const BUILDINGS := {
 	"S": "res://scenes/buildings/sell_stand.tscn",
 	"W": "res://scenes/buildings/well.tscn",
 	"O": "res://scenes/buildings/shipping_bin.tscn",
+	"K": "res://scenes/buildings/blacksmith.tscn",
 }
 
 

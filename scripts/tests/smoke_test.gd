@@ -29,7 +29,7 @@ func _ready() -> void:
 	var inv := GameState.inventory
 
 	_check(farm.farmable_cells.size() >= 100, "밭 칸 (실제 %d)" % farm.farmable_cells.size())
-	_check(world.buildings.size() == 5, "건물 5개 배치 (집·씨앗 상점·작물 판매처·우물·출하함)")
+	_check(world.buildings.size() == 6, "건물 6개 배치 (집·씨앗 상점·작물 판매처·우물·출하함·대장간)")
 	_check(world.fences.get_used_cells().is_empty(), "농장에 울타리 없음")
 	_check(world.objects.get_children().filter(func(n: Node) -> bool: return n is Prop).size() > 100, "나무·바위 소품 배치")
 	var home_cell := world.world_to_cell(world.cell_center(_find_char("@")))
@@ -160,6 +160,9 @@ func _ready() -> void:
 
 	# ---------- 날씨 / 비 (§32, §33, §16, §100)
 	await _test_weather(world, hud)
+
+	# ---------- 대장간 / 도구 강화 (§43, §47)
+	await _test_blacksmith(world, hud)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -1189,6 +1192,128 @@ func _test_weather(world: FarmWorld, hud: HUD) -> void:
 	Weather.forced = "sunny"
 	GameState.set_weather("sunny")
 	GameState.day = start_day
+	await get_tree().process_frame
+
+
+func _test_blacksmith(world: FarmWorld, hud: HUD) -> void:
+	var inv := GameState.inventory
+	var farm := world.farm
+	var obs := world.obstacles
+	var player := world.player
+	var saved_inv := inv.to_data()
+	var money0 := GameState.money
+	var smith: Blacksmith = world.buildings.filter(func(b: Interactable) -> bool: return b is Blacksmith)[0]
+	var smith_cell := Vector2i(floori(smith.global_position.x / Art.TILE), floori(smith.global_position.y / Art.TILE) - 2)
+	_check(smith_cell == _find_char("K") and smith_cell.x > _find_char("#").x, "대장간은 메인 광장 (맵의 K, 3x2)")
+	player.global_position = smith.interact_point()
+	_check(player._nearest_interactable() == smith, "대장간 앞에서 [E] 안내")
+	smith.interact(player)
+	_check(hud._smith.visible and GameState.is_time_paused() and get_tree().paused, "대장간 창을 열면 시간 정지")
+
+	# 데이터: 네 도구 모두 강화 경로 (돈 + 자원)
+	var paths_ok := true
+	for id: String in ["hoe", "watering_can", "axe", "pickaxe"]:
+		var item := ItemDB.get_item(id)
+		var next := ToolUpgrade.next_of(item)
+		paths_ok = paths_ok and next != null and next.tier == item.tier + 1 and next.tool_type == item.tool_type 				and ToolUpgrade.price_of(item) > 0 and not ToolUpgrade.materials_of(item).is_empty()
+	_check(paths_ok, "괭이·물뿌리개·도끼·곡괭이 강화 경로 (돈 + 자원, items.json)")
+	_check(ItemDB.get_item("pickaxe_2").tier >= ObstacleDB.get_def("big_rock").tier and ItemDB.get_item("axe_2").tier >= ObstacleDB.get_def("big_stump").tier 			and ItemDB.get_item("pickaxe").tier < ObstacleDB.get_def("big_rock").tier, "강한 장애물(약 20%)은 강화 도끼·곡괭이가 있어야 치움")
+
+	# 돈·재료가 모자라면 안 됨
+	inv.load_data([])
+	for id: String in ["hoe", "watering_can", "axe", "pickaxe"]:
+		inv.add(id)
+	var slot_of := func(id: String) -> int:
+		for i in inv.size():
+			if inv.get_slot(i) != null and inv.get_slot(i)["id"] == id:
+				return i
+		return -1
+	var hoe_slot: int = slot_of.call("hoe")
+	GameState.money = 0
+	_check(not ToolUpgrade.apply(inv, hoe_slot) and inv.item_at(hoe_slot).id == "hoe", "돈이 모자라면 강화 안 됨")
+	GameState.money = 10000
+	_check(not ToolUpgrade.apply(inv, hoe_slot) and inv.item_at(hoe_slot).id == "hoe" and GameState.money == 10000, "재료가 모자라면 강화 안 됨 (돈도 그대로)")
+	inv.add("stone", 99)
+	inv.add("wood", 99)
+	hud._smith.refresh()
+	_check(hud._smith._list.get_child_count() == 4, "대장간 창에 도구 4개")
+
+	# 괭이 강화: 즉시, 같은 칸
+	var hoe := ItemDB.get_item("hoe")
+	var price := ToolUpgrade.price_of(hoe)
+	var mats := ToolUpgrade.materials_of(hoe)
+	_check(ToolUpgrade.apply(inv, hoe_slot) and inv.item_at(hoe_slot).id == "hoe_2", "강화하면 바로 강화 괭이 (같은 칸)")
+	_check(GameState.money == 10000 - price and inv.count_of("stone") == 99 - int(mats.stone) and inv.count_of("wood") == 99 - int(mats.wood), "강화 비용: %d G + 돌 %d + 나무 %d" % [price, int(mats.stone), int(mats.wood)])
+	_check(ToolUpgrade.next_of(inv.item_at(hoe_slot)) == null and not ToolUpgrade.check(inv, hoe_slot).ok, "최고 단계는 더 강화 안 됨")
+
+	# 물뿌리개: 물은 그대로, 용량 증가
+	var can_slot: int = slot_of.call("watering_can")
+	inv.set_slot_value(can_slot, "water", 7)
+	ToolUpgrade.apply(inv, can_slot)
+	var can2 := inv.item_at(can_slot)
+	_check(can2.id == "watering_can_2" and can2.capacity > ItemDB.get_item("watering_can").capacity and WateringCan.water_left(inv, can_slot) == 7, "강화 물뿌리개: 용량 %d → %d, 물은 그대로" % [ItemDB.get_item("watering_can").capacity, can2.capacity])
+	var well: Well = world.buildings.filter(func(b: Interactable) -> bool: return b is Well)[0]
+	WateringCan.refill_all(inv, well)
+	_check(WateringCan.water_left(inv, can_slot) == can2.capacity, "우물에서 새 용량까지 채움")
+
+	# 도끼·곡괭이
+	var axe_slot: int = slot_of.call("axe")
+	var pick_slot: int = slot_of.call("pickaxe")
+	ToolUpgrade.apply(inv, axe_slot)
+	ToolUpgrade.apply(inv, pick_slot)
+	_check(inv.item_at(axe_slot).id == "axe_2" and inv.item_at(pick_slot).id == "pickaxe_2", "도끼·곡괭이 강화")
+	hud._close_panels()
+
+	# 강화 괭이: 앞으로 3칸
+	var start := Vector2i(-1, -1)
+	var cells: Array = farm.farmable_cells.keys()
+	cells.sort()
+	for c: Vector2i in cells:
+		var free := true
+		for k in 3:
+			var cc: Vector2i = c + Vector2i.DOWN * k
+			free = free and farm.is_farmable(cc) and not obs.is_blocked(cc) and not farm.tiles.has(cc) and not world.build.is_occupied(cc)
+		if free:
+			start = c
+			break
+	_check(farm.use_item(start, inv.item_at(hoe_slot), Vector2i.DOWN) and farm.tiles.has(start) and farm.tiles.has(start + Vector2i.DOWN) and farm.tiles.has(start + Vector2i.DOWN * 2), "강화 괭이는 바라보는 방향으로 3칸을 한 번에 갊")
+	player.global_position = world.cell_center(start + Vector2i(1, 0))
+	_check(player.work_dir(start + Vector2i(3, 0)) == Vector2i.RIGHT and player.work_dir(start + Vector2i(1, -2)) == Vector2i.UP, "일하는 방향 = 대상 칸 쪽")
+
+	# 강화 곡괭이·도끼: 빨라지고 큰 장애물도
+	var spot := _free_clear_cell(world)
+	obs.spawn(spot, "big_rock")
+	var hits := 0
+	while obs.is_blocked(spot) and hits < 10:
+		obs.try_clear(spot, inv.item_at(pick_slot))
+		hits += 1
+	_check(not obs.is_blocked(spot) and hits == 3, "강화 곡괭이는 큰 바위를 %d번에 (기본 6번)" % hits)
+	await get_tree().process_frame
+	obs.spawn(spot, "big_stump")
+	hits = 0
+	while obs.is_blocked(spot) and hits < 10:
+		obs.try_clear(spot, inv.item_at(axe_slot))
+		hits += 1
+	_check(not obs.is_blocked(spot) and hits == 3, "강화 도끼는 큰 그루터기를 %d번에" % hits)
+	await get_tree().process_frame
+	obs.spawn(spot, "stump")
+	obs.try_clear(spot, inv.item_at(axe_slot))
+	obs.try_clear(spot, inv.item_at(axe_slot))
+	_check(not obs.is_blocked(spot), "작은 그루터기도 더 빨리 (2번)")
+	await get_tree().process_frame
+
+	# 저장
+	world.save_manager.save_game("manual")
+	inv.load_data([])
+	world.save_manager.load_game()
+	_check(inv.count_of("hoe_2") == 1 and inv.count_of("pickaxe_2") == 1 and WateringCan.water_left(inv, can_slot) == can2.capacity, "강화 도구 저장·불러오기")
+
+	# 정리
+	for k in 3:
+		farm.tiles.erase(start + Vector2i.DOWN * k)
+	inv.load_data(saved_inv)
+	GameState.money = money0
+	GameState.select_slot(0)
 	await get_tree().process_frame
 
 

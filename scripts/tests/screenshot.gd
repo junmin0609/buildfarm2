@@ -116,6 +116,21 @@ func _ready() -> void:
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_build_bad.png"))
 	bm.stop()
 
+	# 대장간: 광장 위치·강화 창
+	var smith: Interactable = world.buildings.filter(func(b: Interactable) -> bool: return b is Blacksmith)[0]
+	world.player.global_position = smith.interact_point() + Vector2(0, 6)
+	world.player.facing = Vector2i.UP
+	world.player.camera.reset_smoothing()
+	GameState.inventory.add("stone", 20)
+	GameState.inventory.add("wood", 12)
+	GameState.add_money(500)
+	await get_tree().create_timer(0.6).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_smith.png"))
+	hud.open_blacksmith()
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_smith_panel.png"))
+	hud._close_panels()
+
 	# 출하함: 위치·창, 하루가 끝난 뒤 판매 수익 요약
 	var bin: ShippingBin = world.shipping_bin
 	world.player.global_position = bin.interact_point()

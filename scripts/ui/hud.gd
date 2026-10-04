@@ -30,6 +30,7 @@ var _weather_fx: WeatherOverlay
 var _menu: SystemMenu
 var _bin_panel: ShippingBinPanel
 var _summary: SalesSummaryPanel
+var _smith: BlacksmithPanel
 ## 마지막 하루 마감 이유 ("time_up" / "sleep")
 var _end_reason := ""
 
@@ -77,6 +78,10 @@ func _ready() -> void:
 	_place(_summary, Vector2(0.5, 0.5), Vector2.ZERO, Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BOTH)
 	_summary.hide()
 	_summary.close_requested.connect(_close_panels)
+	_smith = BlacksmithPanel.new()
+	_place(_smith, Vector2(0.5, 0.5), Vector2.ZERO, Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BOTH)
+	_smith.hide()
+	_smith.close_requested.connect(_close_panels)
 	_build_hint_label = Label.new()
 	_build_hint = PanelContainer.new()
 	_build_hint.add_theme_stylebox_override("panel", _panel_style(12))
@@ -104,6 +109,7 @@ func _ready() -> void:
 	Events.weather_changed.connect(func(_w: String) -> void: _on_time_changed(GameState.day, GameState.minutes))
 	Events.game_loading.connect(_close_panels)
 	Events.shipping_bin_requested.connect(open_shipping_bin)
+	Events.blacksmith_requested.connect(open_blacksmith)
 	Events.day_ended.connect(_on_day_ended)
 	Events.day_ending_soon.connect(_on_day_ending_soon)
 	Events.toast.connect(show_toast)
@@ -118,10 +124,10 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	var panel_open := _inventory.visible or _shop.visible or _build.visible or _menu.visible \
-			or _bin_panel.visible or _summary.visible
+			or _bin_panel.visible or _summary.visible or _smith.visible
 	if (_menu.visible or _summary.visible) and not event.is_action_pressed("cancel"):
 		return  # 메뉴·요약이 열려 있으면 다른 키는 무시 (버튼은 GUI 가 처리)
-	var blocking := _shop.visible or _bin_panel.visible  # 이 창이 열려 있으면 B·I 로 다른 창을 열지 않는다
+	var blocking := _shop.visible or _bin_panel.visible or _smith.visible  # 이 창이 열려 있으면 B·I 로 다른 창을 열지 않는다
 	if event.is_action_pressed("cancel") and not panel_open and not _build_hint.visible:
 		open_menu()  # 건설 모드 중 Esc 는 건설 모드가 받는다
 		get_viewport().set_input_as_handled()
@@ -160,6 +166,7 @@ func _handle_hotbar_keys(event: InputEvent) -> void:
 func _open_shop(mode: String = "all") -> void:
 	_close_inventory()
 	_shop.open(mode)
+	_center(_shop)
 	_prompt_box.hide()
 	_crop_info.suppressed = true
 	_pause_for("shop")
@@ -168,6 +175,7 @@ func _open_shop(mode: String = "all") -> void:
 func open_build_panel() -> void:
 	_close_inventory()
 	_build.open()
+	_center(_build)
 	_prompt_box.hide()
 	_crop_info.suppressed = true
 	_pause_for("build_menu")
@@ -177,6 +185,7 @@ func open_build_panel() -> void:
 func open_menu() -> void:
 	_close_inventory()
 	_menu.open()
+	_center(_menu)
 	_prompt_box.hide()
 	_crop_info.suppressed = true
 	_pause_for("menu")
@@ -186,9 +195,20 @@ func open_menu() -> void:
 func open_shipping_bin(bin: Node) -> void:
 	_close_inventory()
 	_bin_panel.open(bin as ShippingBin)
+	_center(_bin_panel)
 	_prompt_box.hide()
 	_crop_info.suppressed = true
 	_pause_for("shipping_bin")
+
+
+## 대장간: 상점처럼 게임과 시간을 멈춘다
+func open_blacksmith() -> void:
+	_close_inventory()
+	_smith.open()
+	_center(_smith)
+	_prompt_box.hide()
+	_crop_info.suppressed = true
+	_pause_for("blacksmith")
 
 
 ## 하루가 끝났을 때: 오늘 번 돈이 있으면 판매 수익 요약을 띄운다 (게임·시간 멈춤)
@@ -197,6 +217,7 @@ func _on_day_ended(report: Dictionary) -> void:
 	if int(sales.get("total", 0)) <= 0:
 		return
 	_summary.open(int(report.get("from_day", GameState.day - 1)), sales)
+	_center(_summary)
 	_prompt_box.hide()
 	_crop_info.suppressed = true
 	_pause_for("summary")
@@ -205,6 +226,7 @@ func _on_day_ended(report: Dictionary) -> void:
 ## 가방: 시간은 계속 흐르고, 플레이어 이동·도구 사용만 막는다
 func open_inventory() -> void:
 	_inventory.open()
+	_center(_inventory)
 	_prompt_box.hide()
 	_crop_info.suppressed = true
 	GameState.set_input_locked("inventory", true)
@@ -228,6 +250,8 @@ func _close_panels() -> void:
 	_menu.hide()
 	_bin_panel.hide()
 	_summary.hide()
+	_smith.hide()
+	GameState.set_time_paused("blacksmith", false)
 	GameState.set_time_paused("shipping_bin", false)
 	GameState.set_time_paused("summary", false)
 	_prompt_box.visible = _prompt.text != "" and not _build_hint.visible
@@ -394,6 +418,25 @@ func _make_float_label(font_size: int) -> Label:
 	return label
 
 
+## 창 내용이 다 채워진 다음 프레임에 크기를 다시 재고 화면 한가운데에 맞춘다
+## (내용이 늘면서 한쪽으로만 커져 화면 밖으로 나가는 것을 막는다). 창은 화면 가운데(0.5, 0.5)에 붙어 있어야 한다.
+func _center(panel: Control) -> void:
+	await get_tree().process_frame
+	if not panel.visible:
+		return
+	panel.reset_size()
+	_recenter(panel)
+
+
+## 화면 가운데(0.5, 0.5)에 붙은 창을 지금 크기 그대로 한가운데로 옮긴다.
+## 글자 배치가 끝나 창이 나중에 커질 때도 resized 로 다시 불린다.
+## 위치만 옮기므로(크기는 그대로) resized 가 다시 일어나지 않는다.
+func _recenter(panel: Control) -> void:
+	var target := ((panel.get_parent_area_size() - panel.size) / 2.0).floor()
+	if panel.position != target:
+		panel.position = target
+
+
 ## anchor 지점에 offset만큼 떨어뜨려 붙인다. 크기는 내용에 맞춰 grow 방향으로 커진다.
 func _place(ctrl: Control, anchor: Vector2, offset: Vector2, grow_h: Control.GrowDirection, grow_v: Control.GrowDirection) -> void:
 	ctrl.anchor_left = anchor.x
@@ -407,6 +450,8 @@ func _place(ctrl: Control, anchor: Vector2, offset: Vector2, grow_h: Control.Gro
 	ctrl.grow_horizontal = grow_h
 	ctrl.grow_vertical = grow_v
 	_root.add_child(ctrl)
+	if anchor == Vector2(0.5, 0.5):
+		ctrl.resized.connect(_recenter.bind(ctrl))
 
 
 func _panel_style(margin: float) -> StyleBoxTexture:

@@ -206,9 +206,20 @@ func mature_produce_at(cell: Vector2i) -> String:
 	return tile.seed_item().grows if tile != null and tile.is_mature() else ""
 
 
+## 괭이로 cell 부터 dir 방향으로 length 칸을 간다 (강화 괭이 §43). 한 칸이라도 갈았으면 true.
+## 갈 수 없는 칸(이미 밭·장애물·시설·농장 밖)은 건너뛴다.
+func till_line(cell: Vector2i, dir: Vector2i, length: int) -> bool:
+	var any := false
+	for i in maxi(length, 1):
+		if till(cell + dir * i):
+			any = true
+	return any
+
+
 ## 손에 든 아이템을 칸에 쓴다. 새 도구는 여기에 한 줄 추가하면 된다.
+## dir: 플레이어가 그 칸을 향한 방향 (강화 괭이처럼 여러 칸에 쓰는 도구용)
 ## 괭이·곡괭이로 작물이 있는 칸을 치면 작물을 뽑는다 (다 자란 작물은 그 전에 수확된다: Player 가 수확을 먼저 처리).
-func use_item(cell: Vector2i, item: ItemDef) -> bool:
+func use_item(cell: Vector2i, item: ItemDef, dir := Vector2i.DOWN) -> bool:
 	if item == null:
 		return false
 	if removes_crops(item) and get_tile(cell) != null and get_tile(cell).has_crop():
@@ -220,7 +231,7 @@ func use_item(cell: Vector2i, item: ItemDef) -> bool:
 		ItemDef.Kind.TOOL:
 			match item.tool_type:
 				"hoe":
-					return till(cell)
+					return till_line(cell, dir, item.till_length)
 				"watering_can":
 					return water(cell)
 		ItemDef.Kind.SEED:

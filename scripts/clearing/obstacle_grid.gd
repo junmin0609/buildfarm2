@@ -100,7 +100,7 @@ func try_clear(cell: Vector2i, item: ItemDef) -> bool:
 		Events.toast.emit("%s은(는) 더 좋은 %s이(가) 필요해요." % [ob.def.name, _tool_list(ob.def.tools)])
 		ob.shake()
 		return true
-	ob.hp -= 1
+	ob.hp -= item.power  # 강화 도구는 한 번에 더 많이 깎는다
 	ob.shake()
 	if ob.hp > 0:
 		return true

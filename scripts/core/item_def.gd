@@ -25,6 +25,14 @@ var tool_type := ""
 var tier := 1
 ## 물뿌리개처럼 채워 쓰는 도구의 용량 (0 이면 해당 없음)
 var capacity := 0
+## 한 번 칠 때 장애물을 깎는 양 (강화하면 빨라진다 §43)
+var power := 1
+## 괭이: 바라보는 방향으로 한 번에 가는 칸 수
+var till_length := 1
+## 물뿌리개: 물 주는 범위 (나중에 넓은 범위 물주기용, 지금은 1)
+var water_area := 1
+## 대장간 강화 (§43): {"to": 다음 단계 아이템 id, "price": G, "materials": {아이템 id: 개수}}. 없으면 최고 단계
+var upgrade := {}
 
 ## 씨앗 정보 (kind == SEED)
 var grows := ""      # 다 자라면 나오는 작물 아이템 id
@@ -59,6 +67,10 @@ static func from_dict(item_id: String, d: Dictionary) -> ItemDef:
 	item.tool_type = d.get("tool", "")
 	item.tier = int(d.get("tier", 1))
 	item.capacity = int(d.get("capacity", 0))
+	item.power = maxi(1, int(d.get("power", 1)))
+	item.till_length = maxi(1, int(d.get("till_length", 1)))
+	item.water_area = maxi(1, int(d.get("water_area", 1)))
+	item.upgrade = d.get("upgrade", {}) if d.get("upgrade", {}) is Dictionary else {}
 	item.grows = d.get("grows", "")
 	item.grow_days = int(d.get("grow_days", 0))
 	item.regrow_days = int(d.get("regrow_days", 0))

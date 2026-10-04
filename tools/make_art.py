@@ -863,6 +863,47 @@ def make_shipping_bin():
     c.save("shipping_bin.png")
 
 
+# ---------------------------------------------------------------- 대장간 (광장, 3x2칸, 그림 48x44)
+
+def make_blacksmith():
+    w = P["wood"]
+    st = [hexc("7d6f63"), hexc("9a8b7d"), hexc("b5a696"), hexc("cdbfae"), hexc("e6dccd")]
+    c = Canvas(48, 44)
+    c.ellipse(24, 42.5, 23, 1.6, SOFT_SHADOW)
+    # 돌벽
+    rrect(c, 2, 18, 44, 25, 2, st[2])
+    for row, y in enumerate(range(21, 42, 4)):
+        c.rect(3, y, 42, 1, st[1])
+        for x in range(4 if row % 2 else 9, 45, 10):
+            c.rect(x, y + 1, 1, 3, st[1])
+    # 굴뚝과 연기
+    rrect(c, 34, 2, 7, 14, 1, st[1])
+    c.rect(34, 2, 7, 2, st[0])
+    for x, y, r in ((38, 0.5, 1.6), (35.5, -1, 1.2)):
+        c.ellipse(x, y, r, r, hexc("efe7d8"))
+    # 지붕 (짙은 청회색 널)
+    roof, roof_d, roof_l = hexc("6f7f96"), hexc("56647a"), hexc("93a3b8")
+    for y in range(6, 20):
+        inset = max(0, int(10 - (y - 6) * 0.8))
+        for x in range(inset, 48 - inset):
+            c.set(x, y, roof_d if (y - 6) % 4 == 3 else roof)
+    c.rect(10, 6, 28, 1, roof_l)
+    # 넓은 문 (안에 불빛)
+    rrect(c, 17, 27, 14, 16, 2, w[0])
+    rrect(c, 18, 28, 12, 15, 1.5, hexc("5b3a29"))
+    c.ellipse(24, 38, 4, 3, hexc("f29b50"))
+    c.ellipse(24, 38.5, 2, 1.5, hexc("ffd27a"))
+    # 모루 간판
+    rrect(c, 4, 25, 10, 8, 1.5, w[2])
+    c.rect(6, 27, 6, 2, hexc("6f7f96"))
+    c.rect(8, 29, 2, 2, hexc("6f7f96"))
+    c.rect(6, 31, 6, 1, hexc("56647a"))
+    # 창
+    rrect(c, 35, 26, 8, 6, 1, hexc("ffd27a")); c.rect(39, 26, 1, 6, w[1])
+    c.outline(INK)
+    c.save("blacksmith.png")
+
+
 # ---------------------------------------------------------------- 개간 장애물 (data/obstacles.json 의 그림)
 # 모두 한 칸을 차지하고, 그림 아래쪽 가운데가 칸 바닥에 놓인다.
 
@@ -1136,6 +1177,10 @@ ICON_PAL = {
     "B": hexc("7cc4e6"), "b": hexc("5aa3cc"), "C": hexc("c2ecfa"),
 }
 
+# 강화 도구: 같은 모양, 쇠 부분을 구리색으로 (물뿌리개는 청록색 몸통)
+ICON_PAL_2 = dict(ICON_PAL, M=hexc("f2bb84"), m=hexc("cf8a52"), n=hexc("ffe9cc"),
+                  B=hexc("72cdb4"), b=hexc("4fae95"), C=hexc("c6f0e3"))
+
 HOE = [
     "................",
     "...........ooo..",
@@ -1260,11 +1305,15 @@ def seed_packet(c, color):
 def make_items():
     order = ["hoe", "watering_can", "carrot_seed", "potato_seed", "strawberry_seed", "carrot", "potato", "strawberry",
              "axe", "pickaxe", "fiber", "wood", "stone",
-             "basic_fertilizer", "advanced_fertilizer", "premium_fertilizer"]
+             "basic_fertilizer", "advanced_fertilizer", "premium_fertilizer",
+             "hoe_2", "watering_can_2", "axe_2", "pickaxe_2"]
     atlas = Canvas(len(order) * T, T)
     for col, item in enumerate(order):
         c, done = sub(atlas, col, 0)
-        if item == "hoe":
+        if item in ("hoe_2", "watering_can_2", "axe_2", "pickaxe_2"):
+            c.template({"hoe_2": HOE, "watering_can_2": CAN, "axe_2": AXE, "pickaxe_2": PICKAXE}[item], ICON_PAL_2)
+            c.set(13, 13, hexc("fff3c0")); c.set(14, 12, hexc("fff3c0"))  # 반짝임
+        elif item == "hoe":
             c.template(HOE, ICON_PAL)
         elif item == "watering_can":
             c.template(CAN, ICON_PAL)
@@ -1393,6 +1442,7 @@ if __name__ == "__main__":
     make_placeables()
     make_well()
     make_shipping_bin()
+    make_blacksmith()
     make_obstacles()
     make_player()
     make_crops()
