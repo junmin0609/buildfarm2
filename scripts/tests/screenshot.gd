@@ -75,6 +75,14 @@ func _ready() -> void:
 	Events.shop_requested.emit("buy")
 	await get_tree().create_timer(0.5).timeout
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_shop.png"))
+	# 여름 상점 (씨앗 5종 + 비료 3종 + 특별 상품) 이 화면에 들어가는지
+	main.get_node("HUD")._close_panels()
+	var spring_day := GameState.day
+	GameState.day = 29
+	Events.shop_requested.emit("buy")
+	await get_tree().create_timer(0.5).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_shop_summer.png"))
+	GameState.day = spring_day
 	main.get_node("HUD")._close_panels()
 	Events.shop_requested.emit("sell")
 	await get_tree().create_timer(0.5).timeout

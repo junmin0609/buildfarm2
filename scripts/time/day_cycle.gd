@@ -24,7 +24,7 @@ const SEASON := "season"
 const WEATHER := "weather"
 ## 야간 5시간 생산 (§97 — 아직 없음)
 const NIGHT_PRODUCTION := "night_production"
-## 상점 일일 특가 (§101 — 아직 없음)
+## 상점 일일 특별 상품 고르기 (§101) → report.shop_special
 const SHOP_REFRESH := "shop_refresh"
 ## 집에서 07:00 시작 (지금은 집 앞 '@' 칸, 집 내부 맵이 생기면 침대), 시설 아침 동작
 const WAKE_UP := "wake_up"
@@ -66,6 +66,7 @@ func _ready() -> void:
 	add_step(SETTLE_SALES, _settle_sales)
 	add_step(SEASON, _change_season)
 	add_step(WEATHER, _decide_weather)
+	add_step(SHOP_REFRESH, _refresh_shop)
 	add_step(FARM_DAILY, func(_r: Dictionary) -> void: world.farm.process_day())
 	add_step(FARM_DAILY, func(_r: Dictionary) -> void: world.obstacles.process_day())
 	add_step(WAKE_UP, func(_r: Dictionary) -> void: world.build.start_day())
@@ -136,6 +137,12 @@ func _decide_weather(report: Dictionary) -> void:
 	GameState.set_weather(weather)
 	var watered := world.farm.water_outdoor() if Weather.waters_soil(weather) else 0
 	report["weather"] = {"id": weather, "watered": watered}
+
+
+## 새 날의 특별 상품을 고른다 (어제와 다른 것 우선). report.shop_special = id
+func _refresh_shop(report: Dictionary) -> void:
+	GameState.daily_special = DailySpecial.pick(GameState.day, rng, GameState.daily_special)
+	report["shop_special"] = GameState.daily_special
 
 
 ## 이 노드가 직접 하는 단계

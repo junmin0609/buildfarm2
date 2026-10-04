@@ -102,6 +102,16 @@ func can_add(item_id: String, count: int = 1, quality: String = Quality.NONE) ->
 	return false
 
 
+## 여러 아이템이 한꺼번에 다 들어가는지 ({아이템 id: 개수}). 복사본에 넣어 보고 판단한다.
+func can_add_all(items: Dictionary) -> bool:
+	var trial := Inventory.new(slots.size())
+	trial.slots = slots.duplicate(true)
+	for item_id: String in items:
+		if trial.add(item_id, int(items[item_id])) > 0:
+			return false
+	return true
+
+
 func remove_at(index: int, count: int = 1) -> void:
 	var slot: Variant = get_slot(index)
 	if slot == null:

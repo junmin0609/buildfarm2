@@ -170,6 +170,9 @@ func _ready() -> void:
 	# ---------- 가방 드래그 / 아이템 툴팁 (§44, §45)
 	await _test_drag_and_tooltip(hud)
 
+	# ---------- 일일 특별 상품 (§101)
+	await _test_daily_special(world, hud)
+
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
 
@@ -1500,6 +1503,77 @@ func _test_drag_and_tooltip(hud: HUD) -> void:
 	_check(not tip.visible, "가방을 닫으면 툴팁도 숨김")
 
 	inv.load_data(saved_inv)
+	await get_tree().process_frame
+
+
+func _test_daily_special(world: FarmWorld, hud: HUD) -> void:
+	var inv := GameState.inventory
+	var saved_inv := inv.to_data()
+	var money0 := GameState.money
+	var ids: Array = DailySpecial._candidates().keys()
+	_check(ids.size() >= 3 and ids.all(func(id: String) -> bool: return DailySpecial.price_of(id) > 0 and not DailySpecial.items_of(id).is_empty()), "특별 상품 후보 %d개 (shop_specials.json)" % ids.size())
+	var spring := DailySpecial.available_on(1)
+	var winter := DailySpecial.available_on(85)
+	_check("spring_seed_pack" in spring and not "summer_seed_pack" in spring and "basic_fertilizer_bundle" in spring, "계절 후보: 봄에는 봄 씨앗 꾸러미")
+	_check(not winter.any(func(id: String) -> bool: return id.ends_with("_seed_pack")) and not winter.is_empty(), "겨울에는 씨앗 꾸러미 없음")
+	_check(DailySpecial.exists(GameState.daily_special), "지금 특별 상품이 있음 (%s)" % DailySpecial.name_of(GameState.daily_special))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4
+	var same := 0
+	for i in 50:
+		if DailySpecial.pick(1, rng, "basic_fertilizer_bundle") == "basic_fertilizer_bundle":
+			same += 1
+	_check(same == 0, "어제와 같은 상품은 고르지 않음")
+
+	# 하루가 지나면 새 상품 (하루 마감 shop_refresh 단계)
+	var before := GameState.daily_special
+	GameState.sleep()
+	hud._close_panels()
+	var r: Dictionary = world.day_cycle.last_report
+	_check(r.get("shop_special") == GameState.daily_special and GameState.daily_special != before and DailySpecial.exists(GameState.daily_special), "하루가 지나면 새 특별 상품 (%s → %s)" % [DailySpecial.name_of(before), DailySpecial.name_of(GameState.daily_special)])
+
+	# 상점에 한 줄 (씨앗 상점에서만)
+	GameState.daily_special = "basic_fertilizer_bundle"
+	Events.shop_requested.emit("buy")
+	var special_texts := []
+	for row in hud._shop._special_box.get_children():
+		if row is Label:
+			special_texts.append(row.text)
+		else:
+			for c in row.get_children():
+				if c is VBoxContainer:
+					special_texts.append(c.get_child(0).text)
+	_check(hud._shop._special_box.visible and "기본 비료 묶음" in special_texts, "씨앗 상점에 오늘의 특별 상품 표시")
+	hud._close_panels()
+	Events.shop_requested.emit("sell")
+	_check(not hud._shop._special_box.visible, "작물 판매처에는 특별 상품 없음")
+	hud._close_panels()
+
+	# 사기: 수량 제한 없음, 돈·가방 확인
+	inv.load_data([])
+	GameState.money = 1000
+	_check(DailySpecial.regular_price("basic_fertilizer_bundle") == 250 and DailySpecial.price_of("basic_fertilizer_bundle") < 250, "묶음이 따로 사는 것보다 쌈 (250 G → %d G)" % DailySpecial.price_of("basic_fertilizer_bundle"))
+	var ok1: bool = DailySpecial.buy("basic_fertilizer_bundle", inv).ok
+	var ok2: bool = DailySpecial.buy("basic_fertilizer_bundle", inv).ok
+	_check(ok1 and ok2 and GameState.money == 1000 - 2 * DailySpecial.price_of("basic_fertilizer_bundle") and inv.count_of("basic_fertilizer") == 10, "여러 번 살 수 있음 (수량 제한 없음)")
+	GameState.money = 50
+	_check(not DailySpecial.buy("basic_fertilizer_bundle", inv).ok and GameState.money == 50 and inv.count_of("basic_fertilizer") == 10, "돈이 모자라면 못 삼")
+	GameState.money = 1000
+	for i in inv.size():
+		if inv.get_slot(i) == null:
+			inv.slots[i] = {"id": "carrot", "count": 99, "quality": "gold"}
+	_check(not DailySpecial.buy("building_material_bundle", inv).ok and GameState.money == 1000, "가방에 다 안 들어가면 사지 않음 (돈 그대로)")
+
+	# 저장
+	GameState.daily_special = "advanced_fertilizer_deal"
+	inv.load_data(saved_inv)
+	world.save_manager.save_game("manual")
+	GameState.daily_special = "basic_fertilizer_bundle"
+	world.save_manager.load_game()
+	_check(GameState.daily_special == "advanced_fertilizer_deal", "오늘의 특별 상품 저장·불러오기")
+
+	inv.load_data(saved_inv)
+	GameState.money = money0
 	await get_tree().process_frame
 
 

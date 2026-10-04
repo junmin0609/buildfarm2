@@ -1,0 +1,45 @@
+{
+	"_comment": "일일 특별 상품 (BUILD_FARM_PLAN §101). 매일 아침(하루 마감의 shop_refresh 단계) 후보 중 1개를 고른다. 수량 제한 없음, 그날만. 가격은 임시 값.",
+	"_fields": "items: {아이템 id: 개수}, price: 묶음 가격(G), seasons: 등장하는 계절 (없으면 모든 계절)",
+	"candidates": {
+		"basic_fertilizer_bundle": {
+			"name": "기본 비료 묶음",
+			"description": "기본 비료 5개를 묶어서 싸게 드려요.",
+			"items": {"basic_fertilizer": 5},
+			"price": 200
+		},
+		"advanced_fertilizer_deal": {
+			"name": "고급 비료 할인",
+			"description": "오늘만 고급 비료를 싸게 팔아요.",
+			"items": {"advanced_fertilizer": 1},
+			"price": 90
+		},
+		"building_material_bundle": {
+			"name": "건축 자재 묶음",
+			"description": "나무와 돌을 한꺼번에. 강화나 건설 재료로 쓰세요.",
+			"items": {"wood": 20, "stone": 20},
+			"price": 150
+		},
+		"spring_seed_pack": {
+			"name": "봄 씨앗 꾸러미",
+			"description": "당근·감자·밀 씨앗을 함께 담았어요.",
+			"items": {"carrot_seed": 5, "potato_seed": 3, "wheat_seed": 3},
+			"price": 240,
+			"seasons": ["spring"]
+		},
+		"summer_seed_pack": {
+			"name": "여름 씨앗 꾸러미",
+			"description": "토마토·옥수수·밀 씨앗을 함께 담았어요.",
+			"items": {"tomato_seed": 2, "corn_seed": 2, "wheat_seed": 3},
+			"price": 380,
+			"seasons": ["summer"]
+		},
+		"autumn_seed_pack": {
+			"name": "가을 씨앗 꾸러미",
+			"description": "무·고구마·호박 씨앗을 함께 담았어요.",
+			"items": {"radish_seed": 4, "sweet_potato_seed": 3, "pumpkin_seed": 1},
+			"price": 380,
+			"seasons": ["autumn"]
+		}
+	}
+}

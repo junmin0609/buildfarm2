@@ -12,6 +12,7 @@ var _money_label: Label
 var _title: Label
 var _mode := "all"
 var _buy_list: VBoxContainer
+var _special_box: VBoxContainer
 var _sell_list: VBoxContainer
 
 
@@ -38,6 +39,11 @@ func _ready() -> void:
 	close.pressed.connect(close_requested.emit)
 	header.add_child(close)
 	box.add_child(header)
+
+	# 오늘의 특별 상품 (씨앗 상점에서만, §101)
+	_special_box = VBoxContainer.new()
+	_special_box.add_theme_constant_override("separation", 4)
+	box.add_child(_special_box)
 
 	var columns := HBoxContainer.new()
 	columns.add_theme_constant_override("separation", 24)
@@ -87,6 +93,7 @@ func refresh() -> void:
 	if not is_node_ready():
 		return
 	_money_label.text = "가진 돈  %d G" % GameState.money
+	_refresh_special()
 	_clear(_buy_list)
 	for item in ItemDB.shop_items():
 		if not Calendar.in_season_for_shop(item, GameState.day):
@@ -98,6 +105,7 @@ func refresh() -> void:
 			btn.disabled = GameState.money < item.buy_price * qty
 			btn.pressed.connect(_buy.bind(item.id, qty))
 			row.add_child(btn)
+		_compact(row)
 		_buy_list.add_child(row)
 
 	_clear(_sell_list)
@@ -122,6 +130,65 @@ func refresh() -> void:
 		empty.text = "팔 수 있는 작물이 없어요.\n작물을 키워 수확해 오세요."
 		empty.add_theme_color_override("font_color", Color("9a7457"))
 		_sell_list.add_child(empty)
+
+
+## 오늘의 특별 상품 줄: 이름·내용·가격(따로 살 때 값)·[사기]. 사는 상점(buy, all)에서만 보인다.
+func _refresh_special() -> void:
+	_clear(_special_box)
+	var id := GameState.daily_special
+	_special_box.visible = _mode != "sell" and DailySpecial.exists(id)
+	if not _special_box.visible:
+		return
+	var heading := Label.new()
+	heading.text = "오늘의 특별 상품 (오늘만, 수량 제한 없음)"
+	heading.add_theme_color_override("font_color", Color("d9604f"))
+	_special_box.add_child(heading)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	var items := DailySpecial.items_of(id)
+	var icon := ItemSlot.new()
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.set_slot({"id": items.keys()[0], "count": 1, "quality": ""})
+	row.add_child(icon)
+	var info := VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info.add_theme_constant_override("separation", 0)
+	var name_label := Label.new()
+	name_label.text = DailySpecial.name_of(id)
+	info.add_child(name_label)
+	var detail := Label.new()
+	detail.text = DailySpecial.contents_text(id)
+	detail.add_theme_font_size_override("font_size", Art.FONT_SIZE_SMALL)
+	detail.add_theme_color_override("font_color", Color("9a7457"))
+	info.add_child(detail)
+	row.add_child(info)
+	var price := Label.new()
+	var regular := DailySpecial.regular_price(id)
+	price.text = "%d G" % DailySpecial.price_of(id) if regular <= DailySpecial.price_of(id) else "%d G (따로 %d G)" % [DailySpecial.price_of(id), regular]
+	price.add_theme_color_override("font_color", Color("c98a2e"))
+	row.add_child(price)
+	var btn := Button.new()
+	btn.text = "사기"
+	btn.disabled = GameState.money < DailySpecial.price_of(id)
+	btn.pressed.connect(_buy_special)
+	row.add_child(btn)
+	_compact(row)
+	_special_box.add_child(row)
+
+
+## 사는 줄은 계절에 따라 8줄까지 늘어나므로 조금 낮게 (아이콘 칸 52px, 버튼 글씨 작게)
+func _compact(row: HBoxContainer) -> void:
+	for child in row.get_children():
+		if child is ItemSlot:
+			child.custom_minimum_size = Vector2(52, 52)
+		elif child is Button:
+			child.add_theme_font_size_override("font_size", Art.FONT_SIZE_SMALL)
+
+
+func _buy_special() -> void:
+	var id := GameState.daily_special
+	var result := DailySpecial.buy(id, GameState.inventory)
+	Events.toast.emit("%s을(를) 샀어요." % DailySpecial.name_of(id) if result.ok else str(result.reason))
 
 
 ## 아이콘 + 이름(품질) + 가격 한 줄. 출하함 창도 같이 쓴다.

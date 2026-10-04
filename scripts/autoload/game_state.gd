@@ -24,6 +24,8 @@ var minutes := 0
 var day_seconds := 0.0
 var inventory := Inventory.new()
 var selected_slot := 0
+## 오늘의 특별 상품 id (data/shop_specials.json). 아침마다 바뀐다 (DayCycle 의 shop_refresh 단계).
+var daily_special := ""
 ## 오늘 날씨 (data/weather.json 의 types). 아침에 정해지고 하루 동안 바뀌지 않는다.
 var weather := "sunny"
 ## 오늘 번 돈 (판매 방식 -> G). 하루 마감 때 판매 수익 요약(§99)으로 보여 주고 비운다.
@@ -63,6 +65,9 @@ func new_game() -> void:
 	unlocks.clear()
 	today_sales.clear()
 	set_weather(Weather.first_day())
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	daily_special = DailySpecial.pick(day, rng)
 	inventory.load_data([])
 	for entry: Array in STARTING_ITEMS:
 		inventory.add(entry[0], entry[1])
@@ -229,6 +234,7 @@ func to_data() -> Dictionary:
 		"unlocks": unlocks.duplicate(true),
 		"today_sales": today_sales.duplicate(),
 		"weather": weather,
+		"daily_special": daily_special,
 	}
 
 
@@ -251,6 +257,11 @@ func load_data(data: Variant) -> bool:
 		for channel: Variant in sales_data:
 			if typeof(sales_data[channel]) in [TYPE_INT, TYPE_FLOAT]:
 				record_sale(str(channel), int(sales_data[channel]))
+	daily_special = str(data.get("daily_special", ""))
+	if not DailySpecial.exists(daily_special):
+		var rng := RandomNumberGenerator.new()
+		rng.randomize()
+		daily_special = DailySpecial.pick(day, rng)
 	var saved_weather := str(data.get("weather", ""))
 	set_weather(saved_weather if Weather.name_of(saved_weather) != saved_weather else Weather.first_day())
 	select_slot(int(data.get("selected_slot", 0)))
