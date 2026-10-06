@@ -883,6 +883,47 @@ def make_warehouse():
     c.save("warehouse.png")
 
 
+# ---------------------------------------------------------------- 수동 가공기 (2x2칸, 그림 32x40)
+#   나무 작업대 위에 손잡이를 돌리는 맷돌(왼쪽)과 작은 솥(오른쪽)
+
+def make_processor():
+    w = P["wood"]
+    c = Canvas(32, 40)
+    c.ellipse(16, 38.5, 15, 1.6, SOFT_SHADOW)
+    # 작업대 다리와 아래 선반
+    for x in (3, 26):
+        c.rect(x, 24, 3, 15, w[0])
+        c.rect(x, 24, 1, 15, w[1])
+    rrect(c, 4, 31, 24, 3, 1, w[1])
+    c.rect(5, 31, 22, 1, w[3])
+    # 선반 위 자루
+    c.ellipse(10, 29, 3.5, 2.5, hexc("efe2c4"))
+    c.set(9, 28, hexc("fffaf0"))
+    # 상판
+    rrect(c, 1, 20, 30, 6, 1.5, w[2])
+    c.rect(2, 20, 28, 1, w[3])
+    c.rect(2, 24, 28, 1, w[1])
+    # 맷돌 (돌 두 단 + 손잡이)
+    st = [hexc("8f877c"), hexc("b8b0a4"), hexc("d6cfc4")]
+    c.ellipse(9, 18, 6.5, 2.6, st[0])
+    rrect(c, 3, 13, 13, 6, 2, st[1])
+    c.ellipse(9, 13, 6.5, 2.4, st[2])
+    c.ellipse(9, 13, 1.6, 0.9, st[0])
+    c.rect(14, 10, 1, 4, w[0])
+    rrect(c, 13, 7, 3, 4, 1, hexc("e0715f"))
+    # 솥 (구리색) + 김
+    cu, cu_d, cu_l = hexc("d08a4e"), hexc("a8692e"), hexc("eab676")
+    c.ellipse(24, 19, 5.5, 2, cu_d)
+    rrect(c, 18, 13, 12, 7, 3, cu)
+    c.ellipse(24, 13, 6, 2, cu_d)
+    c.ellipse(24, 13, 4.6, 1.3, hexc("f29a3a"))
+    c.rect(19, 15, 1, 3, cu_l)
+    for x, y in ((22, 9), (23, 7), (25, 8), (26, 5)):
+        c.set(x, y, hexc("fffaf0"))
+    c.outline(INK)
+    c.save("processor.png")
+
+
 # ---------------------------------------------------------------- 온실 (8x7칸, 그림 128x132)
 #   지붕 없이 유리벽만 그린다 (안쪽 밭이 보이게). 게임에서는 뒷벽(위 36px)·옆벽·앞벽(아래 16px)으로 잘라 쓴다:
 #   위 20px 는 발자리 위로 솟은 뒷벽, 그 아래 한 줄(16px)이 뒷벽 자리, 맨 아래 한 줄이 앞벽, 양옆 16px 가 옆벽.
@@ -1605,6 +1646,118 @@ def seed_packet(c, color):
     c.outline(INK)
 
 
+# ---------------------------------------------------------------- 가공품 아이콘 (§73, 아이콘 44번부터)
+
+PRODUCTS = ["flour", "dough", "bread", "sugar", "strawberry_jam", "blueberry_jam", "watermelon_juice", "fruit_syrup",
+            "tomato_puree", "tomato_sauce", "bottled_sauce", "potato_starch", "potato_snack", "dried_sweet_potato",
+            "sweet_potato_dessert", "corn_flour", "corn_bread", "pumpkin_puree", "pumpkin_pie"]
+
+
+def product_sack(c, band, band_d, dust):
+    """가루 자루: 크림색 자루 + 색 띠 + 위로 살짝 보이는 가루"""
+    rrect(c, 3, 5, 10, 10, 2.5, hexc("efe2c4"))
+    c.ellipse(8, 5, 4, 1.6, hexc(dust))
+    c.rect(3, 9, 10, 3, hexc(band))
+    c.rect(3, 11, 10, 1, hexc(band_d))
+    c.set(5, 7, hexc("fffaf0")); c.set(6, 6, hexc("fffaf0"))
+
+
+def product_jar(c, fill, fill_d, lid="d9a066"):
+    """유리병: 둥근 병 + 안의 내용물 + 천 뚜껑"""
+    rrect(c, 3, 5, 10, 10, 3, hexc("e4f1f2"))
+    rrect(c, 4, 7, 8, 7, 2.5, hexc(fill))
+    c.rect(4, 12, 8, 1, hexc(fill_d))
+    c.rect(5, 8, 1, 3, hexc("ffffff"))
+    rrect(c, 4, 2, 8, 4, 1, hexc(lid))
+    c.rect(4, 4, 8, 1, hexc("b07a45"))
+
+
+def product_bottle(c, fill, fill_d, cap):
+    """긴 병: 목이 좁은 병 + 내용물 + 마개 + 라벨"""
+    rrect(c, 4, 6, 8, 9, 2.5, hexc(fill))
+    c.rect(4, 12, 8, 2, hexc(fill_d))
+    c.rect(6, 3, 4, 4, hexc(fill))
+    c.rect(6, 1, 4, 2, hexc(cap))
+    rrect(c, 5, 8, 6, 3, 1, hexc("fbeccf"))
+    c.set(5, 7, hexc("ffffff")); c.set(5, 12, hexc("ffffff"))
+
+
+def product_loaf(c, crust, crust_d, top):
+    """빵 덩어리: 둥근 빵 + 칼집"""
+    c.ellipse(8, 10, 6.5, 4.2, hexc(crust_d))
+    c.ellipse(8, 9.3, 6, 3.6, hexc(crust))
+    c.ellipse(7, 8, 3.5, 1.4, hexc(top))
+    for x in (5, 8, 11):
+        c.set(x, 9, hexc(crust_d)); c.set(x + 1, 8, hexc(crust_d))
+
+
+def product_plate(c, food, food_d, top):
+    """접시에 올린 디저트: 크림색 접시 + 쐐기 모양 조각"""
+    c.ellipse(8, 12.5, 7, 2.2, hexc("f6ecd8"))
+    c.ellipse(8, 12.5, 5, 1.3, hexc("e6d6b8"))
+    for y in range(5, 12):
+        w = (y - 4)
+        c.rect(8 - w // 2 - 2, y, w + 3, 1, hexc(food))
+    c.rect(4, 10, 10, 2, hexc(food_d))
+    c.rect(5, 5, 4, 1, hexc(top)); c.rect(4, 6, 6, 1, hexc(top))
+
+
+def product_icon(c, item):
+    if item == "flour":
+        product_sack(c, "e8c45a", "c9a03a", "fffaf0")
+    elif item == "corn_flour":
+        product_sack(c, "f2c443", "d19a2a", "fbe39a")
+    elif item == "potato_starch":
+        product_sack(c, "c9a27a", "a5805a", "fffaf0")
+    elif item == "sugar":
+        # 하얀 각설탕 세 개
+        for x, y in ((3, 8), (9, 8), (6, 3)):
+            rrect(c, x, y, 6, 6, 1, hexc("fdfbf6"))
+            c.rect(x + 1, y + 4, 4, 1, hexc("ddd6ca"))
+            c.set(x + 1, y + 1, hexc("ffffff"))
+    elif item == "dough":
+        c.ellipse(8, 10.5, 6, 3.8, hexc("e6cfa0"))
+        c.ellipse(8, 9.5, 5.4, 3.2, hexc("f6e6c4"))
+        c.ellipse(6.5, 8.5, 2.2, 1.1, hexc("fffaf0"))
+    elif item == "bread":
+        product_loaf(c, "d99a4e", "a8692e", "eab676")
+    elif item == "corn_bread":
+        product_loaf(c, "f0c04a", "c9922a", "f8dc7a")
+    elif item == "strawberry_jam":
+        product_jar(c, "e0484f", "b02f3a")
+    elif item == "blueberry_jam":
+        product_jar(c, "5a64b8", "3f468c")
+    elif item == "tomato_puree":
+        product_jar(c, "e8603c", "c2442a", lid="e8e0d0")
+    elif item == "tomato_sauce":
+        product_jar(c, "c23a2a", "92281e", lid="7fb069")
+    elif item == "pumpkin_puree":
+        product_jar(c, "f29a3a", "d07624", lid="e8e0d0")
+    elif item == "fruit_syrup":
+        product_bottle(c, "c4345e", "952448", "f6d06e")
+    elif item == "watermelon_juice":
+        product_bottle(c, "f07a8a", "d0566a", "7fb069")
+    elif item == "bottled_sauce":
+        product_bottle(c, "b8302a", "88221e", "4f6d92")
+    elif item == "potato_snack":
+        # 과자 봉지
+        rrect(c, 3, 3, 10, 12, 2, hexc("f2c443"))
+        c.rect(3, 3, 10, 2, hexc("d19a2a")); c.rect(3, 13, 10, 2, hexc("d19a2a"))
+        c.ellipse(8, 9, 3, 2.4, hexc("f6e2a4"))
+        c.set(7, 8, hexc("c9922a")); c.set(9, 10, hexc("c9922a"))
+    elif item == "dried_sweet_potato":
+        # 말린 고구마 조각 세 개
+        for x, y in ((3, 4), (7, 6), (5, 9)):
+            rrect(c, x, y, 6, 4, 1.5, hexc("e8913a"))
+            c.rect(x, y, 6, 1, hexc("a4484e"))
+            c.set(x + 2, y + 2, hexc("f6b866"))
+    elif item == "sweet_potato_dessert":
+        product_plate(c, "e8a04a", "c27a2e", "a4484e")
+    elif item == "pumpkin_pie":
+        product_plate(c, "f29a3a", "c98f5e", "fbe39a")
+    c.outline(INK)
+
+
 def make_items():
     order = ["hoe", "watering_can", "carrot_seed", "potato_seed", "strawberry_seed", "carrot", "potato", "strawberry",
              "axe", "pickaxe", "fiber", "wood", "stone",
@@ -1615,6 +1768,7 @@ def make_items():
     for kind in ("wheat", "tomato", "blueberry", "corn", "watermelon", "sweet_potato", "eggplant", "pumpkin", "radish",
                  "spinach", "broccoli", "sugar_beet"):
         order += [kind + "_seed", kind]
+    order += PRODUCTS  # 가공품 (아이콘 44번부터)
     atlas = Canvas(len(order) * T, T)
     for col, item in enumerate(order):
         c, done = sub(atlas, col, 0)
@@ -1635,6 +1789,8 @@ def make_items():
             fertilizer_bag(c, item)
         elif item.endswith("_seed"):
             seed_packet(c, hexc(CROP_ART[item[:-5]]["seed"]))
+        elif item in PRODUCTS:
+            product_icon(c, item)
         else:
             pal = CROPS[item]
             if item == "carrot":
@@ -1753,6 +1909,7 @@ if __name__ == "__main__":
     make_greenhouse()
     make_compost_bin()
     make_warehouse()
+    make_processor()
     make_well()
     make_shipping_bin()
     make_blacksmith()

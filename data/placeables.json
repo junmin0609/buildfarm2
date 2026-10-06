@@ -73,5 +73,25 @@
 			],
 			"max_filter_items": 9
 		}
+	},
+	"manual_processor": {
+		"name": "수동 가공기",
+		"category": "가공",
+		"description": "레시피와 횟수를 정해 직접 돌리는 하급 가공기. 전기가 필요 없어요.",
+		"_comment": "§70~§74. 사용자 결정: 수동 가공기(전기 없음, 플레이어가 정한 횟수만 돌고 멈춤) / 전기 가공기(완전 자동, 전력 시스템과 함께 예정). 값·재료·한도는 임시 밸런스. tier = 쓸 수 있는 레시피 등급, max_runs = 한 번에 정할 수 있는 횟수, max_output = 안에 쌓아 둘 수 있는 결과물 수",
+		"size": [2, 2],
+		"texture": "res://assets/art/processor.png",
+		"price": 800,
+		"materials": {"wood": 50, "stone": 30},
+		"solid": true,
+		"rotatable": false,
+		"script": "res://scripts/factory/processor.gd",
+		"processor": {
+			"tier": 1,
+			"automatic": false,
+			"power": 0,
+			"max_runs": 99,
+			"max_output": 30
+		}
 	}
 }

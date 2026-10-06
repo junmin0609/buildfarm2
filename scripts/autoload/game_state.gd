@@ -96,6 +96,7 @@ func advance_time(seconds: float) -> void:
 	if is_time_paused():
 		return
 	day_seconds += seconds
+	Events.time_advanced.emit(game_minutes_for(seconds))
 	var shown := _clock_at(day_seconds)
 	if shown != minutes:
 		minutes = shown
@@ -105,6 +106,11 @@ func advance_time(seconds: float) -> void:
 		Events.day_ending_soon.emit(seconds_left())
 	if day_seconds >= day_length:
 		request_day_end("time_up")
+
+
+## 실제 시간 seconds 동안 흐르는 게임 시계 분 (기본: 15분에 1140분 → 1초에 약 1.27분)
+func game_minutes_for(seconds: float) -> float:
+	return seconds * (day_end - day_start) / day_length
 
 
 func seconds_left() -> float:

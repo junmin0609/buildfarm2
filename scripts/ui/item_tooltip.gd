@@ -74,7 +74,7 @@ static func lines(item: ItemDef, quality := Quality.NONE, water := -1) -> Array:
 			out.append(["씨앗 가격 %d G" % item.buy_price, GOLD])
 			if crop:
 				out.append(["%s 기본 판매가 %d G" % [crop.name, crop.sell_price], GOLD])
-		ItemDef.Kind.CROP, ItemDef.Kind.MATERIAL:
+		ItemDef.Kind.CROP, ItemDef.Kind.MATERIAL, ItemDef.Kind.PROCESSED:
 			if item.is_sellable():
 				out.append(["기준가 %d G" % Pricing.quality_price(item, quality), GOLD])
 				out.append(["출하함 %d G · 광장 %d G" % [Pricing.unit_price(item, quality, Pricing.SHIPPING_BIN), Pricing.unit_price(item, quality, Pricing.PLAZA)], TEXT_SOFT])

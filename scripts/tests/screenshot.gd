@@ -265,6 +265,28 @@ func _ready() -> void:
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_warehouse_panel.png"))
 	hud._close_panels()
 
+	# 수동 가공기: 밀가루 3회 중 1회 완성, 창
+	var pr_at := wh_at + Vector2i(5, 1)
+	for y in 3:
+		for x in 2:
+			world.obstacles.remove(pr_at + Vector2i(x, y))
+	await get_tree().process_frame
+	var pr := world.build.place(PlaceableDB.get_def("manual_processor"), pr_at) as Processor
+	if pr:
+		GameState.inventory.add("wheat", 4, "silver")
+		GameState.inventory.add("wheat", 4, "gold")
+		pr.start(GameState.inventory, "flour", 3)
+		pr.advance(80.0)
+		world.player.global_position = pr.interact_point() + Vector2(0, 4)
+		world.player.facing = Vector2i.UP
+		world.player.camera.reset_smoothing()
+		await get_tree().create_timer(0.8).timeout
+		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_processor.png"))
+		hud.open_processor(pr)
+		await get_tree().create_timer(0.4).timeout
+		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_processor_panel.png"))
+		hud._close_panels()
+
 	# 맵 전체 내려다보기
 	get_tree().paused = false
 	main.get_node("HUD").visible = false

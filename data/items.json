@@ -504,5 +504,24 @@
 		"sell_price": 160,
 		"description": "설탕을 만들 수 있는 하얀 사탕무.",
 		"icon": 43
-	}
+	},
+	"flour": {"name": "밀가루", "kind": "processed", "has_quality": true, "sell_price": 95, "description": "밀을 곱게 간 가루.", "icon": 44},
+	"dough": {"name": "반죽", "kind": "processed", "has_quality": true, "sell_price": 250, "description": "밀가루를 치대 만든 반죽.", "icon": 45},
+	"bread": {"name": "빵", "kind": "processed", "has_quality": true, "sell_price": 330, "description": "갓 구운 따끈한 빵.", "icon": 46},
+	"sugar": {"name": "설탕", "kind": "processed", "has_quality": true, "sell_price": 400, "description": "사탕무에서 뽑아낸 하얀 설탕.", "icon": 47},
+	"strawberry_jam": {"name": "딸기잼", "kind": "processed", "has_quality": true, "sell_price": 700, "description": "달콤한 딸기잼.", "icon": 48},
+	"blueberry_jam": {"name": "블루베리잼", "kind": "processed", "has_quality": true, "sell_price": 650, "description": "새콤달콤한 블루베리잼.", "icon": 49},
+	"watermelon_juice": {"name": "수박 주스", "kind": "processed", "has_quality": true, "sell_price": 80, "description": "시원한 수박 주스.", "icon": 50},
+	"fruit_syrup": {"name": "과일 시럽", "kind": "processed", "has_quality": true, "sell_price": 620, "description": "베리로 만든 진한 시럽.", "icon": 51},
+	"tomato_puree": {"name": "토마토 퓌레", "kind": "processed", "has_quality": true, "sell_price": 160, "description": "토마토를 곱게 으깬 퓌레.", "icon": 52},
+	"tomato_sauce": {"name": "토마토 소스", "kind": "processed", "has_quality": true, "sell_price": 430, "description": "푹 끓인 토마토 소스.", "icon": 53},
+	"bottled_sauce": {"name": "병 소스", "kind": "processed", "has_quality": true, "sell_price": 1100, "description": "병에 담은 고급 토마토 소스.", "icon": 54},
+	"potato_starch": {"name": "감자 전분", "kind": "processed", "has_quality": true, "sell_price": 125, "description": "감자에서 얻은 고운 전분.", "icon": 55},
+	"potato_snack": {"name": "감자 과자", "kind": "processed", "has_quality": true, "sell_price": 90, "description": "바삭바삭한 감자 과자.", "icon": 56},
+	"dried_sweet_potato": {"name": "말린 고구마", "kind": "processed", "has_quality": true, "sell_price": 140, "description": "쫀득하게 말린 고구마.", "icon": 57},
+	"sweet_potato_dessert": {"name": "고구마 디저트", "kind": "processed", "has_quality": true, "sell_price": 880, "description": "달콤한 고구마 디저트.", "icon": 58},
+	"corn_flour": {"name": "옥수수 가루", "kind": "processed", "has_quality": true, "sell_price": 165, "description": "옥수수를 곱게 간 가루.", "icon": 59},
+	"corn_bread": {"name": "옥수수빵", "kind": "processed", "has_quality": true, "sell_price": 760, "description": "고소한 옥수수빵.", "icon": 60},
+	"pumpkin_puree": {"name": "호박 퓌레", "kind": "processed", "has_quality": true, "sell_price": 210, "description": "부드러운 호박 퓌레.", "icon": 61},
+	"pumpkin_pie": {"name": "호박 파이", "kind": "processed", "has_quality": true, "sell_price": 1400, "description": "가을 향이 가득한 호박 파이.", "icon": 62}
 }

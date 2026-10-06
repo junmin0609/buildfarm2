@@ -69,3 +69,19 @@ static func roll(rng: RandomNumberGenerator, table := "none") -> String:
 			if pick < 0.0:
 				return q
 	return default_id()
+
+
+## 재료 품질의 평균 (가공품 품질 §74). counts = {품질: 개수}. 품질 순서(브론즈 0, 실버 1, 골드 2)의 평균을 반올림한다.
+## 품질 없는 재료(NONE)는 세지 않는다. 셀 것이 없으면 기본 품질.
+static func average(counts: Dictionary) -> String:
+	var order := ids()
+	var total := 0
+	var sum := 0
+	for q: String in counts:
+		var i := order.find(q)
+		if i >= 0:
+			total += int(counts[q])
+			sum += i * int(counts[q])
+	if total <= 0:
+		return default_id()
+	return order[clampi(roundi(float(sum) / total), 0, order.size() - 1)]

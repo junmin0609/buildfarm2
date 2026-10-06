@@ -4,6 +4,8 @@ extends Node
 
 signal money_changed(amount: int)
 signal time_changed(day: int, minutes: int)
+## 게임 시계가 흐름 (흐른 게임 시각, 분 단위 소수). 멈춘 동안은 오지 않는다. 가공기처럼 시계 기준으로 일하는 시설이 쓴다
+signal time_advanced(game_minutes: float)
 ## 새 날 아침 07:00, 플레이어가 집에서 깨어난 뒤 (DayCycle 이 보낸다)
 signal day_started(day: int)
 ## 하루를 끝내 달라는 요청. reason: "time_up"(15분 경과) / "sleep"(집에서 잠) → DayCycle.end_day
@@ -32,6 +34,9 @@ signal compost_bin_changed
 ## 창고 창 열기 요청 (warehouse: Warehouse) / 창고 내용·필터·단계가 바뀜
 signal warehouse_requested(warehouse: Node)
 signal warehouse_changed
+## 가공기 창 열기 요청 (processor: Processor) / 가공기 상태가 바뀜
+signal processor_requested(processor: Node)
+signal processor_changed
 
 ## 저장 (kind: "auto" 하루 전환 자동 저장 / "manual" 수동 저장)
 signal game_saved(kind: String)

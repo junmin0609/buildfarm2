@@ -182,6 +182,9 @@ func _ready() -> void:
 	# ---------- 창고 + 필터 (§67, §68)
 	await _test_warehouse(world, hud)
 
+	# ---------- 수동 가공기 + 레시피 (§70~§74)
+	await _test_processor(world, hud)
+
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
 
@@ -1172,7 +1175,12 @@ func _test_weather(world: FarmWorld, hud: HUD) -> void:
 	_check(GameState.weather == "rain" and r.weather.id == "rain" and r.weather.watered >= 2, "아침에 비 결정 (밭 %d칸 젖음)" % r.weather.watered)
 	_check(farm.get_tile(crop_c).watered and farm.get_tile(empty_c).watered, "비 오는 날은 07:00부터 바깥 밭이 모두 젖어 있음")
 	_check(hud._day_label.text.ends_with("비") and hud._weather_fx.visible and hud._weather_fx.weather == "rain", "날짜 옆에 날씨, 비 화면 효과 (%s)" % hud._day_label.text)
+	# 밤사이 장애물이 다시 날 수 있어 새로 갈 칸은 아침에 고른다
 	var new_c: Vector2i = cells[2]
+	for c: Vector2i in farm.farmable_cells.keys():
+		if not world.obstacles.is_blocked(c) and not world.build.is_occupied(c) and not farm.tiles.has(c):
+			new_c = c
+			break
 	_check(farm.till(new_c) and farm.get_tile(new_c).watered, "비 오는 날 새로 간 밭도 젖음")
 	var inv := GameState.inventory
 	var can_slot := -1
@@ -2048,6 +2056,189 @@ func _test_warehouse(world: FarmWorld, hud: HUD) -> void:
 	_check(bm.try_remove(origin) and grid.object_at(origin) == null, "창고 철거")
 	var mats_back := inv.count_of("wood") == 80 + 60 + 120 and inv.count_of("stone") == 40 + 60 + 120
 	_check(inv.count_of("tomato", "gold") == tomato_before + 4 and mats_back and GameState.money == money + 1500 + 1000 + 2500, "철거하면 안의 물건 + 건설비 + 증축 비용 모두 돌려받음")
+	bm.stop()
+
+	inv.load_data(saved_inv)
+	hud._close_panels()
+	await get_tree().process_frame
+
+
+func _test_processor(world: FarmWorld, hud: HUD) -> void:
+	var grid := world.build
+	var bm := world.build_mode
+	var inv := GameState.inventory
+	var saved_inv := inv.to_data()
+	var player := world.player
+	var def := PlaceableDB.get_def("manual_processor")
+	_check(def != null and def.size == Vector2i(2, 2) and def.cost_text() == "800 G + 나무 50 + 돌 30", "수동 가공기 정의 (2x2, %s)" % (def.cost_text() if def else ""))
+
+	# 레시피 데이터 (§73): 지금 있는 작물로 만들 수 있는 20개, 기초 6개만 처음부터 앎
+	var recipes := RecipeDB.all()
+	var known := recipes.filter(func(r: Dictionary) -> bool: return RecipeDB.is_known(r.id)).map(func(r: Dictionary) -> String: return r.id)
+	_check(recipes.size() == 20, "레시피 20개 (%d)" % recipes.size())
+	_check(known == ["flour", "dough", "bread", "sugar", "tomato_puree", "potato_snack"], "처음 아는 레시피: 기초 6개 %s" % [known])
+	var flour := ItemDB.get_item("flour")
+	_check(flour != null and flour.kind == ItemDef.Kind.PROCESSED and flour.has_quality and ShippingBin.accepts(flour), "가공품: 품질 있음, 출하함에 팔 수 있음")
+	_check(ItemTooltip.lines(flour, "silver").size() >= 2, "가공품 툴팁에 가격")
+	_check(Quality.average({"bronze": 1, "gold": 1}) == "silver" and Quality.average({"bronze": 2, "gold": 1}) == "silver" and Quality.average({"bronze": 3, "silver": 1}) == "bronze", "품질 평균 (반올림)")
+
+	# 짓기: 2x2 + 앞에 설 한 줄
+	var origin := Vector2i(-1, -1)
+	var cells: Array = world.farm.farmable_cells.keys()
+	cells.sort()
+	for c: Vector2i in cells:
+		var ok := true
+		for y in 3:
+			for x in 2:
+				var fc := c + Vector2i(x, y)
+				if not grid.is_buildable_ground(fc) or grid.is_occupied(fc) or world.farm.tiles.has(fc):
+					ok = false
+		if ok:
+			origin = c
+			break
+	for y in 4:
+		for x in 2:
+			world.obstacles.remove(origin + Vector2i(x, y))
+	await get_tree().process_frame
+	player.global_position = world.cell_center(_find_char("s"))
+	inv.remove("wood", inv.count_of("wood"))
+	inv.remove("stone", inv.count_of("stone"))
+	inv.add("wood", 50)
+	inv.add("stone", 30)
+	GameState.add_money(1000)
+	bm.start_place("manual_processor")
+	_check(bm.try_place(origin) and inv.count_of("wood") == 0 and inv.count_of("stone") == 0, "수동 가공기 짓기 (나무 50 + 돌 30 사용)")
+	bm.stop()
+	var pr := grid.object_at(origin) as Processor
+	_check(pr != null and pr.is_empty() and not pr.is_automatic() and pr.tier() == 1, "수동 가공기: 자동 아님, 1급")
+
+	# [E] 로 창 열기 (시간 정지)
+	player.global_position = pr.interact_point()
+	await get_tree().physics_frame
+	_check(player._nearest_interactable() == pr, "가공기 앞에서 [E] 안내")
+	player._interact()
+	var panel := hud._processor
+	_check(panel.visible and get_tree().paused and GameState.is_time_paused(), "가공기 창 열면 게임·시간 멈춤")
+	_check(panel._list.get_child_count() == 20 and panel.selected == "flour", "창에 레시피 20개, 첫 레시피 선택")
+	hud._close_panels()
+
+	# 모르는 레시피는 못 씀 → 배우면 영구 (저장됨)
+	inv.add("strawberry", 3)
+	inv.add("sugar", 1)
+	_check(pr.recipe_problem("strawberry_jam") != "" and pr.start(inv, "strawberry_jam", 1) == 0, "안 배운 레시피(딸기잼)는 못 돌림")
+	_check(RecipeDB.learn("strawberry_jam") and RecipeDB.is_known("strawberry_jam") and pr.recipe_problem("strawberry_jam") == "", "레시피 배우기 (영구 해금)")
+	world.save_manager.save_game("manual")
+	GameState.unlocks.erase("recipe:strawberry_jam")
+	world.save_manager.load_game()
+	pr = grid.object_at(origin) as Processor
+	_check(RecipeDB.is_known("strawberry_jam"), "배운 레시피는 저장·불러오기 후에도 앎")
+	GameState.unlocks.erase("recipe:strawberry_jam")
+	inv.remove("strawberry", 3)
+	inv.remove("sugar", 1)
+
+	# 시작: 정한 횟수만, 재료는 한꺼번에 가져가고 회차마다 품질 평균
+	GameState.set_clock(8 * 60)
+	inv.remove("wheat", inv.count_of("wheat"))
+	inv.add("wheat", 3, "bronze")
+	inv.add("wheat", 3, "gold")
+	_check(Processor.runs_possible(inv, RecipeDB.get_recipe("flour"), 99) == 3, "밀 6개 → 밀가루 3회 가능")
+	_check(pr.start(inv, "flour", 5) == 3 and inv.count_of("wheat") == 0 and pr.queue.size() == 3, "5회를 정해도 재료만큼 3회만 (밀 모두 가져감)")
+	var qs: Array = pr.queue.map(func(run: Dictionary) -> String: return run.quality)
+	_check(qs == ["bronze", "silver", "gold"], "회차별 품질 = 재료 품질 평균, 낮은 품질부터 사용 %s" % [qs])
+	_check(pr.start(inv, "bread", 1) == 0, "돌아가는 중에는 새로 시작 못 함")
+
+	# 게임 시계 기준: 밀가루 1시간
+	var per_min := GameState.day_length / float(GameState.day_end - GameState.day_start)
+	GameState.advance_time(30 * per_min)
+	_check(pr.output.is_empty() and absf(pr.progress - 30.0) < 0.5, "30분 지나면 아직 진행 중 (%.1f분)" % pr.progress)
+	GameState.set_time_paused("test", true)
+	GameState.advance_time(60 * per_min)
+	GameState.set_time_paused("test", false)
+	_check(pr.output.is_empty(), "시계가 멈춘 동안은 진행 안 됨")
+	GameState.advance_time(31 * per_min)
+	_check(pr.output_count() == 1 and pr.output[0].quality == "bronze" and pr.queue.size() == 2 and pr.runs_done == 1, "1시간 뒤 밀가루(브론즈) 1개가 가공기 안에")
+	var fl_before := inv.count_of("flour")
+
+	# 하루가 끝나면 진행 중인 1회분은 밤사이 완성, 나머지는 다음 날
+	GameState.sleep()
+	hud._close_panels()
+	pr = grid.object_at(origin) as Processor
+	var report: Dictionary = world.day_cycle.last_report
+	_check(pr.queue.size() == 1 and pr.output.any(func(st: Dictionary) -> bool: return st.quality == "silver") and int(report.get("processed", 0)) == 1, "밤사이 진행 중이던 1회분 완성 (report.processed)")
+	GameState.advance_time(61 * per_min)
+	_check(pr.queue.is_empty() and pr.runs_done == 3 and pr.output_count() == 3 and not pr.is_working(), "다음 날 남은 1회 완성 → 정한 3회 끝")
+	inv.add("wheat", 4)
+	GameState.advance_time(120 * per_min)
+	_check(not pr.is_working() and inv.count_of("wheat") == 4, "수동: 끝나면 재료가 있어도 다시 돌지 않음")
+	_check(pr.take_output(Inventory.new(0)) == 0 and pr.output_count() == 3, "가방에 자리가 없으면 결과물 그대로")
+	_check(pr.take_output(inv) == 3 and inv.count_of("flour") == fl_before + 3 and inv.count_of("flour", "gold") >= 1, "결과물 꺼내기 (품질 그대로)")
+
+	# 높은 품질부터 쓰기
+	inv.remove("tomato", inv.count_of("tomato"))
+	inv.add("tomato", 3, "bronze")
+	inv.add("tomato", 3, "gold")
+	_check(pr.start(inv, "tomato_puree", 1, true) == 1 and pr.queue[0].quality == "gold" and inv.count_of("tomato", "bronze") == 3, "높은 품질부터: 골드 토마토 3개 → 골드 퓌레")
+
+	# 취소: 남은 회차 재료를 모두 돌려받음 (가방 자리가 없으면 취소 불가)
+	_check(not pr.cancel(Inventory.new(0)) and pr.is_working(), "가방 자리가 없으면 취소 불가")
+	_check(pr.cancel(inv) and not pr.is_working() and inv.count_of("tomato", "gold") == 3, "취소하면 재료 그대로 돌려받음")
+
+	# 결과물 칸이 가득 차면 다 된 회차는 기다림 (사라지지 않음)
+	pr.output = [{"id": "bread", "count": pr.max_output(), "quality": "bronze"}] as Array[Dictionary]
+	pr.start(inv, "tomato_puree", 1)
+	GameState.advance_time(100 * per_min)
+	_check(pr.is_waiting() and pr.output_count() == pr.max_output(), "결과물 칸이 가득 차면 다 된 회차는 대기")
+	pr.take_output(inv)
+	_check(not pr.is_working() and pr.output_count() == 1 and pr.output[0].id == "tomato_puree", "꺼내면 기다리던 퓌레가 바로 채워짐")
+	pr.take_output(inv)
+
+	# 창에서 고르고 횟수 정해 시작
+	inv.remove("tomato", inv.count_of("tomato"))
+	inv.add("tomato", 7)
+	player.global_position = pr.interact_point()  # 잠을 자서 집 앞에 있으므로 다시 가공기 앞으로
+	await get_tree().physics_frame
+	player._interact()
+	_check(panel.visible and panel.processor == pr, "가공기 창 다시 열기")
+	panel._select("tomato_puree")
+	_check(panel._max_label.text.contains("2") and not panel._start.disabled, "토마토 7개 → 가능 2회 표시")
+	panel._set_runs(99)
+	_check(panel.runs == 2, "횟수는 가능한 만큼까지만")
+	panel._on_start()
+	_check(pr.is_working() and pr.runs_total == 2 and inv.count_of("tomato") == 1 and panel._start.disabled, "창에서 [가공 시작] → 2회")
+	_check(panel._status.text.contains("토마토 퓌레") and panel._cancel.visible, "진행 상태 표시 (%s)" % panel._status.text)
+	var jam_row := panel._list.get_child(recipes.map(func(r: Dictionary) -> String: return r.id).find("blueberry_jam"))
+	_check(jam_row.get_child_count() == 3 and jam_row.modulate.a < 1.0, "잠긴 레시피는 흐리고 고르기 버튼 없음")
+	hud._close_panels()
+
+	# 저장 / 불러오기
+	GameState.advance_time(20 * per_min)
+	var state := pr.save_state()
+	world.save_manager.save_game("manual")
+	pr.take_contents()
+	world.save_manager.load_game()
+	pr = grid.object_at(origin) as Processor
+	_check(pr != null and pr.save_state() == state and pr.queue.size() == 2 and pr.progress > 10.0, "가공기 상태 저장·불러오기 (회차·진행·결과물)")
+
+	# 옮겨도 진행 유지
+	state = pr.save_state()
+	for x in 2:
+		world.obstacles.remove(origin + Vector2i(x, 2))
+	await get_tree().process_frame
+	player.global_position = world.cell_center(_find_char("s"))
+	bm.start(BuildMode.Mode.MOVE)
+	_check(bm.pick(origin) and bm.try_drop(origin + Vector2i(0, 1)) and grid.object_at(origin + Vector2i(0, 1)) == pr and pr.save_state() == state, "옮겨도 진행 중인 가공 유지")
+	origin += Vector2i(0, 1)
+
+	# 철거: 가방에 자리가 없으면 막고, 있으면 남은 재료 + 결과물 + 건설비 돌려받음
+	bm.start(BuildMode.Mode.REMOVE)
+	var filler := 99 * inv.size()
+	var added := filler - inv.add("stone", filler)
+	_check(not bm.try_remove(origin) and grid.object_at(origin) == pr, "가방이 꽉 차면 철거 불가")
+	inv.remove("stone", added)
+	inv.load_data([])
+	var money := GameState.money
+	_check(bm.try_remove(origin) and grid.object_at(origin) == null, "가공기 철거")
+	_check(inv.count_of("tomato") == 6 and inv.count_of("wood") == 50 and inv.count_of("stone") == 30 and GameState.money == money + 800, "철거하면 남은 재료(토마토 6) + 건설비 돌려받음")
 	bm.stop()
 
 	inv.load_data(saved_inv)

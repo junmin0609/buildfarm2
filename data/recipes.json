@@ -1,0 +1,23 @@
+{
+	"_comment": "가공 레시피 (BUILD_FARM_PLAN §72, §73). inputs = 1회분 재료, output·count = 1회분 결과물, minutes = 게임 시계 기준 걸리는 시간, tier = 필요한 가공기 등급 (§70), unlocked = 처음부터 아는 레시피 (나머지는 레시피 상점에서 배울 예정 §71). 시간·가격은 임시 밸런스. §73의 9번(골드 과일 고급잼)·19~20번(양배추 없음)·23~26번(특수 작물 없음)은 아직 없음",
+	"flour": {"inputs": {"wheat": 2}, "output": "flour", "count": 1, "minutes": 60, "tier": 1, "unlocked": true},
+	"dough": {"inputs": {"flour": 2}, "output": "dough", "count": 1, "minutes": 60, "tier": 1, "unlocked": true},
+	"bread": {"inputs": {"dough": 1}, "output": "bread", "count": 1, "minutes": 120, "tier": 1, "unlocked": true},
+	"sugar": {"inputs": {"sugar_beet": 2}, "output": "sugar", "count": 1, "minutes": 90, "tier": 1, "unlocked": true},
+	"strawberry_jam": {"inputs": {"strawberry": 3, "sugar": 1}, "output": "strawberry_jam", "count": 1, "minutes": 180, "tier": 1, "unlocked": false},
+	"blueberry_jam": {"inputs": {"blueberry": 3, "sugar": 1}, "output": "blueberry_jam", "count": 1, "minutes": 180, "tier": 1, "unlocked": false},
+	"watermelon_juice": {"inputs": {"watermelon": 1}, "output": "watermelon_juice", "count": 2, "minutes": 60, "tier": 1, "unlocked": false},
+	"fruit_syrup_strawberry": {"inputs": {"strawberry": 2, "sugar": 1}, "output": "fruit_syrup", "count": 1, "minutes": 120, "tier": 1, "unlocked": false},
+	"fruit_syrup_blueberry": {"inputs": {"blueberry": 2, "sugar": 1}, "output": "fruit_syrup", "count": 1, "minutes": 120, "tier": 1, "unlocked": false},
+	"tomato_puree": {"inputs": {"tomato": 3}, "output": "tomato_puree", "count": 1, "minutes": 90, "tier": 1, "unlocked": true},
+	"tomato_sauce": {"inputs": {"tomato_puree": 2}, "output": "tomato_sauce", "count": 1, "minutes": 120, "tier": 1, "unlocked": false},
+	"bottled_sauce": {"inputs": {"tomato_sauce": 2}, "output": "bottled_sauce", "count": 1, "minutes": 120, "tier": 1, "unlocked": false},
+	"potato_starch": {"inputs": {"potato": 3}, "output": "potato_starch", "count": 1, "minutes": 120, "tier": 1, "unlocked": false},
+	"potato_snack": {"inputs": {"potato": 2}, "output": "potato_snack", "count": 1, "minutes": 90, "tier": 1, "unlocked": true},
+	"dried_sweet_potato": {"inputs": {"sweet_potato": 2}, "output": "dried_sweet_potato", "count": 1, "minutes": 240, "tier": 1, "unlocked": false},
+	"sweet_potato_dessert": {"inputs": {"dried_sweet_potato": 2, "sugar": 1}, "output": "sweet_potato_dessert", "count": 1, "minutes": 180, "tier": 1, "unlocked": false},
+	"corn_flour": {"inputs": {"corn": 2}, "output": "corn_flour", "count": 1, "minutes": 60, "tier": 1, "unlocked": false},
+	"corn_bread": {"inputs": {"corn_flour": 2, "dough": 1}, "output": "corn_bread", "count": 1, "minutes": 180, "tier": 1, "unlocked": false},
+	"pumpkin_puree": {"inputs": {"pumpkin": 1}, "output": "pumpkin_puree", "count": 2, "minutes": 90, "tier": 1, "unlocked": false},
+	"pumpkin_pie": {"inputs": {"pumpkin_puree": 2, "dough": 1, "sugar": 1}, "output": "pumpkin_pie", "count": 1, "minutes": 240, "tier": 1, "unlocked": false}
+}
