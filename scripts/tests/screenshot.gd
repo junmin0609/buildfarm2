@@ -330,6 +330,14 @@ func _ready() -> void:
 			hud._close_panels()
 		break
 
+	# 아침 야간 생산 요약 (§98)
+	hud._night.open(GameState.day, {"items": {"flour": 24, "bread": 10, "basic_fertilizer": 2}, "energy": 300.0})
+	hud._center(hud._night)
+	get_tree().paused = true
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_night_summary.png"))
+	hud._close_panels()
+
 	# 맵 전체 내려다보기
 	get_tree().paused = false
 	main.get_node("HUD").visible = false

@@ -32,6 +32,10 @@ var _item_tip: ItemTooltip
 var _menu: SystemMenu
 var _bin_panel: ShippingBinPanel
 var _summary: SalesSummaryPanel
+var _night: NightSummaryPanel
+## 판매 요약을 닫은 뒤 보여 줄 야간 생산 결과 (report.night_production). 비어 있으면 없음
+var _pending_night := {}
+var _pending_night_day := 0
 var _smith: BlacksmithPanel
 var _compost: CompostBinPanel
 var _warehouse: WarehousePanel
@@ -83,7 +87,11 @@ func _ready() -> void:
 	_summary = SalesSummaryPanel.new()
 	_place(_summary, Vector2(0.5, 0.5), Vector2.ZERO, Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BOTH)
 	_summary.hide()
-	_summary.close_requested.connect(_close_panels)
+	_summary.close_requested.connect(_on_sales_closed)
+	_night = NightSummaryPanel.new()
+	_place(_night, Vector2(0.5, 0.5), Vector2.ZERO, Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BOTH)
+	_night.hide()
+	_night.close_requested.connect(_close_panels)
 	_smith = BlacksmithPanel.new()
 	_place(_smith, Vector2(0.5, 0.5), Vector2.ZERO, Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BOTH)
 	_smith.hide()
@@ -135,6 +143,7 @@ func _ready() -> void:
 	Events.day_ending.connect(_on_day_ending)
 	Events.weather_changed.connect(func(_w: String) -> void: _on_time_changed(GameState.day, GameState.minutes))
 	Events.game_loading.connect(_close_panels)
+	Events.game_loading.connect(func() -> void: _pending_night = {})
 	Events.shipping_bin_requested.connect(open_shipping_bin)
 	Events.compost_bin_requested.connect(open_compost_bin)
 	Events.warehouse_requested.connect(open_warehouse)
@@ -155,8 +164,8 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	var panel_open := _inventory.visible or _shop.visible or _build.visible or _menu.visible \
-			or _bin_panel.visible or _summary.visible or _smith.visible or _compost.visible or _warehouse.visible or _processor.visible or _generator.visible
-	if (_menu.visible or _summary.visible) and not event.is_action_pressed("cancel"):
+			or _bin_panel.visible or _summary.visible or _night.visible or _smith.visible or _compost.visible or _warehouse.visible or _processor.visible or _generator.visible
+	if (_menu.visible or _summary.visible or _night.visible) and not event.is_action_pressed("cancel"):
 		return  # 메뉴·요약이 열려 있으면 다른 키는 무시 (버튼은 GUI 가 처리)
 	var blocking := _shop.visible or _bin_panel.visible or _smith.visible or _compost.visible or _warehouse.visible or _processor.visible or _generator.visible  # 이 창이 열려 있으면 B·I 로 다른 창을 열지 않는다
 	if event.is_action_pressed("cancel") and not panel_open and not _build_hint.visible:
@@ -175,7 +184,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			open_inventory()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("cancel") and panel_open:
-		_close_panels()
+		if _summary.visible:
+			_on_sales_closed()  # 판매 요약을 Esc 로 닫아도 야간 생산 요약은 이어서 뜬다
+		else:
+			_close_panels()
 		get_viewport().set_input_as_handled()
 	elif not panel_open:
 		_handle_hotbar_keys(event)
@@ -282,16 +294,38 @@ func open_blacksmith() -> void:
 	_pause_for("blacksmith")
 
 
-## 하루가 끝났을 때: 오늘 번 돈이 있으면 판매 수익 요약을 띄운다 (게임·시간 멈춤)
+## 하루가 끝났을 때: 오늘 번 돈이 있으면 판매 수익 요약(§99), 그다음 밤새 만든 것이 있으면 야간 생산 요약(§98).
+## 두 창은 섞지 않고 차례로 띄운다 (게임·시간 멈춤).
 func _on_day_ended(report: Dictionary) -> void:
+	var night: Dictionary = report.get("night_production", {})
+	_pending_night = night if NightSummaryPanel.has_content(night) else {}
+	_pending_night_day = GameState.day
 	var sales: Dictionary = report.get("sales", {})
 	if int(sales.get("total", 0)) <= 0:
+		_show_pending_night()
 		return
 	_summary.open(int(report.get("from_day", GameState.day - 1)), sales)
 	_center(_summary)
 	_prompt_box.hide()
 	_crop_info.suppressed = true
 	_pause_for("summary")
+
+
+func _on_sales_closed() -> void:
+	_close_panels()
+	_show_pending_night()
+
+
+func _show_pending_night() -> void:
+	if _pending_night.is_empty():
+		return
+	var night := _pending_night
+	_pending_night = {}
+	_night.open(_pending_night_day, night)
+	_center(_night)
+	_prompt_box.hide()
+	_crop_info.suppressed = true
+	_pause_for("night_summary")
 
 
 ## 가방: 시간은 계속 흐르고, 플레이어 이동·도구 사용만 막는다
@@ -321,6 +355,8 @@ func _close_panels() -> void:
 	_menu.hide()
 	_bin_panel.hide()
 	_summary.hide()
+	_night.hide()
+	GameState.set_time_paused("night_summary", false)
 	_smith.hide()
 	_compost.hide()
 	_warehouse.hide()

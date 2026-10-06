@@ -74,6 +74,17 @@ func _ready() -> void:
 	add_step(WAKE_UP, func(_r: Dictionary) -> void: world.build.start_day())
 
 
+## 밤새 생산된 물건을 report.night_production.items 에 더한다 (아침 야간 생산 요약 §98 이 보여 준다)
+static func add_night_item(report: Dictionary, item_id: String, count: int) -> void:
+	if count <= 0:
+		return
+	var night: Dictionary = report.get("night_production", {})
+	var items: Dictionary = night.get("items", {})
+	items[item_id] = int(items.get(item_id, 0)) + count
+	night["items"] = items
+	report["night_production"] = night
+
+
 func add_step(phase: String, step: Callable) -> void:
 	assert(_steps.has(phase), "모르는 하루 마감 단계: %s" % phase)
 	_steps[phase].append(step)

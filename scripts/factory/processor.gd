@@ -261,6 +261,7 @@ func on_day_end(_w: FarmWorld, report: Dictionary) -> void:
 	_finish_one(r)
 	progress = 0.0
 	report["processed"] = int(report.get("processed", 0)) + int(r.count)
+	DayCycle.add_night_item(report, r.output, int(r.count))
 	_changed()
 
 
@@ -465,6 +466,7 @@ func on_night_production(_w: FarmWorld, report: Dictionary, minutes: float) -> v
 		var night: Dictionary = report.get("night_production", {})
 		night["processed"] = int(night.get("processed", 0)) + made * int(recipe().count)
 		report["night_production"] = night
+		DayCycle.add_night_item(report, recipe().output, made * int(recipe().count))
 
 
 ## 전기 가공기 상태 글 (창·테스트용)

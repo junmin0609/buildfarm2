@@ -181,6 +181,8 @@ func on_day_end(_world: FarmWorld, report: Dictionary) -> void:
 	_try_start()
 	if made > 0:
 		report["compost"] = int(report.get("compost", 0)) + made
+		if output_item():
+			DayCycle.add_night_item(report, output_item().id, made)
 	_changed()
 
 

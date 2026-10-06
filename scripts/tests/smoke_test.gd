@@ -1809,6 +1809,7 @@ func _test_compost(world: FarmWorld, hud: HUD) -> void:
 	hud._close_panels()
 	var report: Dictionary = world.day_cycle.last_report
 	_check(bin.output == 1 and int(report.get("compost", 0)) == 1, "3일 뒤 기본 비료 1개가 퇴비통 안에 생김 (report.compost)")
+	_check(int(report.get("night_production", {}).get("items", {}).get("basic_fertilizer", 0)) == 1, "야간 생산 결과에 기본 비료 +1")
 	_check(bin.is_working() and bin.batch_days == 0 and bin.waiting.is_empty(), "대기 재료 10점으로 다음 분량 바로 시작")
 	_check(inv.count_of("basic_fertilizer") == fert_start, "결과물은 저절로 가방에 들어가지 않음 (직접 꺼냄)")
 	var fert_before := inv.count_of("basic_fertilizer")
@@ -2406,10 +2407,18 @@ func _test_power_and_electric(world: FarmWorld, hud: HUD) -> void:
 	inv.add("wood", 10)
 	gen.deposit(inv, "wood", 10)
 	wh.storage.add("wheat", 20)
+	GameState.record_sale(Pricing.PLAZA, 100)  # 판매 요약 → 야간 생산 요약 순서를 보려고
 	GameState.sleep()
-	hud._close_panels()
+	_check(hud._summary.visible and not hud._night.visible, "하루 끝: 판매 요약 먼저 (야간 생산 요약은 아직)")
+	hud._summary.close_requested.emit()
+	_check(hud._night.visible and get_tree().paused and hud._night._lines.get_child_count() == 1 and hud._night._energy.visible, "판매 요약을 닫으면 아침 야간 생산 요약 (밀가루 + 발전량)")
+	var night_row := hud._night._lines.get_child(0)
+	_check((night_row.get_child(1) as Label).text == "밀가루" and (night_row.get_child(2) as Label).text.begins_with("+"), "요약 줄: 밀가루 %s" % (night_row.get_child(2) as Label).text)
+	hud._night.close_requested.emit()
+	_check(not hud._night.visible and not get_tree().paused, "확인 누르면 닫히고 게임 재개")
 	var report: Dictionary = world.day_cycle.last_report
 	var night: Dictionary = report.get("night_production", {})
+	_check(int(night.get("items", {}).get("flour", 0)) == int(night.get("processed", 0)), "report.night_production.items 에 밀가루 개수")
 	_check(int(night.get("processed", 0)) >= 4 and int(night.get("processed", 0)) <= 5 and float(night.get("energy", 0.0)) > 250.0, "야간 5시간: 발전 %.0f, 밀가루 %d개" % [float(night.get("energy", 0.0)), int(night.get("processed", 0))])
 
 	# 저장 / 불러오기
