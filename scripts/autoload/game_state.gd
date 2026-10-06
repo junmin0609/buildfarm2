@@ -54,6 +54,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_load_time_config()
 	_setup_input()
+	Settings.apply_saved()  # 저장된 전체 화면 설정, 처음 창 크기
 	inventory.changed.connect(func() -> void: Events.inventory_changed.emit())
 	new_game()
 
@@ -80,6 +81,13 @@ func new_game() -> void:
 
 func _process(delta: float) -> void:
 	advance_time(delta)
+
+
+## 전체 화면 단축키는 창(버튼 등)보다 먼저 받는다
+func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("toggle_fullscreen") and not event.is_echo():
+		Settings.set_fullscreen(not Settings.fullscreen)
+		get_viewport().set_input_as_handled()
 
 
 func _load_time_config() -> void:
@@ -314,6 +322,12 @@ func _setup_input() -> void:
 	_bind("build_menu", [KEY_B])
 	_bind("rotate", [KEY_R])
 	_bind("cancel", [KEY_ESCAPE])
+	# 전체 화면 켜고 끄기: F11, Alt+Enter (시작 화면·게임 어디서나)
+	_bind("toggle_fullscreen", [KEY_F11])
+	var alt_enter := InputEventKey.new()
+	alt_enter.physical_keycode = KEY_ENTER
+	alt_enter.alt_pressed = true
+	InputMap.action_add_event("toggle_fullscreen", alt_enter)
 
 
 func _bind(action: StringName, keys: Array, mouse_buttons: Array = []) -> void:

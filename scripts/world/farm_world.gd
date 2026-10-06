@@ -39,6 +39,11 @@ func _ready() -> void:
 	edges.tile_set = tile_set
 	details.tile_set = tile_set
 	fences.tile_set = tile_set
+	_edge_corners = TileMapLayer.new()
+	_edge_corners.name = "EdgeCorners"
+	_edge_corners.tile_set = tile_set
+	add_child(_edge_corners)
+	move_child(_edge_corners, edges.get_index() + 1)
 	_build_map()
 	obstacles.generate_start(player.position)
 	_build_edges()
@@ -72,6 +77,8 @@ func _build_map() -> void:
 			elif ch == "@":
 				home_position = cell_center(cell)
 				player.position = home_position
+			elif ch == "T":
+				_place_tree(cell)
 			elif MapLayout.PROPS.has(ch):
 				var prop: Node2D = load(MapLayout.PROPS[ch]).instantiate()
 				prop.position = cell_center(cell) + Vector2(0, TILE / 2.0 - 2)
@@ -86,7 +93,96 @@ func _build_map() -> void:
 					shipping_bin = building
 
 
+# ---------- 나무 / 숲 (비주얼만: 칸·충돌은 예전과 같다)
+
+## 나무 변형: 그림, 발밑(그림 안 바닥 가운데), 고를 비중. 열매 나무는 드물게
+const TREE_VARIANTS := [
+	["res://assets/art/tree_wide.png", Vector2(19, 34), 3],
+	["res://assets/art/tree_tall.png", Vector2(15, 42), 3],
+	["res://assets/art/tree_lean.png", Vector2(18, 38), 3],
+	["res://assets/art/tree_fruit.png", Vector2(17, 36), 1],
+]
+const UNDERGROWTH := ["res://assets/art/undergrowth_0.png", "res://assets/art/undergrowth_1.png"]
+## 나무 밑동 충돌 (예전 tree.tscn 과 같음)
+const TREE_COLLISION := Rect2(-4, -5, 9, 5)
+
+
+func _is_tree(cell: Vector2i) -> bool:
+	var size := MapLayout.size()
+	if cell.x < 0 or cell.y < 0 or cell.x >= size.x or cell.y >= size.y:
+		return true  # 맵 밖은 숲이 이어진다고 본다
+	return MapLayout.char_at(cell) == "T"
+
+
+## 칸마다 정해진 나무 변형 번호 (비중대로). 왼쪽·위 이웃과 같은 모양이 이어지지 않게 한 칸 밀어 준다
+func _tree_variant(cell: Vector2i) -> int:
+	var v := _weighted_variant(cell)
+	if v == _weighted_variant(cell + Vector2i.LEFT):
+		v = (v + 1) % TREE_VARIANTS.size()
+	if v == _weighted_variant(cell + Vector2i.UP):
+		v = (v + 2) % TREE_VARIANTS.size()
+	return v
+
+
+func _weighted_variant(cell: Vector2i) -> int:
+	var total := 0
+	for t: Array in TREE_VARIANTS:
+		total += int(t[2])
+	var pick := absi(hash(cell * 13 + Vector2i(5, 9))) % total
+	for i in TREE_VARIANTS.size():
+		pick -= int(TREE_VARIANTS[i][2])
+		if pick < 0:
+			return i
+	return 0
+
+
+func _place_tree(cell: Vector2i) -> void:
+	var h := absi(hash(cell * 7 + Vector2i(3, 11)))
+	var open_dirs: Array[Vector2i] = []
+	for d: Vector2i in [Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP]:
+		if not _is_tree(cell + d):
+			open_dirs.append(d)
+	var interior := open_dirs.is_empty() and _is_tree(cell + Vector2i(1, 1)) and _is_tree(cell + Vector2i(-1, 1)) \
+			and _is_tree(cell + Vector2i(1, -1)) and _is_tree(cell + Vector2i(-1, -1))
+	var prop := Prop.new()
+	prop.collision = TREE_COLLISION
+	var edge := not open_dirs.is_empty()
+	# 숲 깊은 곳은 가끔 나무 그림을 빼서 작은 빈 틈을 만든다 (막힘은 그대로: 바깥 나무와 맵 경계가 막는다)
+	if interior and h % 9 == 0:
+		prop.texture = null
+	elif edge and (h / 3) % 5 == 0:
+		# 가장자리 나무 몇 그루는 어린 나무로 — 숲 경계선에 들쭉날쭉한 틈이 생긴다 (밑동 충돌은 같다)
+		prop.texture = load("res://assets/art/young_tree.png")
+		prop.foot = Vector2(8, 23)
+	else:
+		var v: Array = TREE_VARIANTS[_tree_variant(cell)]
+		prop.texture = load(v[0])
+		prop.foot = v[1]
+	# 칸 중심에서 조금씩 어긋나게 (가로 ±3px, 세로 -2~+1px) — 숲 가장자리가 자로 잰 듯 보이지 않게
+	var jitter := Vector2(float(h % 7) - 3.0, float((h / 7) % 4) - 2.0)
+	if edge:
+		jitter += Vector2(open_dirs[0]) * float((h / 11) % 5)  # 가장자리 나무는 트인 쪽으로 0~4px 더 나오거나 들어간다
+	prop.position = cell_center(cell) + Vector2(0, TILE / 2.0 - 2) + jitter
+	if not edge:
+		prop.modulate = Color(0.9, 0.94, 0.9)  # 숲 안쪽은 살짝 어둡게: 가장자리 나무가 앞으로 나와 보이고 숲에 깊이가 생긴다
+	objects.add_child(prop)
+	# 숲 가장자리(트인 쪽이 있는 나무) 앞에 작은 수풀 (지나갈 수 있는 장식)
+	if edge and (h / 28) % 2 == 0:
+		var d: Vector2i = open_dirs[(h / 84) % open_dirs.size()]
+		var bush := Prop.new()
+		bush.texture = load(UNDERGROWTH[(h / 5) % UNDERGROWTH.size()])
+		bush.foot = Vector2(8, 12)
+		bush.solid = false
+		bush.position = prop.position + Vector2(d) * Vector2(9, 5) + Vector2(0, 3)
+		objects.add_child(bush)
+
+
 ## 길·물·흙 칸 옆이 잔디면 그쪽 가장자리에 잔디를 살짝 덮어 경계를 부드럽게 한다.
+## 같은 무늬가 줄지어 반복되지 않게 칸마다 경계 변형을 고르고(EDGE_VARIANTS),
+## 대각선 이웃만 잔디인 안쪽 모서리는 따로 둥글린다 (_edge_corners 층).
+var _edge_corners: TileMapLayer
+
+
 func _build_edges() -> void:
 	var map_size := MapLayout.size()
 	for y in map_size.y:
@@ -103,8 +199,26 @@ func _build_edges() -> void:
 					other = "~"  # 다리 밑은 물로 이어진다
 				if other != "" and not TerrainTileSet.EDGE_ROWS.has(other):
 					mask |= bit
+			var kind: int = TerrainTileSet.EDGE_ROWS[ch]
 			if mask:
-				edges.set_cell(cell, TerrainTileSet.EDGE_SOURCE_ID, Vector2i(mask, TerrainTileSet.EDGE_ROWS[ch]))
+				var variant := absi(hash(cell * 5 + Vector2i(1, 2))) % TerrainTileSet.EDGE_VARIANTS
+				edges.set_cell(cell, TerrainTileSet.EDGE_SOURCE_ID, Vector2i(mask, kind * TerrainTileSet.EDGE_VARIANTS + variant))
+			var corner := 0
+			for entry: Array in [[1, Vector2i(1, -1)], [2, Vector2i(1, 1)], [4, Vector2i(-1, 1)], [8, Vector2i(-1, -1)]]:
+				var diag: Vector2i = entry[1]
+				if _is_grass_neighbor(cell + diag) and not _is_grass_neighbor(cell + Vector2i(diag.x, 0)) \
+						and not _is_grass_neighbor(cell + Vector2i(0, diag.y)):
+					corner |= int(entry[0])
+			if corner:
+				_edge_corners.set_cell(cell, TerrainTileSet.EDGE_CORNER_SOURCE_ID, Vector2i(corner, kind))
+
+
+## 경계를 덮어야 하는 잔디 쪽 이웃인가 (길·물·흙이 아니고 맵 안)
+func _is_grass_neighbor(cell: Vector2i) -> bool:
+	var other := _floor_char_at(cell)
+	if other == "#":
+		other = "~"
+	return other != "" and not TerrainTileSet.EDGE_ROWS.has(other)
 
 
 ## 넓은 풀밭 얼룩용 노이즈 (따뜻한 풀밭과 보통 잔디가 자연스럽게 섞이게)
@@ -164,7 +278,10 @@ func _ground_tile(ch: String, cell: Vector2i) -> Vector2i:
 
 
 ## 빈 잔디 칸에 작은 풀·꽃·조약돌을 드문드문 얹는다 (자리는 항상 같게)
-const DETAIL_WEIGHTS := [5, 3, 2, 2, 2, 3, 2, 1]
+## 0 풀, 1 긴 풀, 2~4 꽃, 5 클로버, 6 조약돌, 7 버섯, 8 작은 풀잎, 9 어두운 얼룩, 10 밝은 얼룩, 11 작은 돌, 12 잡초, 13 작은 흰 꽃
+const DETAIL_WEIGHTS := [5, 3, 2, 2, 2, 3, 2, 1, 7, 7, 6, 2, 1, 2]
+## 장식이 놓이는 잔디 칸 비율 (%). 너무 많으면 지저분해진다
+const DETAIL_PERCENT := 22
 
 
 func _build_details() -> void:
@@ -178,7 +295,7 @@ func _build_details() -> void:
 			if MapLayout.char_at(cell) != ".":
 				continue
 			var h := absi(hash(cell * 31 + Vector2i(7, 3)))
-			if h % 100 >= 14:
+			if h % 100 >= DETAIL_PERCENT:
 				continue
 			var pick := (h / 100) % total
 			for i in DETAIL_WEIGHTS.size():
@@ -202,12 +319,29 @@ func _fence_tile(ch: String) -> Variant:
 func _setup_camera() -> void:
 	var cam := player.camera
 	var map_px := Vector2(MapLayout.size() * TILE)
-	cam.zoom = Vector2(CAMERA_ZOOM, CAMERA_ZOOM)
+	_fit_camera_zoom()
+	if not get_viewport().size_changed.is_connected(_fit_camera_zoom):
+		get_viewport().size_changed.connect(_fit_camera_zoom)
 	cam.limit_left = 0
 	cam.limit_top = 0
 	cam.limit_right = int(map_px.x)
 	cam.limit_bottom = int(map_px.y)
 	cam.reset_smoothing()
+
+
+## 화면 크기 대응 (project.godot: stretch mode canvas_items, aspect expand)
+##   UI 와 월드는 창 크기에 맞춰 함께 커지고(기본 1280x720 기준), 화면 비율이 달라지면 보이는 월드가 넓어진다.
+##   그런데 창 배율 s 가 소수(예: 1700x1000 창이면 1.33)면 도트 한 칸이 4×1.33 = 5.3px 로 그려져 픽셀 크기가 들쭉날쭉해진다.
+##   그래서 카메라 줌을 살짝 조정해 "창 배율 × 줌"이 항상 정수가 되게 한다 → 어떤 창 크기에서도 도트가 고르게 선명.
+func _fit_camera_zoom() -> void:
+	var visible := get_viewport().get_visible_rect().size
+	if visible.x <= 0.0:
+		return
+	var s := float(get_window().size.x) / visible.x   # canvas_items 늘이기 배율
+	if s <= 0.0:
+		s = 1.0
+	var pixel := maxf(1.0, roundf(CAMERA_ZOOM * s))   # 도트 한 칸이 화면에서 차지할 실제 픽셀 수 (정수)
+	player.camera.zoom = Vector2.ONE * (pixel / s)
 
 
 ## 맵 바깥으로 못 나가게 네 변에 보이지 않는 벽을 친다.

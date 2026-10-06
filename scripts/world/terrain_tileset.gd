@@ -7,8 +7,14 @@ const SOURCE_ID := 0
 ## 길·물·흙 가장자리를 잔디가 살짝 덮는 경계 타일 (edges.png)
 const EDGE_SOURCE_ID := 1
 const EDGE_ROWS := {"s": 0, "@": 0, "p": 0, "~": 1, "d": 2, "x": 2}
-## 잔디 위 작은 장식 (details.png): 0 풀, 1 긴 풀, 2~4 꽃, 5 클로버, 6 조약돌, 7 버섯
+## 종류마다 경계 무늬 변형 수 (edges.png 줄 = 종류 × EDGE_VARIANTS + 변형). 칸마다 골라 반복이 안 보이게 한다
+const EDGE_VARIANTS := 3
+## 안쪽 모서리 둥글리기 (edge_corners.png, 줄 = 종류, 칸 = 대각선 잔디 비트 북동1 남동2 남서4 북서8)
+const EDGE_CORNER_SOURCE_ID := 3
+## 잔디 위 작은 장식 (details.png): 0 풀, 1 긴 풀, 2~4 꽃, 5 클로버, 6 조약돌, 7 버섯,
+## 8 작은 풀잎, 9 어두운 얼룩, 10 밝은 얼룩, 11 작은 돌, 12 잡초, 13 작은 흰 꽃
 const DETAIL_SOURCE_ID := 2
+const DETAIL_COUNT := 14
 
 const GRASS: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0), Vector2i(3, 0)]
 const FLOWERS: Array[Vector2i] = [Vector2i(4, 0), Vector2i(5, 0)]
@@ -64,15 +70,23 @@ static func build() -> TileSet:
 	edges.texture = Art.EDGES
 	edges.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
 	tile_set.add_source(edges, EDGE_SOURCE_ID)
-	for row in 3:
+	for row in 3 * EDGE_VARIANTS:
 		for mask in range(1, 16):
 			edges.create_tile(Vector2i(mask, row))
+
+	var corners := TileSetAtlasSource.new()
+	corners.texture = Art.EDGE_CORNERS
+	corners.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
+	tile_set.add_source(corners, EDGE_CORNER_SOURCE_ID)
+	for row in 3:
+		for mask in range(1, 16):
+			corners.create_tile(Vector2i(mask, row))
 
 	var details := TileSetAtlasSource.new()
 	details.texture = Art.DETAILS
 	details.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
 	tile_set.add_source(details, DETAIL_SOURCE_ID)
-	for i in 8:
+	for i in DETAIL_COUNT:
 		details.create_tile(Vector2i(i, 0))
 
 	for coords: Vector2i in SOLID:

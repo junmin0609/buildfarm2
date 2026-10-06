@@ -240,6 +240,14 @@ scripts/
   tests/      smoke_test(자동 점검), screenshot(화면 캡처)
 ```
 
+## 화면 크기 / 전체 화면
+- `project.godot`: 기본 1280x720, stretch `canvas_items` + aspect `expand` (UI·월드가 창에 맞춰 커지고, 비율이 다르면 보이는 월드가 넓어짐 — 검은 여백 없음), 텍스처 필터 nearest
+- 도트 선명도: `FarmWorld._fit_camera_zoom`이 창 배율 × 카메라 줌을 항상 정수로 맞춤 (도트 한 칸이 화면 픽셀 4·5·6·8칸처럼 고르게)
+- 처음 창 크기: 화면 작업 영역 90% 안의 가장 큰 16:9 (640x360 배수)로 키우고 가운데 (`Settings._fit_window_to_screen`)
+- **F11 / Alt+Enter**: 전체 화면 켜기/끄기 (시작 화면 설정과 같은 값, `user://settings.cfg`)
+- 에디터에서 F5 를 누르면 Godot 4.4+ 기본값으로 게임이 에디터 Game 탭 안에 끼워져 실행된다. 이때는 창 최대화·전체 화면이 적용되지 않으므로, 별도 창으로 보려면 Game 탭의 "Embed Game on Next Play"를 끄거나 에디터 설정 Run → Window Placement → Game Embed Mode 를 바꾼다
+- 확인용 장면: `scenes/tests/resolution_check.tscn` (창 크기를 바꿔 가며 user://res_*.png 와 배율 숫자를 남김)
+
 ## 그래픽
 모든 그림은 외부 에셋 없이 `tools/make_art.py`가 픽셀 단위로 그립니다 (Python만 있으면 됨).
 스타일: 둥글고 따뜻한 톤. 외곽선은 검정 대신 갈색(`INK`), 모서리는 둥글게, 회색 대신 모래·크림색. 색은 파일 위쪽 `P` 팔레트에서 한 번에 바꿀 수 있습니다.
@@ -247,7 +255,9 @@ scripts/
 python tools/make_art.py
 ```
 - `tiles.png` 지형(잔디 4종 + 따뜻한 풀밭 4종·꽃·흙·둥근 돌길 4종·상점 앞 돌바닥 2종·물 2프레임·밭·젖은 밭·울타리·선택 표시)
-- `edges.png` 길·물·흙 가장자리를 잔디가 살짝 덮는 경계 타일 (이웃에 따라 자동 배치)
+- `edges.png` 길·물·흙 가장자리를 잔디가 살짝 덮는 경계 타일 (이웃에 따라 자동 배치, 종류마다 무늬 3변형 + 삐져나온 풀잎), `edge_corners.png` 안쪽 모서리 둥글리기
+- `tree_wide/tall/lean/fruit.png` 나무 4종 (잎 덩어리 여러 개가 겹친 실루엣, 덩어리마다 초승달 명암). 숲은 칸마다 변형·위치를 조금씩 다르게, 가장자리는 어린 나무·수풀(`undergrowth_*.png`)을 섞고 안쪽은 살짝 어둡게 (`FarmWorld._place_tree`)
+- `details.png` 잔디 장식 14종 (풀잎·얼룩·작은 돌·잡초·꽃), 잔디 칸의 22%에만
 - `ui_icons.png` 해·달·동전·말풍선
 - `details.png` 잔디 위 작은 장식(풀·꽃·클로버·조약돌·버섯), 맵에 드문드문 자동 배치
 - `barrel/crate/flowerpot/sign.png` 상점 앞 소품, `shadow.png` 캐릭터 그림자

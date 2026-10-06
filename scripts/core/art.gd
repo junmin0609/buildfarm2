@@ -6,6 +6,8 @@ const TILE := 16
 
 const TILES := preload("res://assets/art/tiles.png")
 const EDGES := preload("res://assets/art/edges.png")
+## 안쪽 모서리 둥글리기 (대각선 이웃만 잔디일 때)
+const EDGE_CORNERS := preload("res://assets/art/edge_corners.png")
 const DETAILS := preload("res://assets/art/details.png")
 const CROPS := preload("res://assets/art/crops.png")
 const ITEMS := preload("res://assets/art/items.png")

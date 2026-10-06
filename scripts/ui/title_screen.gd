@@ -27,7 +27,6 @@ var _confirm_new := false
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	theme = HUD.ui_theme()
-	Settings.apply_saved()
 	get_tree().paused = false
 	GameState.clear_pauses_and_locks()
 

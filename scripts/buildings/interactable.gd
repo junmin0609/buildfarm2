@@ -13,10 +13,25 @@ const REACH := 14.0
 @export var prompt := "상호작용"
 ## 상호작용 지점 (건물 아래쪽, 왼쪽에서 얼마나 떨어졌는지)
 @export var door_x := 8.0
+## 그림에 바닥 그림자가 없는 건물만 켠다: 밑변에 픽셀 계단 모양의 옅은 접지 그림자 (빛은 다른 그림처럼 왼쪽 위)
+@export var ground_shadow := false
+
+## 그림자 줄: [위로부터 y, 왼쪽에서 들여쓰기, 오른쪽에서 들여쓰기, 진하기]
+const SHADOW_ROWS := [[-1, 2, -1, 0.16], [0, 1, -2, 0.24], [1, 3, 0, 0.16], [2, 6, 3, 0.08]]
+const SHADOW_COLOR := Color("5b3a29")
 
 
 func _ready() -> void:
 	add_to_group("interactables")
+	if ground_shadow:
+		var shadow := Node2D.new()
+		var w := texture.get_width()
+		shadow.draw.connect(func() -> void:
+			for row: Array in SHADOW_ROWS:
+				var x0: int = row[1]
+				var x1: int = w - int(row[2])
+				shadow.draw_rect(Rect2(x0, row[0], x1 - x0, 1), Color(SHADOW_COLOR, row[3])))
+		add_child(shadow)
 	var sprite := Sprite2D.new()
 	sprite.texture = texture
 	sprite.centered = false

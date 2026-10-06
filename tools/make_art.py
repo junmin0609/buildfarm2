@@ -359,9 +359,12 @@ def bridge(c):
 # 잔디 위에 드문드문 얹는 작은 장식. 같은 잔디가 반복돼 보이지 않게 한다.
 # 0 풀, 1 긴 풀, 2~4 꽃(흰·노랑·분홍), 5 클로버, 6 조약돌, 7 버섯
 
+DETAIL_COUNT = 14
+
+
 def make_details():
     g = P["grass"]
-    atlas = Canvas(8 * T, T)
+    atlas = Canvas(DETAIL_COUNT * T, T)
     c, done = sub(atlas, 0, 0)
     tuft(c, 6, 9, g); tuft(c, 9, 11, g); done()
     c, done = sub(atlas, 1, 0)
@@ -391,6 +394,38 @@ def make_details():
     c.ellipse(8.5, 9.5, 2.5, 1.6, hexc("e0715f")); c.set(7, 9, hexc("fff6e8"))
     c.outline(INK)
     done()
+    # 8 아주 작은 풀잎 두 가닥
+    c, done = sub(atlas, 8, 0)
+    for x, y in ((6, 9), (10, 6)):
+        c.set(x, y, g[3]); c.set(x, y + 1, g[2]); c.set(x + 1, y + 1, g[3])
+    done()
+    # 9 어두운 잔디 얼룩 (톤 변화)
+    c, done = sub(atlas, 9, 0)
+    for x, y in ((5, 6), (6, 7), (8, 6), (7, 9), (10, 10), (11, 9)):
+        c.set(x, y, g[0])
+    done()
+    # 10 밝은 잔디 얼룩
+    c, done = sub(atlas, 10, 0)
+    for x, y in ((4, 9), (5, 8), (9, 5), (10, 6), (11, 11)):
+        c.set(x, y, g[3])
+    done()
+    # 11 작은 돌 하나
+    c, done = sub(atlas, 11, 0)
+    st = P["stone"]
+    c.rect(7, 9, 3, 2, st[2]); c.set(7, 9, st[3]); c.set(9, 10, st[1])
+    c.rect(8, 11, 3, 1, SOFT_SHADOW)
+    done()
+    # 12 씨앗 달린 잡초 (드물게)
+    c, done = sub(atlas, 12, 0)
+    for x, h in ((7, 6), (9, 4)):
+        c.rect(x, 12 - h, 1, h, g[2]); c.set(x, 12, g[0])
+    c.set(7, 5, hexc("d9b36a")); c.set(6, 6, hexc("d9b36a")); c.set(9, 7, hexc("e8c87a"))
+    done()
+    # 13 아주 작은 흰 꽃 하나
+    c, done = sub(atlas, 13, 0)
+    c.set(8, 7, hexc("fff6e8")); c.set(7, 8, hexc("fff6e8")); c.set(9, 8, hexc("fff6e8")); c.set(8, 9, hexc("fff6e8"))
+    c.set(8, 8, hexc("f7c548")); c.set(8, 10, g[0])
+    done()
     atlas.save("details.png")
 
 
@@ -399,13 +434,17 @@ def make_details():
 # 줄: 0 길, 1 물, 2 흙 / 칸: 잔디 이웃 비트 (북1 동2 남4 서8)
 
 EDGE_KINDS = ["path", "water", "dirt"]
+## 같은 경계 모양이 줄지어 반복되지 않게 종류마다 변형을 여러 개 만든다 (줄 = 종류 × EDGE_VARIANTS + 변형)
+EDGE_VARIANTS = 3
 
 
-def edge_tile(kind, mask):
+def edge_tile(kind, mask, variant=0):
     c = Canvas(T, T)
     g = P["grass"]
-    rng = random.Random(EDGE_KINDS.index(kind) * 7 + 1)
+    rng = random.Random(EDGE_KINDS.index(kind) * 7 + 1 + variant * 101)
+    # 잔디가 덮는 깊이: 1~3px 사이로 들쭉날쭉, 이웃끼리 너무 튀지 않게 한 번 고른다
     depth = [rng.choice([1, 2, 2, 2, 3]) for _ in range(T)]
+    depth = [max(1, min(3, round((depth[i - 1] + depth[i] * 2 + depth[(i + 1) % T]) / 4 + rng.uniform(-0.4, 0.4)))) for i in range(T)]
     under = {"path": SOFT_SHADOW, "dirt": SOFT_SHADOW, "water": P["water"][3]}[kind]
 
     def pos(side, i, k):
@@ -422,6 +461,16 @@ def edge_tile(kind, mask):
             x, y = pos(side, i, d)
             if c.get(x, y)[3] == 0:
                 c.set(x, y, under)
+        # 경계 밖으로 삐져나온 풀잎 몇 개 (물가는 제외)
+        if kind != "water":
+            for _ in range(rng.choice([1, 2, 2, 3])):
+                i = rng.randrange(2, T - 2)
+                d = depth[i]
+                x, y = pos(side, i, d)
+                c.set(x, y, g[2])
+                x, y = pos(side, i, d + 1)
+                if rng.random() < 0.6:
+                    c.set(x, y, g[3])
     # 두 변이 만나는 안쪽 모서리는 둥글게 채운다
     for a, b, (cx, cy) in ((1, 8, (0, 0)), (1, 2, (T - 1, 0)), (4, 8, (0, T - 1)), (4, 2, (T - 1, T - 1))):
         if mask & a and mask & b:
@@ -434,35 +483,170 @@ def edge_tile(kind, mask):
     return c
 
 
+def corner_tile(kind, mask):
+    """안쪽 모서리 둥글리기: 길(물·흙) 칸의 대각선 이웃만 잔디일 때 그 모서리에 잔디를 조금 채운다.
+    비트: 북동1 남동2 남서4 북서8"""
+    c = Canvas(T, T)
+    g = P["grass"]
+    under = P["water"][3] if kind == "water" else SOFT_SHADOW
+    for bit, (cx, cy) in ((1, (T - 1, 0)), (2, (T - 1, T - 1)), (4, (0, T - 1)), (8, (0, 0))):
+        if not mask & bit:
+            continue
+        sx = -1 if cx else 1
+        sy = -1 if cy else 1
+        for y in range(4):
+            for x in range(4):
+                if x + y <= 2:
+                    c.set(cx + sx * x, cy + sy * y, g[1] if x + y < 2 else g[2])
+                elif x + y == 3:
+                    c.set(cx + sx * x, cy + sy * y, under)
+    return c
+
+
 def make_edges():
-    atlas = Canvas(16 * T, len(EDGE_KINDS) * T)
-    for row, kind in enumerate(EDGE_KINDS):
-        for mask in range(16):
-            atlas.blit(edge_tile(kind, mask), mask * T, row * T)
+    atlas = Canvas(16 * T, len(EDGE_KINDS) * EDGE_VARIANTS * T)
+    for k, kind in enumerate(EDGE_KINDS):
+        for v in range(EDGE_VARIANTS):
+            for mask in range(16):
+                atlas.blit(edge_tile(kind, mask, v), mask * T, (k * EDGE_VARIANTS + v) * T)
     atlas.save("edges.png")
+    corners = Canvas(16 * T, len(EDGE_KINDS) * T)
+    for k, kind in enumerate(EDGE_KINDS):
+        for mask in range(16):
+            corners.blit(corner_tile(kind, mask), mask * T, k * T)
+    corners.save("edge_corners.png")
 
 
 # ---------------------------------------------------------------- 소품 (나무, 바위)
 
-def make_tree():
-    c = Canvas(32, 32)
-    c.ellipse(16, 29.5, 11, 2.4, SOFT_SHADOW)
+# 나무 (BUILD_FARM 월드 마감): 큰 동그라미 하나가 아니라 잎 덩어리 여러 개가 겹친 실루엣.
+#   덩어리마다 왼쪽 위가 밝고(빛 방향은 다른 그림과 같음) 아래쪽이 어둡다. 뒤 덩어리와 겹치는 가장자리는
+#   한 단계 어두운 선으로 나눠 잎 뭉치가 보이게 하고, 밝은 쪽에는 작은 잎 무늬를 몇 개 찍는다.
+#   변형 4종 (넓은 / 높은 / 비대칭 / 열매) — 같은 색·같은 외곽선, 실루엣만 다르다.
+
+TREE_VARIANTS = [
+    # 이름, 캔버스 (w, h), 줄기 (x, 위 y, 굵기), 잎 덩어리 [(cx, cy, r)] 뒤 → 앞 순서, 열매 수, 가지 갈래
+    ("tree_wide", (38, 36), (19, 20, 6), [(10, 18, 7), (28, 18, 7), (19, 9, 8), (12, 11, 6.5), (26, 11, 6.5), (19, 19, 8)], 0, [(-4, 23), (5, 22)]),
+    ("tree_tall", (30, 44), (15, 26, 5), [(15, 7, 6), (9, 15, 6), (21, 15, 6), (15, 15, 7), (9, 24, 6), (21, 24, 6.5), (15, 25, 7)], 0, [(-3, 30)]),
+    ("tree_lean", (36, 40), (15, 23, 5), [(9, 21, 6), (24, 10, 7), (14, 11, 7.5), (28, 18, 6), (19, 19, 8), (8, 13, 5)], 0, [(-5, 26), (6, 24)]),
+    ("tree_fruit", (34, 38), (17, 22, 6), [(9, 19, 6.5), (25, 19, 6.5), (17, 10, 8), (10, 12, 5.5), (24, 12, 6), (17, 20, 7.5)], 5, [(4, 25)]),
+]
+
+
+def _wobble(cx, cy, r, x, y, seed):
+    """덩어리 가장자리를 살짝 울퉁불퉁하게: 각도에 따라 반지름이 조금씩 다르다"""
+    ang = math.atan2(y - cy, x - cx)
+    return r * (1.0 + 0.10 * math.sin(ang * 5 + seed) + 0.05 * math.sin(ang * 9 + seed * 2.3))
+
+
+def canopy(c, lumps, seed, pal=None):
+    pal = pal or P["leaf"]
+    owner = {}  # (x, y) -> 덩어리 번호 (앞 덩어리가 덮는다)
+    for k, (cx, cy, r) in enumerate(lumps):
+        for y in range(int(cy - r) - 2, int(cy + r) + 3):
+            for x in range(int(cx - r) - 2, int(cx + r) + 3):
+                if 0 <= x < c.w and 0 <= y < c.h and math.hypot(x + 0.5 - cx, y + 0.5 - cy) <= _wobble(cx, cy, r, x + 0.5, y + 0.5, seed + k):
+                    owner[(x, y)] = k
+    rng = random.Random(seed)
+    for (x, y), k in owner.items():
+        cx, cy, r = lumps[k]
+        px, py = x + 0.5, y + 0.5
+        # 초승달 명암: 왼쪽 위로 밀린 원 안은 밝게, 그보다 작은 원은 하이라이트, 밀린 원 밖(오른쪽 아래)은 그늘
+        if math.hypot(px - (cx - 0.38 * r), py - (cy - 0.42 * r)) <= 0.3 * r:
+            idx = 4
+        elif math.hypot(px - (cx - 0.22 * r), py - (cy - 0.26 * r)) <= 0.72 * r:
+            idx = 3
+        elif math.hypot(px - (cx - 0.16 * r), py - (cy - 0.2 * r)) <= 0.98 * r:
+            idx = 2
+        else:
+            idx = 1
+        # 뒤 덩어리 위에 얹힌 가장자리는 진한 선으로 나눠 잎 뭉치가 보이게 (아래·오른쪽만 — 그림자 방향)
+        for dx, dy in ((0, 1), (1, 0), (1, 1)):
+            o = owner.get((x + dx, y + dy))
+            if o is not None and o < k:
+                idx = min(idx, 1) if dy == 0 else 0
+                break
+        c.set(x, y, pal[idx])
+    # 밝은 쪽에 잎 끝 몇 개 (작은 하이라이트 점) — 너무 많지 않게
+    for k, (cx, cy, r) in enumerate(lumps):
+        for _ in range(1 + int(r // 4)):
+            ang = rng.uniform(math.pi * 1.1, math.pi * 1.55)
+            dist = rng.uniform(0.55, 0.8) * r
+            x, y = int(cx + math.cos(ang) * dist), int(cy + math.sin(ang) * dist)
+            if owner.get((x, y)) == k and c.get(x, y) == pal[3]:
+                c.set(x, y, pal[4])
+    return owner
+
+
+def trunk(c, x, top, width, bottom, forks):
     w = P["wood"]
-    rrect(c, 13, 19, 6, 11, 2, w[1])
-    c.rect(14, 20, 1, 9, w[2])
-    c.rect(17, 21, 1, 8, w[0])
-    c.rect(12, 28, 8, 2, w[1])
-    c.set(12, 28, CLEAR); c.set(19, 28, CLEAR)
-    leaves = Canvas(32, 32)
-    blob(leaves, [(16, 11, 10), (8.5, 15.5, 7), (23.5, 15.5, 7), (16, 18, 8), (16, 5.5, 6.5)], P["leaf"], outline=P["leaf"][0])
-    for x, y in ((11, 5), (12, 5), (11, 6), (19, 3), (20, 3), (6, 12), (7, 12), (22, 10), (23, 10)):
-        leaves.set(x, y, P["leaf"][4])
-    for x, y in ((10, 14), (21, 8), (18, 17), (24, 16)):  # 빨간 열매
-        leaves.rect(x, y, 2, 2, hexc("e8705a"))
-        leaves.set(x, y, hexc("ffb09a"))
+    x0 = x - width // 2
+    rrect(c, x0, top, width, bottom - top, 1.5, w[1])
+    c.rect(x0 + 1, top + 1, 1, bottom - top - 3, w[2])            # 밝은 왼쪽
+    c.rect(x0 + width - 2, top + 2, 1, bottom - top - 3, w[0])    # 어두운 오른쪽
+    for yy in range(top + 3, bottom - 2, 4):                       # 나무껍질 결
+        c.set(x0 + 2 + (yy // 4) % max(1, width - 3), yy, w[0])
+    # 뿌리 퍼짐 (바닥에 닿는 느낌)
+    c.rect(x0 - 1, bottom - 2, width + 2, 2, w[1])
+    c.set(x0 - 2, bottom - 1, w[1]); c.set(x0 + width + 1, bottom - 1, w[0])
+    c.rect(x0, bottom - 1, width, 1, w[0])
+    # 잎 사이로 보이는 가지
+    for dx, fy in forks:
+        sx = x + (width // 2 - 1 if dx > 0 else -width // 2)
+        for k in range(abs(dx)):
+            c.set(sx + (k if dx > 0 else -k), fy - k // 2 - 1, w[1])
+            c.set(sx + (k if dx > 0 else -k), fy - k // 2, w[0])
+
+
+def make_trees():
+    for n, (name, (W, H), (tx, ttop, tw), lumps, fruits, forks) in enumerate(TREE_VARIANTS):
+        c = Canvas(W, H)
+        foot = H - 2
+        c.ellipse(W / 2 + 1, foot + 0.3, W * 0.36, 2.2, SOFT_SHADOW)    # 접지 그림자 (빛 반대쪽으로 1px)
+        c.ellipse(W / 2 + 1, foot + 0.2, W * 0.2, 1.3, SOFT_SHADOW)
+        trunk(c, tx, ttop, tw, foot + 1, forks)
+        leaves = Canvas(W, H)
+        owner = canopy(leaves, lumps, 11 + n * 17)
+        rng = random.Random(5 + n)
+        spots = [pos for pos, k in owner.items() if leaves.get(pos[0], pos[1]) in (P["leaf"][2], P["leaf"][3])]
+        rng.shuffle(spots)
+        placed = []
+        for x, y in spots:
+            if len(placed) >= fruits:
+                break
+            if all(abs(x - px) + abs(y - py) > 5 for px, py in placed) and owner.get((x + 1, y + 1)) is not None:
+                leaves.rect(x, y, 2, 2, hexc("e8705a"))
+                leaves.set(x, y, hexc("ffb09a"))
+                placed.append((x, y))
+        c.blit(leaves, 0, 0)
+        c.outline(INK)
+        c.save(name + ".png")
+    # 예전 이름(tree.png)은 넓은 나무와 같게 둔다 (다른 곳에서 쓰는 경우 대비)
+    first = TREE_VARIANTS[0]
+    c = Canvas(*first[1])
+    foot = first[1][1] - 2
+    c.ellipse(first[1][0] / 2 + 1, foot + 0.3, first[1][0] * 0.36, 2.2, SOFT_SHADOW)
+    c.ellipse(first[1][0] / 2 + 1, foot + 0.2, first[1][0] * 0.2, 1.3, SOFT_SHADOW)
+    trunk(c, first[2][0], first[2][1], first[2][2], foot + 1, first[5])
+    leaves = Canvas(*first[1])
+    canopy(leaves, first[3], 11)
     c.blit(leaves, 0, 0)
     c.outline(INK)
     c.save("tree.png")
+
+
+def make_undergrowth():
+    """숲 가장자리에 섞는 작은 수풀 2종 (지나갈 수 있는 장식). 나무와 같은 잎 표현"""
+    for n, lumps in enumerate([[(5, 9, 3.5), (11, 9, 3.5), (8, 7, 4)], [(4, 10, 3), (9, 8, 4), (13, 10, 2.8)]]):
+        c = Canvas(T, 13)
+        c.ellipse(8.5, 11.6, 6.5, 1.3, SOFT_SHADOW)
+        leaves = Canvas(T, 13)
+        canopy(leaves, lumps, 70 + n * 9)
+        for x, y in ((3, 11), (7, 11), (12, 11)):
+            leaves.set(x, y, P["leaf"][1])
+        c.blit(leaves, 0, 0)
+        c.outline(INK)
+        c.save("undergrowth_%d.png" % n)
 
 
 def make_rock():
@@ -522,6 +706,8 @@ def make_house():
     c.ellipse(32, 35.5, 2, 2, hexc("a8dcef")); c.set(31, 34, hexc("ffffff"))
     c.rect(34, 40, 2, 2, hexc("f5c542"))
     rrect(c, 24, 46, 16, 2, 1, hexc("d9b98a"))
+    c.rect(4, 46, 20, 2, hexc("d6b98c")); c.rect(40, 46, 20, 2, hexc("d6b98c"))  # 벽 밑동 (바닥에 닿는 쪽을 조금 어둡게)
+    c.rect(26, 45, 12, 1, hexc("6e452b"))  # 문 아래 그늘
     # 창문 + 커튼 + 화분
     for x in (8, 43):
         rrect(c, x, 27, 13, 10, 2, hexc("fffaf0"))
@@ -533,6 +719,7 @@ def make_house():
             c.set(x + 11 - k, 28 + k, hexc("f6b8a0")); c.set(x + 11, 28 + k, hexc("f6b8a0"))
         rrect(c, x - 1, 37, 15, 3, 1, hexc("b5784a"))
         c.rect(x, 37, 13, 1, hexc("d49a68"))
+        c.rect(x, 40, 13, 1, wall_shade)  # 화분 받침 아래 그림자
         for i, col in enumerate(["ef7f7a", "f7c548", "f7a8b8", "ef7f7a", "fff6e8", "c9b0ee"]):
             fx = x + 1 + i * 2
             c.set(fx, 36, hexc(col)); c.set(fx + 1, 36, P["leaf"][3])
@@ -619,21 +806,20 @@ def make_shop_decor():
     c.ellipse(10.5, 7.5, 2.2, 2, hexc("fbf3f6")); c.ellipse(10.5, 6.3, 2, 1, hexc("b77fd0"))
     c.outline(INK)
     c.save("sign.png")
-    c = Canvas(T, T)  # 둥근 덤불 (산딸기)
-    c.ellipse(8, 14.4, 6.5, 1.5, SOFT_SHADOW)
+    c = Canvas(T, T)  # 둥근 덤불 (산딸기) — 나무와 같은 잎 뭉치 표현
+    c.ellipse(8.5, 14.4, 6.5, 1.5, SOFT_SHADOW)
     leaves = Canvas(T, T)
-    blob(leaves, [(8, 9.5, 5), (4.5, 11, 3.5), (11.5, 11, 3.5)], P["leaf"], outline=P["leaf"][0])
+    canopy(leaves, [(4.5, 11, 3.5), (11.5, 11, 3.5), (8, 9, 4.8)], 41)
     for x, y in ((5, 9), (10, 8), (8, 12)):
         leaves.set(x, y, hexc("d9536a")); leaves.set(x + 1, y, hexc("f08a9a"))
     c.blit(leaves, 0, 0)
     c.outline(INK)
     c.save("bush.png")
-    c = Canvas(T, 24)  # 어린 나무
-    c.ellipse(8, 22.5, 5.5, 1.4, SOFT_SHADOW)
-    c.rect(7, 13, 2, 10, w[1]); c.set(7, 14, w[2])
+    c = Canvas(T, 24)  # 어린 나무 — 나무와 같은 잎 뭉치 표현
+    c.ellipse(8.5, 22.5, 5.5, 1.4, SOFT_SHADOW)
+    c.rect(7, 13, 2, 10, w[1]); c.set(7, 14, w[2]); c.set(8, 18, w[0]); c.rect(6, 21, 4, 1, w[1])
     leaves = Canvas(T, 24)
-    blob(leaves, [(8, 8, 5.5), (5, 10.5, 3.5), (11, 10.5, 3.5)], P["leaf"], outline=P["leaf"][0])
-    leaves.set(6, 4, P["leaf"][4]); leaves.set(7, 4, P["leaf"][4])
+    canopy(leaves, [(5, 11, 3.4), (11, 11, 3.4), (8, 7, 4.6), (8, 11.5, 3.6)], 53)
     c.blit(leaves, 0, 0)
     c.outline(INK)
     c.save("young_tree.png")
@@ -1972,7 +2158,8 @@ if __name__ == "__main__":
     make_tiles()
     make_details()
     make_edges()
-    make_tree()
+    make_trees()
+    make_undergrowth()
     make_rock()
     make_house()
     make_shop()
