@@ -191,6 +191,9 @@ func _ready() -> void:
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
 
+	# ---------- 시작 화면 (이어하기 / 새 게임 / 설정)
+	await _test_title()
+
 	_remove_test_save()
 	print("SMOKE TEST %s (%d 실패)" % ["PASS" if _failures == 0 else "FAIL", _failures])
 	get_tree().quit(1 if _failures else 0)
@@ -2492,6 +2495,49 @@ func _test_continue_on_start(main: Node) -> void:
 	await get_tree().process_frame
 	main3.queue_free()
 	SaveManager.load_on_start = false
+	await get_tree().process_frame
+
+
+func _test_title() -> void:
+	Settings.path = "user://smoke_test_settings.cfg"
+	var opened := [0]
+	var title: TitleScreen = load("res://scenes/title.tscn").instantiate()
+	title.open_main = func() -> void: opened[0] += 1
+	add_child(title)
+	await get_tree().process_frame
+	var has_save := FileAccess.file_exists(SaveManager.slot_path)
+	_check(has_save and not title._continue.disabled and title._save_info.text.begins_with("저장: "), "저장이 있으면 [이어하기] (%s)" % title._save_info.text)
+	title.continue_game()
+	_check(opened[0] == 1 and SaveManager.load_on_start and not SaveManager.skip_load_once, "이어하기 → 저장을 불러오며 게임 시작")
+	title.new_game()
+	_check(opened[0] == 1 and title._new_game.text.begins_with("정말"), "저장이 있으면 새 게임은 한 번 더 눌러야")
+	title.new_game()
+	_check(opened[0] == 2 and SaveManager.skip_load_once and GameState.day == 1, "두 번 누르면 새 게임 (저장을 불러오지 않음)")
+	SaveManager.skip_load_once = false
+	SaveManager.load_on_start = false
+
+	# 설정: 전체 화면 (따로 저장)
+	title._show_settings(true)
+	_check(title._settings.visible and not title._menu.visible and title._fullscreen.text.ends_with("꺼짐"), "설정 화면 (전체 화면 꺼짐)")
+	title._toggle_fullscreen()
+	Settings.fullscreen = false
+	Settings.load_settings()
+	_check(Settings.fullscreen and title._fullscreen.text.ends_with("켜짐"), "전체 화면 켜기 → 설정 파일에 저장")
+	title._toggle_fullscreen()
+	title._show_settings(false)
+	_check(title._menu.visible and not Settings.fullscreen, "돌아가기")
+
+	# 저장이 없으면 이어하기를 못 누르고 새 게임은 바로
+	_remove_test_save()
+	title.refresh()
+	_check(title._continue.disabled and title._save_info.text == "저장된 게임이 없어요", "저장이 없으면 이어하기 비활성")
+	title.continue_game()
+	title.new_game()
+	_check(opened[0] == 3, "저장이 없으면 새 게임 바로 시작")
+	SaveManager.skip_load_once = false
+	title.queue_free()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(Settings.path))
+	Settings.path = "user://settings.cfg"
 	await get_tree().process_frame
 
 

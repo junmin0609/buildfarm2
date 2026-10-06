@@ -351,5 +351,13 @@ func _ready() -> void:
 	cam.reset_smoothing()
 	await get_tree().create_timer(0.6).timeout
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_overview.png"))
+	# 시작 화면 (게임 화면을 치우고 그 자리에 띄운다)
+	main.queue_free()
+	await get_tree().process_frame
+	var title: TitleScreen = load("res://scenes/title.tscn").instantiate()
+	title.open_main = func() -> void: pass
+	add_child(title)
+	await get_tree().create_timer(0.6).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_title.png"))
 	print("SHOTS ", ProjectSettings.globalize_path("user://"))
 	get_tree().quit()

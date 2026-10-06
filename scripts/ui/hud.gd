@@ -591,11 +591,11 @@ func _place(ctrl: Control, anchor: Vector2, offset: Vector2, grow_h: Control.Gro
 		ctrl.resized.connect(_recenter.bind(ctrl))
 
 
-func _panel_style(margin: float) -> StyleBoxTexture:
+static func _panel_style(margin: float) -> StyleBoxTexture:
 	return Art.box(Art.UI_PANEL, 5, margin)
 
 
-func _button_style(texture: Texture2D) -> StyleBoxTexture:
+static func _button_style(texture: Texture2D) -> StyleBoxTexture:
 	var sb := Art.box(texture, 4, 0)
 	sb.content_margin_left = 16
 	sb.content_margin_right = 16
@@ -604,7 +604,12 @@ func _button_style(texture: Texture2D) -> StyleBoxTexture:
 	return sb
 
 
-func _make_theme() -> Theme:
+## 게임 UI 공통 테마 (시작 화면도 같은 모양을 쓴다)
+static func ui_theme() -> Theme:
+	return _make_theme()
+
+
+static func _make_theme() -> Theme:
 	var theme := Theme.new()
 	# 둥근 한글 도트 폰트 Neo둥근모 (OFL). 16px 의 배수 크기에서 가장 선명하다.
 	theme.default_font = Art.pixel_font()
