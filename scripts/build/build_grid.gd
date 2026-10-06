@@ -18,6 +18,7 @@ var _objects: Array[Placeable] = []
 
 func _ready() -> void:
 	changed.connect(func() -> void: Events.power_changed.emit())
+	Events.time_advanced.connect(_on_time)
 
 
 # ---------- 조회
@@ -163,28 +164,64 @@ func _unregister(obj: Placeable) -> void:
 			_cells.erase(c)
 
 
-# ---------- 지역 전력 (§75, §76)
-## 지역마다 따로인 전력망. 지금 지역은 시작 농장 하나라 이 BuildGrid 가 곧 "농장 지역" 전력망이다
-## (지역이 늘면 지역마다 BuildGrid 또는 지역 id 로 나눠 같은 계산을 하면 된다). 전선·전봇대 없음.
-## 쓰는 전력 > 내는 전력이면 그 지역 자동화 전체가 멈추고, 다시 충분해지면 저절로 이어진다.
+# ---------- 지역 전기 (§75, 사용자 결정)
+## 지역마다 따로인 전기 통. 지금 지역은 시작 농장 하나라 이 BuildGrid 가 곧 "농장 지역"이다 (전선·전봇대 없음).
+## 발전기가 연료를 태워 만든 전기를 자기 통에 채우고, 지역 전기 통 = 그 지역 발전기 통들의 합이다.
+## 전기 기계는 실제로 일하는 동안에만 지역 전기 통에서 꺼내 쓰고, 통이 비면 멈췄다가 다시 차면 이어서 일한다.
 
+## {"stored": 남은 전기, "capacity": 통 크기 합, "output": 지금 만드는 전기/시간, "demand": 지금 쓰는 전기/시간}
 func power_status() -> Dictionary:
-	var supply := 0
+	var stored := 0.0
+	var capacity := 0.0
+	var output := 0
 	var demand := 0
 	for obj in _objects:
-		supply += obj.power_supply()
+		stored += obj.energy_stored()
+		capacity += obj.energy_capacity()
+		output += obj.power_output()
 		demand += obj.power_demand()
-	return {"supply": supply, "demand": demand, "ok": demand <= supply}
+	return {"stored": stored, "capacity": capacity, "output": output, "demand": demand}
 
 
-func has_power() -> bool:
-	return power_status().ok
-
-
-## 하루 마감의 night_production 단계 (§97): 자동화 시설이 야간 생산 시간만큼 일한다
-func night_production(report: Dictionary, minutes: float) -> void:
+## 지역 전기 통에서 amount 만큼 꺼낸다 (발전기들에서 차례로). 실제로 꺼낸 양
+func draw_energy(amount: float) -> float:
+	var got := 0.0
 	for obj in _objects:
-		obj.on_night_production(world, report, minutes)
+		if got >= amount:
+			break
+		if obj.energy_stored() > 0.0:
+			got += obj.take_energy(amount - got)
+	return got
+
+
+## 발전기(전기를 담는 시설) 먼저, 나머지 다음 순서 — 같은 시간에 만든 전기를 바로 쓸 수 있게
+func _ordered() -> Array[Placeable]:
+	var first: Array[Placeable] = []
+	var rest: Array[Placeable] = []
+	for obj in _objects:
+		if obj.energy_capacity() > 0.0:
+			first.append(obj)
+		else:
+			rest.append(obj)
+	return first + rest
+
+
+func _on_time(minutes: float) -> void:
+	for obj in _ordered():
+		if is_instance_valid(obj):
+			obj.on_time(minutes)
+
+
+## 하루 마감의 night_production 단계 (§97): 야간 생산 시간을 잘게 나눠, 매번 발전기 먼저 → 기계 순서로 일한다
+const NIGHT_SLICE := 10.0
+
+func night_production(report: Dictionary, minutes: float) -> void:
+	var left := minutes
+	while left > 0.0:
+		var step := minf(NIGHT_SLICE, left)
+		for obj in _ordered():
+			obj.on_night_production(world, report, step)
+		left -= step
 
 
 ## 하루 마감의 farm_daily 단계: 시설의 일 단위 처리 (퇴비통 등)

@@ -9,12 +9,13 @@ extends Placeable
 ##   전기 가공기 (automatic = true, 전력 사용) — 완전 자동 (사용자 결정)
 ##     플레이어는 레시피만 정하고 켠다. 맞닿은 창고에서 1회분 재료를 가져와 만들고, 결과물은 맞닿은 창고에 넣는다
 ##     (창고 필터를 지킴). 넣을 창고가 없으면 가공기 안에 쌓고, 그것도 가득 차면 멈춘다. 재료가 다시 생기면 저절로 이어서.
-##     켜져 있는 동안 지역 전력을 쓰고(power), 지역 전력이 모자라면 멈춘다 (§76). 밤에는 야간 생산 5시간만큼 일한다 (§97).
+##     실제로 만드는 동안에만 지역 전기 통에서 시간당 power 만큼 꺼내 쓰고, 통이 비면 멈췄다가 다시 차면 이어서 (사용자 결정).
+##     밤에는 야간 생산 5시간만큼 일한다 (§97).
 ##
 ## 수동 가공기 흐름
 ##   1. 시작할 때 정한 횟수만큼의 재료를 가방에서 한꺼번에 가져와 회차별로 넣어 둔다 (queue)
 ##      회차마다 쓸 재료 품질을 정하고(낮은 품질부터 / 높은 품질부터), 결과물 품질 = 그 회차 재료 품질의 평균 (§74)
-##   2. 게임 시계가 흐르는 동안(Events.time_advanced) 진행. 시계가 멈추면(상점·창·건설) 같이 멈춘다
+##   2. 게임 시계가 흐르는 동안(BuildGrid → on_time) 진행. 시계가 멈추면(상점·창·건설) 같이 멈춘다
 ##   3. 1회분이 끝나면 결과물이 가공기 안에 쌓인다. 결과물 칸이 가득 차면(max_output) 다음 완성은 기다린다
 ##   4. 하루가 끝나면 진행 중인 1회분은 밤사이 마저 완성된다 (나머지 회차는 다음 날 이어서)
 ##   5. [취소] 하면 아직 안 만든 회차의 재료를 모두 돌려준다 (가방 자리가 없으면 취소 불가)
@@ -36,6 +37,8 @@ var runs_total := 0
 var runs_done := 0
 ## 전기 가공기: 켜져 있는가 (켜져 있으면 전력을 쓴다)
 var enabled := false
+## 전기 가공기: 전기가 모자라 멈춘 상태
+var starved := false
 ## 재료를 높은 품질부터 쓰는가 (전기 가공기가 창고에서 가져올 때. 수동은 시작할 때 고른다)
 var high_first := false
 
@@ -73,8 +76,11 @@ func power_use() -> int:
 	return maxi(0, int(config().get("power", 0)))
 
 
+## 지금 쓰는 전기 (시간당). 실제로 만드는 동안에만 쓴다 (사용자 결정) — 쉬거나 재료·자리를 기다리면 0
 func power_demand() -> int:
-	return power_use() if is_automatic() and enabled else 0
+	if not is_automatic() or not enabled or queue.is_empty() or recipe().is_empty():
+		return 0
+	return power_use() if progress < float(recipe().minutes) else 0
 
 
 func recipe() -> Dictionary:
@@ -268,8 +274,6 @@ func auto_problem() -> String:
 		return "레시피를 정해 주세요."
 	if not enabled:
 		return "꺼져 있어요."
-	if _world == null or not _world.build.has_power():
-		return "전력이 부족해요."
 	return ""
 
 
@@ -330,7 +334,7 @@ func warehouses() -> Array[Warehouse]:
 
 ## 이 가공기가 있는 지역의 전력 상태 {"supply", "demand", "ok"}
 func region_power() -> Dictionary:
-	return _world.build.power_status() if _world else {"supply": 0, "demand": 0, "ok": false}
+	return _world.build.power_status() if _world else {"stored": 0.0, "capacity": 0.0, "output": 0, "demand": 0}
 
 
 func available_in_warehouses(item_id: String) -> int:
@@ -422,13 +426,26 @@ func _advance_auto(minutes: float) -> int:
 		if queue.is_empty() and not _pull_run(r):
 			break
 		var need := float(r.minutes) - progress
-		if left < need:
-			progress += left
-			break
-		left -= need
+		if need > 0.0001:
+			var step := minf(left, need)
+			if step <= 0.0:
+				break
+			# 일하는 동안에만 지역 전기 통에서 꺼내 쓴다. 모자라면 꺼낸 만큼만 진행하고 멈춘다
+			var want := power_use() / 60.0 * step
+			var got := _world.build.draw_energy(want) if want > 0.0 and _world else want
+			var frac := 1.0 if want <= 0.0 else got / want
+			progress += step * frac
+			left -= step
+			if frac < 0.999:
+				if not starved:
+					starved = true
+					_changed()
+				break
+			starved = false
+			if progress < float(r.minutes) - 0.0001:
+				break
 		progress = float(r.minutes)
-		var room_now := _has_room(int(r.count))
-		if not room_now:
+		if not _has_room(int(r.count)):
 			break  # 결과물을 넣을 곳이 없어 기다린다
 		_finish_one(r)
 		progress = 0.0
@@ -463,6 +480,8 @@ func auto_status() -> String:
 		return "재료를 기다리는 중 (맞닿은 창고에 %s)" % RecipeDB.inputs_text(r)
 	if progress >= float(r.minutes) and not _has_room(int(r.count)):
 		return "%s 완성! 결과물을 넣을 곳이 없어 기다리는 중" % out_name
+	if starved:
+		return "전기가 없어서 멈췄어요. 발전기에 연료를 넣어 주세요."
 	return "%s 만드는 중 · 남은 시간 %s" % [out_name, RecipeDB.time_text(minutes_left())]
 
 
@@ -491,7 +510,7 @@ func take_contents() -> void:
 
 
 func save_state() -> Dictionary:
-	return {"recipe": recipe_id, "queue": queue.duplicate(true), "progress": progress, "output": output.duplicate(true),
+	return {"recipe": recipe_id, "queue": queue.duplicate(true), "progress": snappedf(progress, 0.001), "output": output.duplicate(true),
 			"runs_total": runs_total, "runs_done": runs_done, "enabled": enabled, "high_first": high_first}
 
 
@@ -545,6 +564,11 @@ func _changed() -> void:
 
 # ---------- [E] 상호작용 (Interactable 건물과 같은 이름)
 
+## 게임 시계가 흐름 (BuildGrid 가 발전기 다음에 부른다)
+func on_time(minutes: float) -> void:
+	advance(minutes)
+
+
 func on_placed(world: FarmWorld) -> void:
 	_world = world
 
@@ -557,7 +581,6 @@ func on_removed(_w: FarmWorld) -> void:
 func _ready() -> void:
 	super._ready()
 	add_to_group("interactables")
-	Events.time_advanced.connect(advance)
 	_icon = Sprite2D.new()
 	_icon.texture = Art.ITEMS
 	_icon.region_enabled = true

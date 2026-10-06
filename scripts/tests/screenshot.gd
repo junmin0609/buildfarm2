@@ -303,7 +303,11 @@ func _ready() -> void:
 			world.obstacles.remove(at + Vector2i(x, 3))
 		await get_tree().process_frame
 		var ep := world.build.place(ep_def, at) as Processor
-		world.build.place(PlaceableDB.get_def("small_generator"), gen_at)
+		var gen := world.build.place(PlaceableDB.get_def("small_generator"), gen_at) as Generator
+		if gen:
+			GameState.inventory.add("wood", 10)
+			gen.deposit(GameState.inventory, "wood", 10)
+			gen.produce(120.0)
 		if ep == null:
 			break
 		wh.storage.add("wheat", 30, "silver")
@@ -319,6 +323,11 @@ func _ready() -> void:
 		await get_tree().create_timer(0.4).timeout
 		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_electric_panel.png"))
 		hud._close_panels()
+		if gen:
+			hud.open_generator(gen)
+			await get_tree().create_timer(0.4).timeout
+			get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_generator_panel.png"))
+			hud._close_panels()
 		break
 
 	# 맵 전체 내려다보기

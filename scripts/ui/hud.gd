@@ -36,6 +36,7 @@ var _smith: BlacksmithPanel
 var _compost: CompostBinPanel
 var _warehouse: WarehousePanel
 var _processor: ProcessorPanel
+var _generator: GeneratorPanel
 ## 마지막 하루 마감 이유 ("time_up" / "sleep")
 var _end_reason := ""
 
@@ -99,6 +100,10 @@ func _ready() -> void:
 	_place(_processor, Vector2(0.5, 0.5), Vector2.ZERO, Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BOTH)
 	_processor.hide()
 	_processor.close_requested.connect(_close_panels)
+	_generator = GeneratorPanel.new()
+	_place(_generator, Vector2(0.5, 0.5), Vector2.ZERO, Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BOTH)
+	_generator.hide()
+	_generator.close_requested.connect(_close_panels)
 	_build_hint_label = Label.new()
 	_build_hint = PanelContainer.new()
 	_build_hint.add_theme_stylebox_override("panel", _panel_style(12))
@@ -134,6 +139,7 @@ func _ready() -> void:
 	Events.compost_bin_requested.connect(open_compost_bin)
 	Events.warehouse_requested.connect(open_warehouse)
 	Events.processor_requested.connect(open_processor)
+	Events.generator_requested.connect(open_generator)
 	Events.blacksmith_requested.connect(open_blacksmith)
 	Events.day_ended.connect(_on_day_ended)
 	Events.day_ending_soon.connect(_on_day_ending_soon)
@@ -149,10 +155,10 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	var panel_open := _inventory.visible or _shop.visible or _build.visible or _menu.visible \
-			or _bin_panel.visible or _summary.visible or _smith.visible or _compost.visible or _warehouse.visible or _processor.visible
+			or _bin_panel.visible or _summary.visible or _smith.visible or _compost.visible or _warehouse.visible or _processor.visible or _generator.visible
 	if (_menu.visible or _summary.visible) and not event.is_action_pressed("cancel"):
 		return  # 메뉴·요약이 열려 있으면 다른 키는 무시 (버튼은 GUI 가 처리)
-	var blocking := _shop.visible or _bin_panel.visible or _smith.visible or _compost.visible or _warehouse.visible or _processor.visible  # 이 창이 열려 있으면 B·I 로 다른 창을 열지 않는다
+	var blocking := _shop.visible or _bin_panel.visible or _smith.visible or _compost.visible or _warehouse.visible or _processor.visible or _generator.visible  # 이 창이 열려 있으면 B·I 로 다른 창을 열지 않는다
 	if event.is_action_pressed("cancel") and not panel_open and not _build_hint.visible:
 		open_menu()  # 건설 모드 중 Esc 는 건설 모드가 받는다
 		get_viewport().set_input_as_handled()
@@ -256,6 +262,16 @@ func open_processor(processor: Node) -> void:
 	_pause_for("processor")
 
 
+## 발전기: 출하함처럼 게임과 시간을 멈춘다
+func open_generator(generator: Node) -> void:
+	_close_inventory()
+	_generator.open(generator as Generator)
+	_center(_generator)
+	_prompt_box.hide()
+	_crop_info.suppressed = true
+	_pause_for("generator")
+
+
 ## 대장간: 상점처럼 게임과 시간을 멈춘다
 func open_blacksmith() -> void:
 	_close_inventory()
@@ -309,7 +325,9 @@ func _close_panels() -> void:
 	_compost.hide()
 	_warehouse.hide()
 	_processor.hide()
+	_generator.hide()
 	GameState.set_time_paused("processor", false)
+	GameState.set_time_paused("generator", false)
 	GameState.set_time_paused("blacksmith", false)
 	GameState.set_time_paused("compost_bin", false)
 	GameState.set_time_paused("warehouse", false)
@@ -419,19 +437,21 @@ func _build_info() -> void:
 	box.add_child(_power_label)
 	Events.power_changed.connect(_update_power)
 	Events.game_loaded.connect(_update_power)
+	Events.time_changed.connect(func(_d: int, _m: int) -> void: _update_power())  # 전기 양은 시간에 따라 계속 바뀐다
 	panel.custom_minimum_size = Vector2(230, 0)
 	_place(panel, Vector2(1.0, 0.0), Vector2(-16, 16), Control.GROW_DIRECTION_BEGIN, Control.GROW_DIRECTION_END)
 
 
-## "전력 40 / 60" (쓰는 전력 / 내는 전력). 모자라면 빨간색 + "부족"
+## "전기 350 / 600" (지역 전기 통에 남은 전기 / 통 크기). 비어 있으면 빨간색. 발전기가 없으면 숨김
 func _update_power() -> void:
 	var world := get_tree().get_first_node_in_group("farm_world") as FarmWorld
 	if world == null or not is_instance_valid(world.build):
 		return
 	var st := world.build.power_status()
-	_power_label.visible = st.supply > 0 or st.demand > 0
-	_power_label.text = "전력 %d / %d%s" % [st.demand, st.supply, "" if st.ok else " 부족!"]
-	_power_label.add_theme_color_override("font_color", TEXT_SOFT if st.ok else Color("c0503a"))
+	_power_label.visible = st.capacity > 0.0 or st.demand > 0
+	var empty: bool = st.stored < 1.0
+	_power_label.text = "전기 %d / %d%s" % [floori(st.stored), roundi(st.capacity), " 없음!" if empty else ""]
+	_power_label.add_theme_color_override("font_color", Color("c0503a") if empty else TEXT_SOFT)
 
 
 func _icon_row(icon: Control, label: Label) -> HBoxContainer:

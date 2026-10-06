@@ -116,14 +116,20 @@
 	"small_generator": {
 		"name": "소형 발전기",
 		"category": "전력",
-		"description": "농장 지역에 전력 60을 계속 내 줘요. 연료는 필요 없어요.",
-		"_comment": "§75, §77. 연료 없는 고정 전력 (임시 결정 — 바이오매스 등 연료 발전기는 나중에). 값·전력은 임시 밸런스",
+		"description": "식물 섬유·나무를 태워 전기를 만들어요. 만든 전기는 지역 전기 통에 모여 전기 기계들이 나눠 써요.",
+		"_comment": "§75, §77. 사용자 결정: 연료식, 발전기들이 만든 전기는 모아 두고 기계들이 일할 때만 나눠 씀. 연료 종류(섬유·나무 바로 넣기)는 임시 결정. output_per_hour = 연료가 타는 동안 시간당 만드는 전기, storage = 이 발전기의 전기 통 크기, fuels = 연료 1개가 타는 게임 분. 값·수치는 임시 밸런스",
 		"size": [2, 2],
 		"texture": "res://assets/art/generator.png",
 		"price": 1200,
 		"materials": {"wood": 40, "stone": 60},
 		"solid": true,
 		"rotatable": false,
-		"power_supply": 60
+		"script": "res://scripts/factory/generator.gd",
+		"generator": {
+			"output_per_hour": 60,
+			"storage": 300,
+			"fuels": {"fiber": 20, "wood": 60},
+			"max_fuel": 99
+		}
 	}
 }

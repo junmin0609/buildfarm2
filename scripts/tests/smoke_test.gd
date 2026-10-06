@@ -185,7 +185,7 @@ func _ready() -> void:
 	# ---------- 수동 가공기 + 레시피 (§70~§74)
 	await _test_processor(world, hud)
 
-	# ---------- 발전기 + 지역 전력 + 전기 가공기 (§75~§77, §97)
+	# ---------- 연료 발전기 + 지역 전기 통 + 전기 가공기 (§75~§77, §97)
 	await _test_power_and_electric(world, hud)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
@@ -2258,46 +2258,36 @@ func _test_power_and_electric(world: FarmWorld, hud: HUD) -> void:
 	var gen_def := PlaceableDB.get_def("small_generator")
 	var ep_def := PlaceableDB.get_def("electric_processor")
 	var wh_def := PlaceableDB.get_def("warehouse")
-	_check(gen_def != null and gen_def.size == Vector2i(2, 2) and gen_def.cost_text() == "1200 G + 나무 40 + 돌 60" and int(gen_def.data.power_supply) == 60, "소형 발전기 정의 (2x2, 전력 60)")
+	_check(gen_def != null and gen_def.size == Vector2i(2, 2) and gen_def.cost_text() == "1200 G + 나무 40 + 돌 60", "소형 발전기 정의 (2x2)")
 	_check(ep_def != null and ep_def.size == Vector2i(3, 3) and ep_def.cost_text() == "2500 G + 나무 60 + 돌 80", "전기 가공기 정의 (3x3, %s)" % (ep_def.cost_text() if ep_def else ""))
 	var st0 := grid.power_status()
-	_check(st0.supply == 0 and st0.demand == 0 and st0.ok and not hud._power_label.visible, "전기 시설이 없으면 전력 표시 숨김")
+	_check(st0.capacity == 0.0 and st0.demand == 0 and not hud._power_label.visible, "발전기가 없으면 전기 표시 숨김")
 
-	# 자리: 창고(4x4) | 전기 가공기(3x3, 창고에 맞닿음) | 발전기(2x2) — 10x6칸 빈 땅
+	# 자리: 창고(4x4) | 전기 가공기(3x3, 창고에 맞닿음) | 발전기(2x2) | 발전기(2x2) — 12x6칸 빈 땅
 	var origin := Vector2i(-1, -1)
 	var cells: Array = world.farm.farmable_cells.keys()
 	cells.sort()
 	for c: Vector2i in cells:
 		var ok := true
 		for y in 6:
-			for x in 10:
+			for x in 12:
 				var fc := c + Vector2i(x, y)
 				if not grid.is_buildable_ground(fc) or grid.is_occupied(fc) or world.farm.tiles.has(fc):
 					ok = false
 		if ok:
 			origin = c
 			break
-	_check(origin.x >= 0, "전력 점검 자리 찾음 %s" % origin)
+	_check(origin.x >= 0, "전기 점검 자리 찾음 %s" % origin)
+	if origin.x < 0:
+		return
 	for y in 6:
-		for x in 10:
+		for x in 12:
 			world.obstacles.remove(origin + Vector2i(x, y))
 	await get_tree().process_frame
 	player.global_position = world.cell_center(_find_char("s"))
 	var wh := grid.place(wh_def, origin) as Warehouse
 	var ep := grid.place(ep_def, origin + Vector2i(4, 0)) as Processor
 	_check(wh != null and ep != null and ep.is_automatic() and ep.warehouses().size() == 1 and ep.warehouses()[0] == wh, "전기 가공기가 맞닿은 창고를 찾음")
-
-	# 레시피 → 켜기. 발전기가 없으면 전력 부족으로 멈춤
-	_check(ep.auto_problem() == "레시피를 정해 주세요." and not ep.set_enabled(true), "레시피 없이는 못 켬")
-	_check(ep.set_recipe("flour") and ep.set_enabled(true) and grid.power_status().demand == 40, "레시피(밀가루) 정하고 켜면 전력 40 사용")
-	_check(not grid.has_power() and ep.auto_problem() == "전력이 부족해요." and hud._power_label.visible and hud._power_label.text.contains("부족"), "발전기가 없으면 전력 부족 (%s)" % hud._power_label.text)
-	_check(not ep.set_recipe("strawberry_jam"), "안 배운 레시피는 못 정함")
-	wh.storage.add("wheat", 2, "bronze")
-	wh.storage.add("wheat", 2, "gold")
-	var per_min := GameState.day_length / float(GameState.day_end - GameState.day_start)
-	GameState.set_clock(8 * 60)
-	GameState.advance_time(70 * per_min)
-	_check(ep.queue.is_empty() and wh.storage.count_of("wheat") == 4, "전력이 없으면 재료를 안 가져가고 멈춤")
 
 	# 발전기 짓기 (돈 + 재료)
 	inv.remove("wood", inv.count_of("wood"))
@@ -2308,115 +2298,148 @@ func _test_power_and_electric(world: FarmWorld, hud: HUD) -> void:
 	bm.start_place("small_generator")
 	_check(bm.try_place(origin + Vector2i(7, 0)) and inv.count_of("stone") == 0, "소형 발전기 짓기 (나무 40 + 돌 60)")
 	bm.stop()
-	var gen := grid.object_at(origin + Vector2i(7, 0))
+	var gen := grid.object_at(origin + Vector2i(7, 0)) as Generator
 	var st := grid.power_status()
-	_check(gen != null and st.supply == 60 and st.demand == 40 and st.ok and hud._power_label.text == "전력 40 / 60", "전력 40 / 60 (%s)" % hud._power_label.text)
+	_check(gen != null and st.capacity == 300.0 and st.stored == 0.0 and hud._power_label.visible and hud._power_label.text == "전기 0 / 300 없음!", "전기 통 0 / 300 (%s)" % hud._power_label.text)
 
-	# 맞닿은 창고에서 1회분씩 가져와 만들고, 결과물은 창고에 (낮은 품질부터)
-	GameState.advance_time(1 * per_min)
-	_check(ep.queue.size() == 1 and ep.queue[0].quality == "bronze" and wh.storage.count_of("wheat", "bronze") == 0 and wh.storage.count_of("wheat", "gold") == 2, "전력이 생기면 창고에서 1회분(브론즈 밀 2) 가져와 시작")
-	GameState.advance_time(60 * per_min)
-	_check(wh.storage.count_of("flour", "bronze") == 1 and ep.output.is_empty(), "1시간 뒤 밀가루가 창고로 들어감")
-	_check(ep.queue.size() == 1 and ep.queue[0].quality == "gold" and wh.storage.count_of("wheat") == 0, "남은 재료로 저절로 다음 회차 (골드)")
-	GameState.advance_time(61 * per_min)
-	_check(wh.storage.count_of("flour", "gold") == 1 and not ep.is_working() and ep.auto_status().begins_with("재료를 기다리는 중"), "재료가 떨어지면 기다림 (%s)" % ep.auto_status())
-	wh.storage.add("wheat", 2)
-	GameState.advance_time(1 * per_min)
-	_check(ep.is_working(), "재료가 다시 들어오면 저절로 이어서")
+	# [E] 로 발전기 창 (시간 정지)
+	player.global_position = gen.interact_point()
+	await get_tree().physics_frame
+	player._interact()
+	_check(hud._generator.visible and get_tree().paused and GameState.is_time_paused(), "발전기 창 열면 게임·시간 멈춤")
+	hud._close_panels()
 
-	# 창고 필터가 결과물을 안 받으면 가공기 안에 쌓아 둠 → 받게 되면 옮김
-	wh.set_filter_mode("crop")
-	GameState.advance_time(61 * per_min)
-	_check(ep.output_count() == 1 and wh.storage.count_of("flour") == 2, "창고 필터가 밀가루를 안 받으면 가공기 안에 보관")
-	wh.set_filter_mode("all")
-	GameState.advance_time(1 * per_min)
-	_check(ep.output.is_empty() and wh.storage.count_of("flour") == 3, "필터를 풀면 창고로 옮겨짐")
+	# 연료 넣기: 섬유·나무만, 안 탄 연료는 꺼낼 수 있음
+	inv.remove("fiber", inv.count_of("fiber"))
+	inv.add("wood", 5)
+	inv.add("fiber", 6)
+	inv.add("stone", 3)
+	_check(gen.deposit(inv, "stone", 3) == 0, "돌은 연료가 아님")
+	_check(gen.deposit(inv, "wood", 2) == 2 and gen.deposit(inv, "fiber", 6) == 6 and gen.fuel_count() == 8, "나무 2 + 섬유 6 넣기")
+	_check(gen.withdraw(inv, "fiber", 2) == 2 and gen.fuel_count() == 6, "안 탄 연료는 다시 꺼냄")
 
-	# 레시피를 바꾸면 만들던 재료는 창고로 돌아감
-	wh.storage.add("wheat", 2)
-	GameState.advance_time(5 * per_min)
-	_check(ep.is_working() and wh.storage.count_of("wheat") == 0, "다시 만드는 중")
-	_check(ep.set_recipe("potato_snack") and not ep.is_working() and wh.storage.count_of("wheat") == 2, "레시피를 바꾸면 만들던 재료(밀 2)가 창고로 돌아감")
-	ep.set_recipe("flour")
+	# 게임 시계로 발전: 나무 1개 = 60분 동안 시간당 60
+	var per_min := GameState.day_length / float(GameState.day_end - GameState.day_start)
+	GameState.set_clock(8 * 60)
+	GameState.advance_time(30 * per_min)
+	_check(absf(gen.energy - 30.0) < 1.0 and gen.burning == "wood" and absf(gen.burn_left - 30.0) < 1.0 and gen.power_output() == 60, "30분 발전 → 전기 %.0f, 나무 타는 중" % gen.energy)
+	_check(hud._power_label.text.begins_with("전기 30 / 300") or hud._power_label.text.begins_with("전기 29 / 300"), "HUD 전기 표시 (%s)" % hud._power_label.text)
 
-	# 전력이 모자라면 지역 자동화 전체가 멈추고, 충분해지면 저절로 이어짐 (§76)
-	var far := Vector2i(-1, -1)
-	for c: Vector2i in cells:
-		if absi(c.x - origin.x) <= 12 and absi(c.y - origin.y) <= 8:
-			continue
-		var free := true
-		for fc in Placeable.footprint_of(ep_def, c):
-			free = free and grid.is_buildable_ground(fc) and not grid.is_occupied(fc) and not world.farm.tiles.has(fc)
-		if free:
-			far = c
-			break
-	for fc in Placeable.footprint_of(ep_def, far):
-		world.obstacles.remove(fc)
-	await get_tree().process_frame
-	var ep2 := grid.place(ep_def, far) as Processor
-	_check(ep2 != null, "창고와 떨어진 곳에 전기 가공기 하나 더 %s" % far)
-	if ep2 == null:
-		return
-	ep2.set_recipe("flour")
-	_check(ep2.warehouses().is_empty() and ep2.set_enabled(true) and grid.power_status().demand == 80 and not grid.has_power(), "전기 가공기 2대 → 사용 80 > 생산 60")
-	_check(ep2.auto_status() == "전력이 부족해요.", "전력 부족 표시")
+	# 전기 가공기: 만드는 동안에만 전기를 씀
+	_check(ep.set_recipe("flour") and ep.set_enabled(true), "레시피 정하고 켜기")
+	_check(ep.power_demand() == 0 and grid.power_status().demand == 0, "재료가 없어 쉬는 동안은 전기를 안 씀")
+	var before := gen.energy
+	gen.take_contents()  # 남은 연료를 빼서 발전을 멈추고 소비만 본다
+	gen.burning = ""
+	gen.burn_left = 0.0
+	GameState.advance_time(30 * per_min)
+	_check(absf(gen.energy - before) < 0.01, "쉬는 동안 전기가 줄지 않음")
+	wh.storage.add("wheat", 2, "bronze")
+	GameState.advance_time(15 * per_min)
+	_check(ep.is_working() and ep.power_demand() == 40 and absf(gen.energy - (before - 10.0)) < 1.0, "만드는 동안 시간당 40 사용 (15분에 10, 남은 %.1f)" % gen.energy)
+
+	# 전기가 떨어지면 멈추고, 다시 차면 이어서
+	gen.energy = 0.0
 	var p_before := ep.progress
 	GameState.advance_time(20 * per_min)
-	_check(ep.progress == p_before, "전력이 모자라면 다른 가공기도 멈춤")
-	ep2.set_enabled(false)
+	_check(ep.progress - p_before < 0.5 and ep.starved and ep.auto_status().begins_with("전기가 없어서") and hud._power_label.text.contains("없음"), "전기가 없으면 멈춤 (%s)" % ep.auto_status())
+	inv.add("wood", 1)
+	gen.deposit(inv, "wood", 1)
 	GameState.advance_time(20 * per_min)
-	_check(grid.has_power() and ep.progress > p_before, "하나를 끄면 저절로 다시 돌아감")
-	ep2.set_enabled(true)
-	_check(not grid.has_power(), "다시 켜면 부족")
-	grid.remove(ep2)
-	await get_tree().process_frame
-	_check(grid.has_power() and grid.power_status().demand == 40, "철거하면 전력 사용도 빠짐")
-	ep2 = null
-	ep.take_contents()
-	ep.progress = 0.0
+	_check(ep.progress - p_before > 15.0 and not ep.starved, "연료를 넣으면 저절로 이어서 (진행 %.0f분)" % ep.progress)
+	GameState.advance_time(40 * per_min)
+	_check(wh.storage.count_of("flour", "bronze") == 1, "밀가루 완성 → 창고로")
 
-	# 창에서: 횟수 대신 켜기/끄기, 전력·창고 정보
+	# 통이 가득 차면 발전기는 쉬며 연료를 아낌
+	ep.set_enabled(false)
+	gen.energy = gen.storage()
+	inv.add("wood", 1)
+	gen.deposit(inv, "wood", 1)
+	var fuel_before := gen.fuel_minutes_left()
+	GameState.advance_time(30 * per_min)
+	_check(gen.is_full() and absf(gen.fuel_minutes_left() - fuel_before) < 0.01 and gen.power_output() == 0, "통이 가득 차면 연료를 안 태움")
+
+	# 발전기 두 대: 지역 전기 통에 모아 나눠 씀
+	var gen2 := grid.place(gen_def, origin + Vector2i(9, 0)) as Generator
+	_check(gen2 != null and grid.power_status().capacity == 600.0, "발전기 2대 → 지역 전기 통 600")
+	gen.take_contents()
+	gen.burning = ""
+	gen.burn_left = 0.0
+	gen.energy = 10.0
+	gen2.energy = 100.0
+	ep.set_enabled(true)
+	wh.storage.add("wheat", 2)
+	GameState.advance_time(60 * per_min)
+	var total: float = grid.power_status().stored
+	_check(absf(total - 70.0) < 1.5 and gen.energy < 0.01, "두 발전기의 전기를 이어서 씀 (110 → %.1f, 첫 발전기 먼저 비움)" % total)
+
+	# 창: 전기 가공기 정보
 	player.global_position = ep.interact_point()
 	await get_tree().physics_frame
 	player._interact()
 	var panel := hud._processor
-	_check(panel.visible and panel.processor == ep and not panel._count_row.visible and not panel._start.visible and panel._toggle.visible, "전기 가공기 창: 횟수·시작 대신 켜기/끄기")
-	_check(panel._toggle.text == "자동 가공 끄기" and panel._auto_info.text.contains("사용 40 / 생산 60") and panel._auto_info.text.contains("창고 1개"), "전력·맞닿은 창고 표시 (%s)" % panel._auto_info.text)
+	_check(panel.visible and panel.processor == ep and panel._toggle.visible and panel._auto_info.text.contains("지역 전기") and panel._auto_info.text.contains("창고 1개"), "전기 가공기 창 (%s)" % panel._auto_info.text)
 	panel._quality.select(1)
 	panel._quality.item_selected.emit(1)
 	_check(ep.high_first, "재료 품질 순서: 높은 품질부터")
 	panel._on_toggle()
-	_check(not ep.enabled and grid.power_status().demand == 0 and panel._toggle.text == "자동 가공 켜기", "창에서 끄기 → 전력 0")
+	_check(not ep.enabled and grid.power_status().demand == 0, "창에서 끄기")
 	panel._on_toggle()
-	panel._select("potato_snack")
-	_check(ep.recipe_id == "potato_snack", "창에서 레시피 고르기 → 바로 정해짐")
-	panel._select("flour")
 	hud._close_panels()
 
-	# 야간 생산 (§97): 밤에 5시간만큼 일함
+	# 발전기 창 내용
+	player.global_position = gen.interact_point()
+	await get_tree().physics_frame
+	inv.add("wood", 3)
+	player._interact()
+	var gp := hud._generator
+	_check(gp.visible and gp.generator == gen and gp._bag_list.get_child_count() >= 1 and gp._energy.text.contains("지역 전기 통"), "발전기 창: 연료 목록·전기 통 (%s)" % gp._energy.text)
+	gp._put("wood", 3)
+	_check(gen.fuel_count() == 3, "창에서 연료 넣기")
+	hud._close_panels()
+
+	# 야간 생산 (§97): 밤에 발전기가 연료를 태우고 기계가 그 전기로 5시간 일함
+	ep.take_contents()
+	ep.progress = 0.0
+	gen.energy = 0.0
+	gen2.energy = 0.0
+	inv.add("wood", 10)
+	gen.deposit(inv, "wood", 10)
 	wh.storage.add("wheat", 20)
 	GameState.sleep()
 	hud._close_panels()
 	var report: Dictionary = world.day_cycle.last_report
-	var night: int = int(report.get("night_production", {}).get("processed", 0))
-	_check(night >= 4 and night <= 6, "야간 5시간 동안 밀가루 %d개 생산 (report.night_production)" % night)
+	var night: Dictionary = report.get("night_production", {})
+	_check(int(night.get("processed", 0)) >= 4 and int(night.get("processed", 0)) <= 5 and float(night.get("energy", 0.0)) > 250.0, "야간 5시간: 발전 %.0f, 밀가루 %d개" % [float(night.get("energy", 0.0)), int(night.get("processed", 0))])
 
-	# 저장 / 불러오기: 레시피·켜짐·품질 순서
-	var state := ep.save_state()
+	# 저장 / 불러오기
+	gen = grid.object_at(origin + Vector2i(7, 0)) as Generator
+	var gstate := gen.save_state()
+	var estate := ep.save_state()
 	world.save_manager.save_game("manual")
+	gen.take_contents()
 	ep.set_enabled(false)
 	world.save_manager.load_game()
+	gen = grid.object_at(origin + Vector2i(7, 0)) as Generator
 	ep = grid.object_at(origin + Vector2i(4, 0)) as Processor
-	_check(ep != null and ep.save_state() == state and ep.enabled and ep.high_first and grid.power_status().demand == 40, "전기 가공기 저장·불러오기 (켜짐·레시피·품질 순서)")
-	_check(hud._power_label.text == "전력 40 / 60", "불러온 뒤 전력 표시")
+	_check(gen != null and gen.save_state() == gstate, "발전기 저장·불러오기 (연료·타는 중·전기)")
+	_check(ep != null and ep.save_state() == estate and ep.enabled and ep.high_first, "전기 가공기 저장·불러오기 (켜짐·레시피·품질 순서)")
+
+	# 철거: 남은 연료를 돌려받음
+	inv.load_data([])
+	var fuel_left := gen.fuel_count()
+	bm.start(BuildMode.Mode.REMOVE)
+	_check(bm.try_remove(origin + Vector2i(7, 0)) and inv.count_of("wood") == 40 + fuel_left, "발전기 철거 → 남은 연료 + 건설 재료 돌려받음")
+	bm.stop()
 
 	# 정리
-	for obj: Placeable in [grid.object_at(origin), grid.object_at(origin + Vector2i(4, 0)), grid.object_at(origin + Vector2i(7, 0))]:
+	for at: Vector2i in [origin, origin + Vector2i(4, 0), origin + Vector2i(9, 0)]:
+		var obj := grid.object_at(at)
 		if obj:
 			obj.take_contents()
 			grid.remove(obj)
 	await get_tree().process_frame
-	_check(grid.power_status().supply == 0 and not hud._power_label.visible, "모두 철거하면 전력 표시 숨김")
+	_check(grid.power_status().capacity == 0.0 and not hud._power_label.visible, "모두 철거하면 전기 표시 숨김")
 	inv.load_data(saved_inv)
 	hud._close_panels()
 	await get_tree().process_frame

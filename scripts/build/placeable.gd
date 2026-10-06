@@ -17,8 +17,11 @@ extends Node2D
 ##   on_day_end               하루 마감의 farm_daily 단계 (퇴비 익히기 같은 일 단위 처리). report 에 결과를 적을 수 있다
 ##   contents                 안에 든 아이템 (칸 형식 배열). 철거하면 가방으로 돌려주고, 자리가 없으면 철거를 막는다 (§106)
 ##   take_contents            철거 직전: 안의 아이템을 비운다 (가방에 넣는 건 BuildMode 가 한다)
-##   power_supply / power_demand  지역 전력(§75): 내는 전력 / 쓰는 전력. 기본: 정의의 "power_supply" 값 / 0
-##   on_night_production      하루 마감의 night_production 단계 (§97 야간 5시간 생산). minutes = 야간 생산 시간(게임 분)
+##   on_time                  게임 시계가 minutes 분 흐름 (BuildGrid 가 발전기 먼저, 나머지 다음 순서로 부른다)
+##   전기 (§75, 사용자 결정: 발전기가 만든 전기를 지역 전기 통에 모아 두고 기계들이 일할 때만 나눠 씀)
+##     energy_capacity / energy_stored / take_energy   전기를 담아 두는 시설(발전기)의 통 크기·남은 양·꺼내기
+##     power_output / power_demand                     지금 만드는 전기 / 지금 쓰는 전기 (시간당, 표시용)
+##   on_night_production      하루 마감의 night_production 단계 (§97 야간 5시간 생산). 잘게 나눠 여러 번 불린다
 ##   extra_cost               설치 뒤 더 들인 돈·재료 (창고 증축 등). 철거하면 건설비와 함께 돌려준다 (§64)
 ##   save_state / load_state  내부 상태 저장 (to_data 의 "state"). 옮겨도 노드 그대로라 상태가 유지된다 (§63)
 ## [E] 로 쓰는 시설은 "interactables" 그룹에 넣고 prompt / interact_point / can_interact / interact 를 만든다
@@ -165,8 +168,25 @@ func take_contents() -> void:
 	pass
 
 
-func power_supply() -> int:
-	return maxi(0, int(def.data.get("power_supply", 0)))
+func on_time(_minutes: float) -> void:
+	pass
+
+
+func energy_capacity() -> float:
+	return 0.0
+
+
+func energy_stored() -> float:
+	return 0.0
+
+
+## amount 만큼 꺼낸다. 실제로 꺼낸 양
+func take_energy(_amount: float) -> float:
+	return 0.0
+
+
+func power_output() -> int:
+	return 0
 
 
 func power_demand() -> int:

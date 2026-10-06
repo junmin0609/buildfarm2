@@ -174,7 +174,7 @@ func refresh() -> void:
 	var p := processor
 	var auto := p.is_automatic()
 	_title.text = "%s · %d급" % [p.def.name, p.tier()]
-	_hint.text = "레시피를 정하고 켜 두면 맞닿은 창고에서 재료를 가져와 만들고, 결과물은 맞닿은 창고에 넣어요. 켜져 있는 동안 전력 %d를 써요." % p.power_use() \
+	_hint.text = "레시피를 정하고 켜 두면 맞닿은 창고에서 재료를 가져와 만들고, 결과물은 맞닿은 창고에 넣어요. 만드는 동안에만 전기를 시간당 %d 써요." % p.power_use() \
 			if auto else "레시피와 횟수를 정해 [가공 시작] → 정한 횟수만 만들고 멈춰요. 게임 시계가 흐르는 동안 진행돼요."
 	_count_row.visible = not auto
 	_start.visible = not auto
@@ -196,7 +196,7 @@ func refresh() -> void:
 		_toggle.text = "자동 가공 끄기" if p.enabled else "자동 가공 켜기"
 		_toggle.disabled = not p.enabled and (p.recipe_id == "" or p.recipe_problem(p.recipe_id) != "")
 		var power := p.region_power()
-		_auto_info.text = "지역 전력: 사용 %d / 생산 %d%s · 맞닿은 창고 %d개" % [power.demand, power.supply, "" if power.ok else " (부족!)", p.warehouses().size()]
+		_auto_info.text = "지역 전기 %d / %d · 만드는 동안 시간당 %d 사용 · 맞닿은 창고 %d개" % [floori(power.stored), roundi(power.capacity), p.power_use(), p.warehouses().size()]
 		_status.text = p.auto_status()
 		if busy:
 			_bar.max_value = float(r.minutes)
