@@ -22,7 +22,7 @@ const ADVANCE_DATE := "advance_date"
 const SEASON := "season"
 ## 오늘 날씨 정하기, 비 오면 바깥 밭 적시기 (§32, §100) → report.weather
 const WEATHER := "weather"
-## 야간 5시간 생산 (§97 — 아직 없음)
+## 야간 생산 (§97): 자동화 시설이 data/time.json 의 night_production_minutes(5시간)만큼 일한다 → report.night_production
 const NIGHT_PRODUCTION := "night_production"
 ## 상점 일일 특별 상품 고르기 (§101) → report.shop_special
 const SHOP_REFRESH := "shop_refresh"
@@ -70,6 +70,7 @@ func _ready() -> void:
 	add_step(FARM_DAILY, func(_r: Dictionary) -> void: world.farm.process_day())
 	add_step(FARM_DAILY, func(_r: Dictionary) -> void: world.obstacles.process_day())
 	add_step(FARM_DAILY, func(r: Dictionary) -> void: world.build.end_day(r))
+	add_step(NIGHT_PRODUCTION, func(r: Dictionary) -> void: world.build.night_production(r, GameState.night_minutes))
 	add_step(WAKE_UP, func(_r: Dictionary) -> void: world.build.start_day())
 
 

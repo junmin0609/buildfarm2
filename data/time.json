@@ -4,5 +4,6 @@
 	"warning_seconds_left": 60,
 	"day_start_minutes": 420,
 	"day_end_minutes": 1560,
-	"clock_step_minutes": 10
+	"clock_step_minutes": 10,
+	"night_production_minutes": 300
 }

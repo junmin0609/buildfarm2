@@ -287,6 +287,40 @@ func _ready() -> void:
 		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_processor_panel.png"))
 		hud._close_panels()
 
+	# 전기 가공기 + 발전기: 창고 왼쪽에 맞닿게 (자리가 없으면 건너뜀)
+	var ep_def := PlaceableDB.get_def("electric_processor")
+	for off: Vector2i in [Vector2i(-3, 0), Vector2i(-3, 1), Vector2i(0, 4)]:
+		var at := wh_at + off
+		var gen_at := at + (Vector2i(-2, 0) if off.x < 0 else Vector2i(3, 0))
+		var free := true
+		for fc in Placeable.footprint_of(ep_def, at) + Placeable.footprint_of(PlaceableDB.get_def("small_generator"), gen_at):
+			free = free and world.build.is_buildable_ground(fc) and not world.build.is_occupied(fc) and not world.farm.tiles.has(fc)
+		if not free:
+			continue
+		for fc in Placeable.footprint_of(ep_def, at) + Placeable.footprint_of(PlaceableDB.get_def("small_generator"), gen_at):
+			world.obstacles.remove(fc)
+		for x in 3:
+			world.obstacles.remove(at + Vector2i(x, 3))
+		await get_tree().process_frame
+		var ep := world.build.place(ep_def, at) as Processor
+		world.build.place(PlaceableDB.get_def("small_generator"), gen_at)
+		if ep == null:
+			break
+		wh.storage.add("wheat", 30, "silver")
+		ep.set_recipe("flour")
+		ep.set_enabled(true)
+		ep.advance(25.0)
+		world.player.global_position = ep.interact_point() + Vector2(0, 4)
+		world.player.facing = Vector2i.UP
+		world.player.camera.reset_smoothing()
+		await get_tree().create_timer(0.8).timeout
+		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_electric.png"))
+		hud.open_processor(ep)
+		await get_tree().create_timer(0.4).timeout
+		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_electric_panel.png"))
+		hud._close_panels()
+		break
+
 	# 맵 전체 내려다보기
 	get_tree().paused = false
 	main.get_node("HUD").visible = false

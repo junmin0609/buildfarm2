@@ -13,6 +13,7 @@ var _root: Control
 var _day_label: Label
 var _time_label: Label
 var _money_label: Label
+var _power_label: Label
 var _prompt: Label
 var _prompt_box: PanelContainer
 var _clock_icon: TextureRect
@@ -409,8 +410,28 @@ func _build_info() -> void:
 	_money_label = Label.new()
 	_money_label.add_theme_color_override("font_color", Color("c98a2e"))
 	box.add_child(_icon_row(_icon_rect(2), _money_label))
+
+	# 지역 전력 (§75): 발전기나 전기 시설이 있을 때만 보인다
+	_power_label = Label.new()
+	_power_label.add_theme_font_size_override("font_size", Art.FONT_SIZE_SMALL)
+	_power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_power_label.hide()
+	box.add_child(_power_label)
+	Events.power_changed.connect(_update_power)
+	Events.game_loaded.connect(_update_power)
 	panel.custom_minimum_size = Vector2(230, 0)
 	_place(panel, Vector2(1.0, 0.0), Vector2(-16, 16), Control.GROW_DIRECTION_BEGIN, Control.GROW_DIRECTION_END)
+
+
+## "전력 40 / 60" (쓰는 전력 / 내는 전력). 모자라면 빨간색 + "부족"
+func _update_power() -> void:
+	var world := get_tree().get_first_node_in_group("farm_world") as FarmWorld
+	if world == null or not is_instance_valid(world.build):
+		return
+	var st := world.build.power_status()
+	_power_label.visible = st.supply > 0 or st.demand > 0
+	_power_label.text = "전력 %d / %d%s" % [st.demand, st.supply, "" if st.ok else " 부족!"]
+	_power_label.add_theme_color_override("font_color", TEXT_SOFT if st.ok else Color("c0503a"))
 
 
 func _icon_row(icon: Control, label: Label) -> HBoxContainer:

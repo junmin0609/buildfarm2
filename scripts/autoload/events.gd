@@ -37,6 +37,8 @@ signal warehouse_changed
 ## 가공기 창 열기 요청 (processor: Processor) / 가공기 상태가 바뀜
 signal processor_requested(processor: Node)
 signal processor_changed
+## 지역 전력이 바뀌었을 수 있음 (시설 설치·철거·켜고 끄기). HUD 전력 표시가 다시 계산한다
+signal power_changed
 
 ## 저장 (kind: "auto" 하루 전환 자동 저장 / "manual" 수동 저장)
 signal game_saved(kind: String)

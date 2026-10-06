@@ -924,6 +924,79 @@ def make_processor():
     c.save("processor.png")
 
 
+# ---------------------------------------------------------------- 소형 발전기 (2x2칸, 그림 32x40)
+#   초록 철제 상자 + 배기통 + 앞면 번개 표시 + 계기판
+
+def make_generator():
+    body, body_d, body_l = hexc("6f9a6a"), hexc("517a4e"), hexc("9cc394")
+    metal, metal_d = hexc("b8b0a4"), hexc("8f877c")
+    c = Canvas(32, 40)
+    c.ellipse(16, 38.5, 15, 1.6, SOFT_SHADOW)
+    # 받침
+    rrect(c, 1, 33, 30, 5, 1, metal_d)
+    c.rect(2, 33, 28, 1, metal)
+    # 몸통
+    rrect(c, 3, 14, 26, 20, 2, body)
+    c.rect(4, 14, 24, 2, body_l)
+    c.rect(4, 31, 24, 2, body_d)
+    for y in (18, 22, 26):
+        c.rect(19, y, 8, 1, body_d)   # 환기구
+    # 번개 표시 (노란 원판)
+    c.ellipse(11, 23, 5, 5, hexc("f5d76e"))
+    for x, y in ((12, 19), (11, 20), (10, 21), (10, 22), (11, 22), (12, 22), (12, 23), (11, 24), (10, 25), (10, 26)):
+        c.set(x, y, hexc("5b3a29"))
+    # 배기통 + 연기
+    c.rect(22, 5, 4, 10, metal_d)
+    c.rect(22, 5, 1, 10, metal)
+    rrect(c, 21, 3, 6, 3, 1, metal)
+    for x, y in ((23, 1), (25, 0)):
+        c.set(x, y, hexc("e6dccd"))
+    # 계기판
+    rrect(c, 5, 8, 10, 7, 1.5, metal)
+    c.ellipse(10, 11.5, 3, 2.5, hexc("fbf0da"))
+    c.set(10, 11, hexc("c0503a")); c.set(11, 10, hexc("c0503a"))
+    c.outline(INK)
+    c.save("generator.png")
+
+
+# ---------------------------------------------------------------- 전기 가공기 (3x3칸, 그림 48x60)
+#   남색 철제 기계 + 위 깔때기(투입구) + 가운데 창 + 옆 배출구 + 번개 표시
+
+def make_electric_processor():
+    body, body_d, body_l = hexc("6f8fb5"), hexc("4f6d92"), hexc("9db8d6")
+    metal, metal_d = hexc("b8b0a4"), hexc("8f877c")
+    c = Canvas(48, 60)
+    c.ellipse(24, 58.5, 23, 1.8, SOFT_SHADOW)
+    rrect(c, 1, 52, 46, 6, 1, metal_d)
+    c.rect(2, 52, 44, 1, metal)
+    # 몸통
+    rrect(c, 3, 22, 42, 31, 2.5, body)
+    c.rect(4, 22, 40, 2, body_l)
+    c.rect(4, 50, 40, 2, body_d)
+    # 위 깔때기
+    for y in range(6, 23):
+        inset = max(0, (22 - y) // 2)
+        c.rect(12 + (y - 6) // 3, y, 24 - 2 * ((y - 6) // 3), 1, metal if y % 4 else metal_d)
+    rrect(c, 9, 3, 30, 5, 1.5, metal)
+    c.rect(10, 3, 28, 1, hexc("d6cfc4"))
+    # 들여다보는 창 + 안의 내용물
+    rrect(c, 9, 28, 20, 14, 2, metal_d)
+    rrect(c, 11, 30, 16, 10, 2, hexc("a8dcef"))
+    c.ellipse(19, 38, 6, 2.2, hexc("f0c48a"))
+    c.set(13, 31, hexc("e4f6fc")); c.set(14, 31, hexc("e4f6fc"))
+    # 번개 판 + 불빛
+    rrect(c, 32, 28, 10, 10, 1.5, hexc("f5d76e"))
+    for x, y in ((38, 29), (37, 30), (36, 31), (35, 32), (36, 32), (37, 32), (38, 33), (37, 34), (36, 35), (35, 36)):
+        c.set(x, y, hexc("5b3a29"))
+    c.ellipse(34, 44, 1.6, 1.6, hexc("8fd16a"))
+    c.ellipse(39, 44, 1.6, 1.6, hexc("f29a3a"))
+    # 아래 배출구
+    rrect(c, 13, 45, 14, 6, 1, body_d)
+    c.rect(14, 46, 12, 1, hexc("3b4f6b"))
+    c.outline(INK)
+    c.save("electric_processor.png")
+
+
 # ---------------------------------------------------------------- 온실 (8x7칸, 그림 128x132)
 #   지붕 없이 유리벽만 그린다 (안쪽 밭이 보이게). 게임에서는 뒷벽(위 36px)·옆벽·앞벽(아래 16px)으로 잘라 쓴다:
 #   위 20px 는 발자리 위로 솟은 뒷벽, 그 아래 한 줄(16px)이 뒷벽 자리, 맨 아래 한 줄이 앞벽, 양옆 16px 가 옆벽.
@@ -1910,6 +1983,8 @@ if __name__ == "__main__":
     make_compost_bin()
     make_warehouse()
     make_processor()
+    make_generator()
+    make_electric_processor()
     make_well()
     make_shipping_bin()
     make_blacksmith()

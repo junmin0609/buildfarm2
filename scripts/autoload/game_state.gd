@@ -39,6 +39,8 @@ var warning_seconds := 60.0
 var day_start := 7 * 60
 var day_end := 26 * 60
 var clock_step := 10
+## 하루 마감 때 자동화 시설이 일하는 야간 생산 시간 (게임 분, §97: 5시간)
+var night_minutes := 300.0
 
 var _warned := false
 ## 시간을 멈추게 하는 이유들 ("shop", "build_menu", "build_mode" ...). 하나라도 있으면 멈춘다.
@@ -87,6 +89,7 @@ func _load_time_config() -> void:
 	day_start = int(cfg.get("day_start_minutes", day_start))
 	day_end = int(cfg.get("day_end_minutes", day_end))
 	clock_step = maxi(1, int(cfg.get("clock_step_minutes", clock_step)))
+	night_minutes = maxf(0.0, float(cfg.get("night_production_minutes", night_minutes)))
 
 
 # ---------- 시간

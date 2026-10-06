@@ -17,6 +17,8 @@ extends Node2D
 ##   on_day_end               하루 마감의 farm_daily 단계 (퇴비 익히기 같은 일 단위 처리). report 에 결과를 적을 수 있다
 ##   contents                 안에 든 아이템 (칸 형식 배열). 철거하면 가방으로 돌려주고, 자리가 없으면 철거를 막는다 (§106)
 ##   take_contents            철거 직전: 안의 아이템을 비운다 (가방에 넣는 건 BuildMode 가 한다)
+##   power_supply / power_demand  지역 전력(§75): 내는 전력 / 쓰는 전력. 기본: 정의의 "power_supply" 값 / 0
+##   on_night_production      하루 마감의 night_production 단계 (§97 야간 5시간 생산). minutes = 야간 생산 시간(게임 분)
 ##   extra_cost               설치 뒤 더 들인 돈·재료 (창고 증축 등). 철거하면 건설비와 함께 돌려준다 (§64)
 ##   save_state / load_state  내부 상태 저장 (to_data 의 "state"). 옮겨도 노드 그대로라 상태가 유지된다 (§63)
 ## [E] 로 쓰는 시설은 "interactables" 그룹에 넣고 prompt / interact_point / can_interact / interact 를 만든다
@@ -161,6 +163,30 @@ func contents() -> Array:
 
 func take_contents() -> void:
 	pass
+
+
+func power_supply() -> int:
+	return maxi(0, int(def.data.get("power_supply", 0)))
+
+
+func power_demand() -> int:
+	return 0
+
+
+func on_night_production(_world: FarmWorld, _report: Dictionary, _minutes: float) -> void:
+	pass
+
+
+## 주변(변이 맞닿은) 칸에 있는 다른 시설들 (겹치지 않게). 창고에서 재료를 가져오는 전기 가공기 등이 쓴다
+func neighbors(grid: BuildGrid) -> Array[Placeable]:
+	var out: Array[Placeable] = []
+	var mine := footprint()
+	for c in mine:
+		for d in DIRS:
+			var obj := grid.object_at(c + d)
+			if obj != null and obj != self and obj not in out:
+				out.append(obj)
+	return out
 
 
 ## {"price": G, "materials": {아이템 id: 개수}}

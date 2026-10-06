@@ -16,6 +16,10 @@ var _cells: Dictionary = {}          # Vector2i -> Placeable
 var _objects: Array[Placeable] = []
 
 
+func _ready() -> void:
+	changed.connect(func() -> void: Events.power_changed.emit())
+
+
 # ---------- 조회
 
 func objects() -> Array[Placeable]:
@@ -157,6 +161,30 @@ func _unregister(obj: Placeable) -> void:
 	for c in obj.footprint():
 		if _cells.get(c) == obj:
 			_cells.erase(c)
+
+
+# ---------- 지역 전력 (§75, §76)
+## 지역마다 따로인 전력망. 지금 지역은 시작 농장 하나라 이 BuildGrid 가 곧 "농장 지역" 전력망이다
+## (지역이 늘면 지역마다 BuildGrid 또는 지역 id 로 나눠 같은 계산을 하면 된다). 전선·전봇대 없음.
+## 쓰는 전력 > 내는 전력이면 그 지역 자동화 전체가 멈추고, 다시 충분해지면 저절로 이어진다.
+
+func power_status() -> Dictionary:
+	var supply := 0
+	var demand := 0
+	for obj in _objects:
+		supply += obj.power_supply()
+		demand += obj.power_demand()
+	return {"supply": supply, "demand": demand, "ok": demand <= supply}
+
+
+func has_power() -> bool:
+	return power_status().ok
+
+
+## 하루 마감의 night_production 단계 (§97): 자동화 시설이 야간 생산 시간만큼 일한다
+func night_production(report: Dictionary, minutes: float) -> void:
+	for obj in _objects:
+		obj.on_night_production(world, report, minutes)
 
 
 ## 하루 마감의 farm_daily 단계: 시설의 일 단위 처리 (퇴비통 등)

@@ -1,7 +1,8 @@
 class_name ProcessorPanel
 extends PanelContainer
 ## 가공기 창 (§70~§73). 왼쪽: 레시피 목록 (모르는 레시피는 잠김) / 오른쪽: 고른 레시피 · 횟수 · 시작 / 진행 상태 / 결과물.
-## 수동 가공기는 정한 횟수만 만들고 멈춘다. 출하함처럼 열려 있는 동안 게임과 시간이 멈춘다 (HUD 가 처리).
+## 수동 가공기는 정한 횟수만 만들고 멈춘다. 전기 가공기는 레시피를 정하고 켜 두면 맞닿은 창고와 알아서 주고받는다
+## (횟수·시작 버튼 대신 켜기/끄기와 전력·창고 정보가 보인다). 열려 있는 동안 게임과 시간이 멈춘다 (HUD 가 처리).
 
 signal close_requested
 
@@ -23,6 +24,10 @@ var _bar: ProgressBar
 var _cancel: Button
 var _output_slots: HBoxContainer
 var _take: Button
+var _hint: Label
+var _count_row: HBoxContainer
+var _toggle: Button
+var _auto_info: Label
 
 
 func _ready() -> void:
@@ -40,7 +45,8 @@ func _ready() -> void:
 	close.pressed.connect(close_requested.emit)
 	header.add_child(close)
 	box.add_child(header)
-	box.add_child(_small("레시피와 횟수를 정해 [가공 시작] → 정한 횟수만 만들고 멈춰요. 게임 시계가 흐르는 동안 진행돼요.", Color("9a7457")))
+	_hint = _small("", Color("9a7457"))
+	box.add_child(_hint)
 
 	var columns := HBoxContainer.new()
 	columns.add_theme_constant_override("separation", 20)
@@ -68,6 +74,7 @@ func _ready() -> void:
 	right.add_child(_detail)
 
 	var count_row := HBoxContainer.new()
+	_count_row = count_row
 	count_row.add_theme_constant_override("separation", 6)
 	count_row.add_child(_small("횟수", Color("c98a2e")))
 	count_row.add_child(_button("-", func() -> void: _set_runs(runs - 1)))
@@ -86,10 +93,18 @@ func _ready() -> void:
 	_quality.add_item("낮은 품질 재료부터 쓰기")
 	_quality.add_item("높은 품질 재료부터 쓰기")
 	_quality.tooltip_text = "결과물 품질은 그 회차에 쓴 재료 품질의 평균이에요."
+	_quality.item_selected.connect(func(i: int) -> void:
+		if processor and processor.is_automatic():
+			processor.set_high_first(i == 1))
 	right.add_child(_quality)
 
 	_start = _button("가공 시작", _on_start)
 	right.add_child(_start)
+	_toggle = _button("자동 가공 켜기", _on_toggle)
+	right.add_child(_toggle)
+	_auto_info = _small("", Color("9a7457"))
+	_auto_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	right.add_child(_auto_info)
 
 	right.add_child(HSeparator.new())
 	_status = _small("", Color("6b8a3a"))
@@ -117,6 +132,8 @@ func _ready() -> void:
 
 	Events.inventory_changed.connect(refresh)
 	Events.processor_changed.connect(refresh)
+	Events.power_changed.connect(refresh)
+	Events.warehouse_changed.connect(refresh)
 
 
 func _small(text: String, color: Color) -> Label:
@@ -155,7 +172,14 @@ func refresh() -> void:
 	if not is_node_ready() or processor == null or not is_instance_valid(processor):
 		return
 	var p := processor
+	var auto := p.is_automatic()
 	_title.text = "%s · %d급" % [p.def.name, p.tier()]
+	_hint.text = "레시피를 정하고 켜 두면 맞닿은 창고에서 재료를 가져와 만들고, 결과물은 맞닿은 창고에 넣어요. 켜져 있는 동안 전력 %d를 써요." % p.power_use() \
+			if auto else "레시피와 횟수를 정해 [가공 시작] → 정한 횟수만 만들고 멈춰요. 게임 시계가 흐르는 동안 진행돼요."
+	_count_row.visible = not auto
+	_start.visible = not auto
+	_toggle.visible = auto
+	_auto_info.visible = auto
 	_fill_list()
 	_fill_detail()
 	_set_runs(runs, false)
@@ -165,9 +189,19 @@ func refresh() -> void:
 
 	# 진행 상태
 	var r := p.recipe()
-	_cancel.visible = busy
+	_cancel.visible = busy and not auto
 	_bar.visible = busy
-	if busy:
+	if auto:
+		_quality.select(1 if p.high_first else 0)
+		_toggle.text = "자동 가공 끄기" if p.enabled else "자동 가공 켜기"
+		_toggle.disabled = not p.enabled and (p.recipe_id == "" or p.recipe_problem(p.recipe_id) != "")
+		var power := p.region_power()
+		_auto_info.text = "지역 전력: 사용 %d / 생산 %d%s · 맞닿은 창고 %d개" % [power.demand, power.supply, "" if power.ok else " (부족!)", p.warehouses().size()]
+		_status.text = p.auto_status()
+		if busy:
+			_bar.max_value = float(r.minutes)
+			_bar.value = minf(p.progress, float(r.minutes))
+	elif busy:
 		var out_name := ItemDB.get_item(r.output).name
 		_bar.max_value = float(r.minutes)
 		_bar.value = minf(p.progress, float(r.minutes))
@@ -211,8 +245,9 @@ func _fill_list() -> void:
 		(row.get_child(2) as Label).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		(row.get_child(1) as Label).size_flags_horizontal = Control.SIZE_FILL
 		if known:
-			var pick := _button("선택됨" if r.id == selected else "고르기", _select.bind(r.id))
-			pick.disabled = r.id == selected
+			var current: bool = r.id == (processor.recipe_id if processor.is_automatic() else selected)
+			var pick := _button(("정해짐" if processor.is_automatic() else "선택됨") if current else "고르기", _select.bind(r.id))
+			pick.disabled = current
 			row.add_child(pick)
 		else:
 			row.modulate.a = 0.45
@@ -233,8 +268,9 @@ func _fill_detail() -> void:
 	_detail.add_child(_small("재료 (1회분)", Color("c98a2e")))
 	for item_id: String in r.inputs:
 		var need := int(r.inputs[item_id])
-		var have := GameState.inventory.count_of(item_id)
-		var line := _small("· %s %d개  (가방 %d개)" % [ItemDB.get_item(item_id).name, need, have], Color("5b3a29") if have >= need else Color("c0503a"))
+		var auto := processor.is_automatic()
+		var have := processor.available_in_warehouses(item_id) if auto else GameState.inventory.count_of(item_id)
+		var line := _small("· %s %d개  (%s %d개)" % [ItemDB.get_item(item_id).name, need, "맞닿은 창고" if auto else "가방", have], Color("5b3a29") if have >= need else Color("c0503a"))
 		_detail.add_child(line)
 
 
@@ -252,6 +288,9 @@ func _set_runs(n: int, redraw := true) -> void:
 
 
 func _select(id: String) -> void:
+	if processor.is_automatic() and not processor.set_recipe(id):
+		Events.toast.emit("만들던 재료를 돌려놓을 자리가 없어서 레시피를 바꿀 수 없어요.")
+		return
 	selected = id
 	runs = 1
 	refresh()
@@ -263,6 +302,11 @@ func _on_start() -> void:
 		problem = "재료가 부족해요."
 	if problem != "":
 		Events.toast.emit(problem)
+
+
+func _on_toggle() -> void:
+	if not processor.set_enabled(not processor.enabled):
+		Events.toast.emit("먼저 레시피를 정해 주세요.")
 
 
 func _on_cancel() -> void:

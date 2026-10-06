@@ -6,10 +6,12 @@ extends Placeable
 ## 두 종류 (사용자 결정)
 ##   수동 가공기 (automatic = false, 전기 없음) — 지금 있는 것
 ##     플레이어가 레시피와 횟수를 정해 [가공 시작] → 정한 횟수만 만들고 멈춘다. 다시 돌리려면 또 시작해야 한다.
-##   전기 가공기 (automatic = true, 전력 사용) — 발전기·전력 시스템과 함께 만들 예정
-##     같은 흐름에 "재료가 들어오면 계속 돌리기"와 입출력 포트가 붙는다.
+##   전기 가공기 (automatic = true, 전력 사용) — 완전 자동 (사용자 결정)
+##     플레이어는 레시피만 정하고 켠다. 맞닿은 창고에서 1회분 재료를 가져와 만들고, 결과물은 맞닿은 창고에 넣는다
+##     (창고 필터를 지킴). 넣을 창고가 없으면 가공기 안에 쌓고, 그것도 가득 차면 멈춘다. 재료가 다시 생기면 저절로 이어서.
+##     켜져 있는 동안 지역 전력을 쓰고(power), 지역 전력이 모자라면 멈춘다 (§76). 밤에는 야간 생산 5시간만큼 일한다 (§97).
 ##
-## 흐름
+## 수동 가공기 흐름
 ##   1. 시작할 때 정한 횟수만큼의 재료를 가방에서 한꺼번에 가져와 회차별로 넣어 둔다 (queue)
 ##      회차마다 쓸 재료 품질을 정하고(낮은 품질부터 / 높은 품질부터), 결과물 품질 = 그 회차 재료 품질의 평균 (§74)
 ##   2. 게임 시계가 흐르는 동안(Events.time_advanced) 진행. 시계가 멈추면(상점·창·건설) 같이 멈춘다
@@ -32,6 +34,12 @@ var output: Array[Dictionary] = []
 ## 이번에 시작할 때 정한 횟수 / 그중 끝난 횟수 (표시용)
 var runs_total := 0
 var runs_done := 0
+## 전기 가공기: 켜져 있는가 (켜져 있으면 전력을 쓴다)
+var enabled := false
+## 재료를 높은 품질부터 쓰는가 (전기 가공기가 창고에서 가져올 때. 수동은 시작할 때 고른다)
+var high_first := false
+
+var _world: FarmWorld
 
 var _icon: Sprite2D
 var _bob := 0.0
@@ -58,6 +66,15 @@ func max_runs() -> int:
 
 func max_output() -> int:
 	return maxi(1, int(config().get("max_output", 30)))
+
+
+## 켜져 있을 때 쓰는 전력 (§75)
+func power_use() -> int:
+	return maxi(0, int(config().get("power", 0)))
+
+
+func power_demand() -> int:
+	return power_use() if is_automatic() and enabled else 0
 
 
 func recipe() -> Dictionary:
@@ -120,8 +137,8 @@ static func runs_possible(inv: Inventory, r: Dictionary, limit: int) -> int:
 
 ## 레시피 id 를 runs 번 돌리기 시작한다. 재료가 모자라면 가능한 만큼만. 실제로 정한 횟수를 돌려준다 (못 하면 0).
 ## high_first: true 면 높은 품질 재료부터 쓴다 (기본은 낮은 품질부터 — 좋은 재료는 따로 팔 수 있게)
-func start(inv: Inventory, id: String, runs: int, high_first := false) -> int:
-	if is_working() or recipe_problem(id) != "":
+func start(inv: Inventory, id: String, runs: int, use_high_first := false) -> int:
+	if is_automatic() or is_working() or recipe_problem(id) != "":
 		return 0
 	var r := RecipeDB.get_recipe(id)
 	var n := mini(runs, runs_possible(inv, r, max_runs()))
@@ -135,7 +152,7 @@ func start(inv: Inventory, id: String, runs: int, high_first := false) -> int:
 		var counts := {}
 		for item_id: String in r.inputs:
 			var need := int(r.inputs[item_id])
-			for q in _quality_order(ItemDB.get_item(item_id), high_first):
+			for q in _quality_order(ItemDB.get_item(item_id), use_high_first):
 				var take := mini(need, inv.count_of(item_id, q))
 				if take <= 0:
 					continue
@@ -201,6 +218,8 @@ func take_output(inv: Inventory) -> int:
 
 ## 게임 시계 minutes 분만큼 진행한다 (Events.time_advanced). 이번에 끝난 회차 수를 돌려준다.
 func advance(minutes: float) -> int:
+	if is_automatic():
+		return _advance_auto(minutes)
 	var r := recipe()
 	if queue.is_empty() or r.is_empty():
 		return 0
@@ -223,19 +242,228 @@ func advance(minutes: float) -> int:
 func _finish_one(r: Dictionary) -> void:
 	var run: Dictionary = queue.pop_front()
 	_add(output, r.output, run.quality, int(r.count))
-	runs_done += 1
+	if not is_automatic():
+		runs_done += 1  # 정한 횟수 중 몇 번째인지는 수동 가공기에만 의미가 있다
 
 
-## 하루 마감 (farm_daily 단계): 진행 중인 1회분은 밤사이 마저 완성한다 (결과물 칸에 자리가 있을 때).
-## report.processed = 오늘 밤 완성된 결과물 수 (여러 가공기 합계)
-func on_day_end(_world: FarmWorld, report: Dictionary) -> void:
+## 하루 마감 (farm_daily 단계): 수동 가공기는 진행 중인 1회분을 밤사이 마저 완성한다 (결과물 칸에 자리가 있을 때).
+## report.processed = 오늘 밤 완성된 결과물 수 (여러 가공기 합계). 전기 가공기는 night_production 단계에서 일한다.
+func on_day_end(_w: FarmWorld, report: Dictionary) -> void:
 	var r := recipe()
-	if queue.is_empty() or r.is_empty() or not _has_room(int(r.count)):
+	if is_automatic() or queue.is_empty() or r.is_empty() or not _has_room(int(r.count)):
 		return
 	_finish_one(r)
 	progress = 0.0
 	report["processed"] = int(report.get("processed", 0)) + int(r.count)
 	_changed()
+
+
+# ---------- 전기 가공기 (완전 자동)
+
+## 전기 가공기가 지금 일할 수 없는 이유 ("" 이면 일할 수 있음): 꺼짐 / 레시피 없음 / 전력 부족
+func auto_problem() -> String:
+	if not is_automatic():
+		return ""
+	if recipe_id == "" or recipe_problem(recipe_id) != "":
+		return "레시피를 정해 주세요."
+	if not enabled:
+		return "꺼져 있어요."
+	if _world == null or not _world.build.has_power():
+		return "전력이 부족해요."
+	return ""
+
+
+## 레시피를 정한다. 만들던 회차가 있으면 그 재료를 맞닿은 창고(없으면 가공기 안 결과물 칸)로 돌려놓고 바꾼다.
+## 돌려놓을 자리가 없으면 바꾸지 않고 false.
+func set_recipe(id: String) -> bool:
+	if not is_automatic() or recipe_problem(id) != "":
+		return false
+	if id == recipe_id:
+		return true
+	if not queue.is_empty():
+		var back := _queued_inputs()
+		var room := max_output() - output_count()
+		var total := 0
+		for st in back:
+			total += int(st.count)
+		if total > room + _warehouse_room(back):
+			return false
+		for st in back:
+			var left := _store(st.id, int(st.count), st.quality)
+			if left > 0:
+				_add(output, st.id, st.quality, left)
+		queue.clear()
+	recipe_id = id
+	progress = 0.0
+	if enabled and auto_problem() == "":
+		_advance_auto(0.0)
+	_changed()
+	return true
+
+
+func set_enabled(on: bool) -> bool:
+	if not is_automatic() or (on and (recipe_id == "" or recipe_problem(recipe_id) != "")):
+		return false
+	enabled = on
+	Events.power_changed.emit()
+	_changed()
+	if on:
+		_advance_auto(0.0)
+	return true
+
+
+func set_high_first(on: bool) -> void:
+	high_first = on
+	_changed()
+
+
+## 맞닿은 창고들 (재료를 가져오고 결과물을 넣는 곳)
+func warehouses() -> Array[Warehouse]:
+	var out: Array[Warehouse] = []
+	if _world == null:
+		return out
+	for obj in neighbors(_world.build):
+		if obj is Warehouse:
+			out.append(obj)
+	return out
+
+
+## 이 가공기가 있는 지역의 전력 상태 {"supply", "demand", "ok"}
+func region_power() -> Dictionary:
+	return _world.build.power_status() if _world else {"supply": 0, "demand": 0, "ok": false}
+
+
+func available_in_warehouses(item_id: String) -> int:
+	return _available(item_id)
+
+
+## 맞닿은 창고들에 있는 아이템 개수 (quality null = 모든 품질)
+func _available(item_id: String, quality: Variant = null) -> int:
+	var n := 0
+	for wh in warehouses():
+		n += wh.storage.count_of(item_id, quality)
+	return n
+
+
+## 맞닿은 창고들에서 1회분 재료를 가져와 회차를 시작한다. 하나라도 모자라면 아무것도 가져오지 않고 false.
+func _pull_run(r: Dictionary) -> bool:
+	for item_id: String in r.inputs:
+		if _available(item_id) < int(r.inputs[item_id]):
+			return false
+	var stacks: Array[Dictionary] = []
+	var counts := {}
+	for item_id: String in r.inputs:
+		var need := int(r.inputs[item_id])
+		for q in _quality_order(ItemDB.get_item(item_id), high_first):
+			for wh in warehouses():
+				var take := mini(need, wh.storage.count_of(item_id, q))
+				if take <= 0:
+					continue
+				wh.storage.remove(item_id, take, q)
+				_add(stacks, item_id, q, take)
+				counts[q] = int(counts.get(q, 0)) + take
+				need -= take
+				if need == 0:
+					break
+			if need == 0:
+				break
+	queue = [{"inputs": stacks, "quality": Quality.normalize(ItemDB.get_item(r.output), Quality.average(counts))}] as Array[Dictionary]
+	progress = 0.0
+	return true
+
+
+## 맞닿은 창고들에 넣는다 (필터 지킴). 못 넣은 개수
+func _store(item_id: String, count: int, quality: String) -> int:
+	var left := count
+	for wh in warehouses():
+		if left <= 0:
+			break
+		left = wh.insert(item_id, left, quality)
+	return left
+
+
+## 맞닿은 창고들에 이 묶음이 몇 개 더 들어갈 수 있는지 (대략: 넣어 보고 되돌리지 않고 복사본으로 센다)
+func _warehouse_room(stacks: Array) -> int:
+	var room := 0
+	for wh in warehouses():
+		var trial := Inventory.new(wh.storage.size())
+		trial.slots = wh.storage.slots.duplicate(true)
+		for st: Dictionary in stacks:
+			if wh.accepts(ItemDB.get_item(st.id)):
+				room += int(st.count) - trial.add(st.id, int(st.count), st.quality)
+	return room
+
+
+## 가공기 안에 쌓인 결과물을 맞닿은 창고로 옮긴다
+func _flush_output() -> void:
+	if output.is_empty():
+		return
+	var kept: Array[Dictionary] = []
+	var moved := false
+	for st in output:
+		var left := _store(st.id, int(st.count), st.quality)
+		moved = moved or left < int(st.count)
+		if left > 0:
+			st.count = left
+			kept.append(st)
+	output = kept
+	if moved:
+		_changed()
+
+
+func _advance_auto(minutes: float) -> int:
+	if auto_problem() != "":
+		return 0
+	var r := recipe()
+	_flush_output()
+	var made := 0
+	var left := minutes
+	while true:
+		if queue.is_empty() and not _pull_run(r):
+			break
+		var need := float(r.minutes) - progress
+		if left < need:
+			progress += left
+			break
+		left -= need
+		progress = float(r.minutes)
+		var room_now := _has_room(int(r.count))
+		if not room_now:
+			break  # 결과물을 넣을 곳이 없어 기다린다
+		_finish_one(r)
+		progress = 0.0
+		made += 1
+		_flush_output()
+	if made > 0:
+		_changed()
+	return made
+
+
+## 야간 생산 (§97): 야간 시간만큼 자동으로 일한다. report.night_production.processed = 만든 결과물 수
+func on_night_production(_w: FarmWorld, report: Dictionary, minutes: float) -> void:
+	if not is_automatic():
+		return
+	var made := _advance_auto(minutes)
+	if made > 0:
+		var night: Dictionary = report.get("night_production", {})
+		night["processed"] = int(night.get("processed", 0)) + made * int(recipe().count)
+		report["night_production"] = night
+
+
+## 전기 가공기 상태 글 (창·테스트용)
+func auto_status() -> String:
+	var problem := auto_problem()
+	if problem != "":
+		return problem
+	var r := recipe()
+	var out_name := ItemDB.get_item(r.output).name
+	if warehouses().is_empty() and queue.is_empty():
+		return "맞닿은 창고가 없어요. 창고 옆에 지어 주세요."
+	if queue.is_empty():
+		return "재료를 기다리는 중 (맞닿은 창고에 %s)" % RecipeDB.inputs_text(r)
+	if progress >= float(r.minutes) and not _has_room(int(r.count)):
+		return "%s 완성! 결과물을 넣을 곳이 없어 기다리는 중" % out_name
+	return "%s 만드는 중 · 남은 시간 %s" % [out_name, RecipeDB.time_text(minutes_left())]
 
 
 # ---------- 철거·저장
@@ -264,7 +492,7 @@ func take_contents() -> void:
 
 func save_state() -> Dictionary:
 	return {"recipe": recipe_id, "queue": queue.duplicate(true), "progress": progress, "output": output.duplicate(true),
-			"runs_total": runs_total, "runs_done": runs_done}
+			"runs_total": runs_total, "runs_done": runs_done, "enabled": enabled, "high_first": high_first}
 
 
 func load_state(data: Dictionary) -> void:
@@ -282,6 +510,9 @@ func load_state(data: Dictionary) -> void:
 	progress = maxf(0.0, float(data.get("progress", 0.0))) if typeof(data.get("progress")) in [TYPE_INT, TYPE_FLOAT] and not queue.is_empty() else 0.0
 	runs_total = maxi(0, int(data.get("runs_total", 0))) if typeof(data.get("runs_total")) in [TYPE_INT, TYPE_FLOAT] else 0
 	runs_done = clampi(int(data.get("runs_done", 0)), 0, runs_total) if typeof(data.get("runs_done")) in [TYPE_INT, TYPE_FLOAT] else 0
+	enabled = is_automatic() and recipe_id != "" and data.get("enabled") == true
+	high_first = data.get("high_first") == true
+	Events.power_changed.emit()
 	_changed()
 
 
@@ -313,6 +544,15 @@ func _changed() -> void:
 
 
 # ---------- [E] 상호작용 (Interactable 건물과 같은 이름)
+
+func on_placed(world: FarmWorld) -> void:
+	_world = world
+
+
+func on_removed(_w: FarmWorld) -> void:
+	enabled = false
+	Events.power_changed.emit()
+
 
 func _ready() -> void:
 	super._ready()

@@ -29,6 +29,7 @@ var save_manager: SaveManager
 
 
 func _ready() -> void:
+	add_to_group("farm_world")  # HUD 전력 표시처럼 월드를 찾아야 하는 UI 용
 	build.world = self
 	obstacles.world = self
 	# 시설이나 장애물이 있는 칸은 괭이로 갈 수 없다 (온실 안쪽 밭은 된다)
