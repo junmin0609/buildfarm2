@@ -229,6 +229,42 @@ func _ready() -> void:
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_compost_panel.png"))
 	hud._close_panels()
 
+	# 창고: 바깥 모습, 창 (지정 아이템 필터 + 물건 몇 개)
+	var wh_def := PlaceableDB.get_def("warehouse")
+	var wh_at := Vector2i(-1, -1)
+	for dy in range(-2, 6):
+		for dx in range(3, 14):
+			var c := cb_at + Vector2i(dx, dy)
+			var free := true
+			for y in 5:
+				for x in 4:
+					var fc := c + Vector2i(x, y)
+					free = free and world.build.is_buildable_ground(fc) and not world.build.is_occupied(fc) and not world.farm.tiles.has(fc)
+			if free and wh_at.x < 0:
+				wh_at = c
+	for y in 5:
+		for x in 4:
+			world.obstacles.remove(wh_at + Vector2i(x, y))
+	await get_tree().process_frame
+	var wh := world.build.place(wh_def, wh_at) as Warehouse
+	wh.storage.add("carrot", 24, "silver")
+	wh.storage.add("potato", 40)
+	wh.storage.add("strawberry", 6, "gold")
+	wh.storage.add("wood", 99)
+	wh.set_filter_mode("items")
+	for id: String in ["carrot", "potato", "strawberry"]:
+		wh.add_filter_item(id)
+	GameState.inventory.add("stone", 20)
+	world.player.global_position = wh.interact_point() + Vector2(0, 4)
+	world.player.facing = Vector2i.UP
+	world.player.camera.reset_smoothing()
+	await get_tree().create_timer(0.8).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_warehouse.png"))
+	hud.open_warehouse(wh)
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_warehouse_panel.png"))
+	hud._close_panels()
+
 	# 맵 전체 내려다보기
 	get_tree().paused = false
 	main.get_node("HUD").visible = false

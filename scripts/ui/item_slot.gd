@@ -6,6 +6,7 @@ extends Control
 ## 마우스를 올리면 Events.item_hover_changed 로 알려 커서 옆 툴팁(ItemTooltip)이 뜬다.
 
 signal clicked(index: int)
+signal right_clicked(index: int)
 
 const SLOT_SIZE := 60.0
 const ICON_SCALE := 3.0
@@ -104,6 +105,9 @@ func _drop_data(_at: Vector2, data: Variant) -> void:
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		clicked.emit(index)
+		accept_event()
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+		right_clicked.emit(index)
 		accept_event()
 
 

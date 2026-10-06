@@ -33,6 +33,7 @@ var _bin_panel: ShippingBinPanel
 var _summary: SalesSummaryPanel
 var _smith: BlacksmithPanel
 var _compost: CompostBinPanel
+var _warehouse: WarehousePanel
 ## 마지막 하루 마감 이유 ("time_up" / "sleep")
 var _end_reason := ""
 
@@ -88,6 +89,10 @@ func _ready() -> void:
 	_place(_compost, Vector2(0.5, 0.5), Vector2.ZERO, Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BOTH)
 	_compost.hide()
 	_compost.close_requested.connect(_close_panels)
+	_warehouse = WarehousePanel.new()
+	_place(_warehouse, Vector2(0.5, 0.5), Vector2.ZERO, Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BOTH)
+	_warehouse.hide()
+	_warehouse.close_requested.connect(_close_panels)
 	_build_hint_label = Label.new()
 	_build_hint = PanelContainer.new()
 	_build_hint.add_theme_stylebox_override("panel", _panel_style(12))
@@ -121,6 +126,7 @@ func _ready() -> void:
 	Events.game_loading.connect(_close_panels)
 	Events.shipping_bin_requested.connect(open_shipping_bin)
 	Events.compost_bin_requested.connect(open_compost_bin)
+	Events.warehouse_requested.connect(open_warehouse)
 	Events.blacksmith_requested.connect(open_blacksmith)
 	Events.day_ended.connect(_on_day_ended)
 	Events.day_ending_soon.connect(_on_day_ending_soon)
@@ -136,10 +142,10 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	var panel_open := _inventory.visible or _shop.visible or _build.visible or _menu.visible \
-			or _bin_panel.visible or _summary.visible or _smith.visible or _compost.visible
+			or _bin_panel.visible or _summary.visible or _smith.visible or _compost.visible or _warehouse.visible
 	if (_menu.visible or _summary.visible) and not event.is_action_pressed("cancel"):
 		return  # 메뉴·요약이 열려 있으면 다른 키는 무시 (버튼은 GUI 가 처리)
-	var blocking := _shop.visible or _bin_panel.visible or _smith.visible or _compost.visible  # 이 창이 열려 있으면 B·I 로 다른 창을 열지 않는다
+	var blocking := _shop.visible or _bin_panel.visible or _smith.visible or _compost.visible or _warehouse.visible  # 이 창이 열려 있으면 B·I 로 다른 창을 열지 않는다
 	if event.is_action_pressed("cancel") and not panel_open and not _build_hint.visible:
 		open_menu()  # 건설 모드 중 Esc 는 건설 모드가 받는다
 		get_viewport().set_input_as_handled()
@@ -223,6 +229,16 @@ func open_compost_bin(bin: Node) -> void:
 	_pause_for("compost_bin")
 
 
+## 창고: 출하함처럼 게임과 시간을 멈춘다
+func open_warehouse(warehouse: Node) -> void:
+	_close_inventory()
+	_warehouse.open(warehouse as Warehouse)
+	_center(_warehouse)
+	_prompt_box.hide()
+	_crop_info.suppressed = true
+	_pause_for("warehouse")
+
+
 ## 대장간: 상점처럼 게임과 시간을 멈춘다
 func open_blacksmith() -> void:
 	_close_inventory()
@@ -274,8 +290,10 @@ func _close_panels() -> void:
 	_summary.hide()
 	_smith.hide()
 	_compost.hide()
+	_warehouse.hide()
 	GameState.set_time_paused("blacksmith", false)
 	GameState.set_time_paused("compost_bin", false)
+	GameState.set_time_paused("warehouse", false)
 	GameState.set_time_paused("shipping_bin", false)
 	GameState.set_time_paused("summary", false)
 	_prompt_box.visible = _prompt.text != "" and not _build_hint.visible

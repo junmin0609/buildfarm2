@@ -2,9 +2,10 @@ class_name ItemDef
 extends RefCounted
 ## 아이템 한 종류의 정의. data/items.json 한 항목이 하나의 ItemDef가 된다.
 
-enum Kind { TOOL, SEED, CROP, MATERIAL, FERTILIZER }
+## PROCESSED(가공품)는 가공기(§70)가 생기면 쓴다. 지금은 창고 필터(§68)의 "가공품만" 자리만 있다.
+enum Kind { TOOL, SEED, CROP, MATERIAL, FERTILIZER, PROCESSED }
 
-const KIND_BY_NAME := {"tool": Kind.TOOL, "seed": Kind.SEED, "crop": Kind.CROP, "material": Kind.MATERIAL, "fertilizer": Kind.FERTILIZER}
+const KIND_BY_NAME := {"tool": Kind.TOOL, "seed": Kind.SEED, "crop": Kind.CROP, "material": Kind.MATERIAL, "fertilizer": Kind.FERTILIZER, "processed": Kind.PROCESSED}
 
 var id := ""
 var name := ""

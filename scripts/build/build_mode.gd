@@ -5,7 +5,7 @@ extends Node2D
 ##   R              시계 방향 90° 회전 (설치할 때, 옮길 때. 돌릴 수 있는 시설만 §54)
 ## 건설 모드인 동안 농장 땅에 격자를 보여 준다 (BuildGridOverlay, §49).
 ## 마우스를 움직이면 마우스 칸을, 키보드로 걸으면 플레이어 앞 칸을 기준으로 놓는다.
-## 돈·재료는 설치할 때 내고, 철거하면 전부 돌려받는다. 이동은 무료.
+## 돈·재료는 설치할 때 내고, 철거하면 전부 돌려받는다 (증축 비용 포함, Placeable.extra_cost). 이동은 무료.
 ## 안에 작물이 있는 온실처럼 시설이 막으면(Placeable.removal_problem) 옮기거나 철거할 수 없다.
 ## 설치·이동·철거 모드인 동안은 시간이 멈춘다 (BUILD_FARM_PLAN §49, §94).
 
@@ -223,8 +223,14 @@ func try_remove(cell: Vector2i) -> bool:
 	# 안에 든 아이템 + 재료가 가방에 다 들어가야 철거한다 (§106, 아이템이 사라지지 않게)
 	var inv := GameState.inventory
 	var back: Array = obj.contents().duplicate(true)
-	for mat_id: String in obj.def.materials:
-		back.append({"id": mat_id, "count": int(obj.def.materials[mat_id]), "quality": Quality.NONE})
+	var extra := obj.extra_cost()
+	var refund_money := obj.def.price + int(extra.get("price", 0))
+	var refund_mats: Dictionary = obj.def.materials.duplicate()
+	var extra_mats: Dictionary = extra.get("materials", {})
+	for mat_id: String in extra_mats:
+		refund_mats[mat_id] = int(refund_mats.get(mat_id, 0)) + int(extra_mats[mat_id])
+	for mat_id: String in refund_mats:
+		back.append({"id": mat_id, "count": int(refund_mats[mat_id]), "quality": Quality.NONE})
 	var problem := obj.removal_problem(_world())
 	if problem == "" and not inv.can_add_stacks(back):
 		problem = "가방에 돌려받을 물건을 넣을 자리가 없어요."
@@ -234,10 +240,10 @@ func try_remove(cell: Vector2i) -> bool:
 	var def := obj.def
 	obj.take_contents()
 	_world().build.remove(obj)
-	GameState.add_money(def.price)
+	GameState.add_money(refund_money)
 	for st: Dictionary in back:
 		inv.add(st.id, int(st.count), st.quality)
-	Events.toast.emit("%s 철거 (+%s)" % [def.name, def.cost_text()])
+	Events.toast.emit("%s 철거 (+%s)" % [def.name, PlaceableDef.cost_text_of(refund_money, refund_mats)])
 	return true
 
 

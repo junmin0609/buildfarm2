@@ -71,10 +71,14 @@ func texture_for(turns: int) -> Texture2D:
 
 ## "3000 G + 나무 100 + 돌 100"
 func cost_text() -> String:
-	var parts := ["%d G" % price]
-	for mat_id: String in materials:
+	return cost_text_of(price, materials)
+
+
+static func cost_text_of(money: int, mats: Dictionary) -> String:
+	var parts := ["%d G" % money]
+	for mat_id: String in mats:
 		var mat := ItemDB.get_item(mat_id)
-		parts.append("%s %d" % [mat.name if mat else mat_id, materials[mat_id]])
+		parts.append("%s %d" % [mat.name if mat else mat_id, mats[mat_id]])
 	return " + ".join(parts)
 
 

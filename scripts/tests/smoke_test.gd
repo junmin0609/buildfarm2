@@ -179,6 +179,9 @@ func _ready() -> void:
 	# ---------- 퇴비통 (§28)
 	await _test_compost(world, hud)
 
+	# ---------- 창고 + 필터 (§67, §68)
+	await _test_warehouse(world, hud)
+
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
 
@@ -1857,6 +1860,208 @@ func _test_compost(world: FarmWorld, hud: HUD) -> void:
 	inv.load_data(saved_inv)
 	hud._close_panels()
 	await get_tree().process_frame
+
+
+func _test_warehouse(world: FarmWorld, hud: HUD) -> void:
+	var grid := world.build
+	var bm := world.build_mode
+	var inv := GameState.inventory
+	var saved_inv := inv.to_data()
+	var player := world.player
+	var def := PlaceableDB.get_def("warehouse")
+	_check(def != null and def.size == Vector2i(4, 4) and def.cost_text() == "1500 G + 나무 80 + 돌 40", "창고 정의 (4x4, %s)" % (def.cost_text() if def else ""))
+
+	# 짓기: 4x4 + 앞에 설 한 줄이 비어 있는 자리
+	var origin := Vector2i(-1, -1)
+	var cells: Array = world.farm.farmable_cells.keys()
+	cells.sort()
+	for c: Vector2i in cells:
+		var ok := true
+		for y in 5:
+			for x in 4:
+				var fc := c + Vector2i(x, y)
+				if not grid.is_buildable_ground(fc) or grid.is_occupied(fc) or world.farm.tiles.has(fc):
+					ok = false
+		if ok:
+			origin = c
+			break
+	_check(origin.x >= 0, "창고 지을 자리 찾음 %s" % origin)
+	for y in 5:
+		for x in 4:
+			world.obstacles.remove(origin + Vector2i(x, y))
+	await get_tree().process_frame
+	player.global_position = world.cell_center(_find_char("s"))
+	inv.remove("wood", inv.count_of("wood"))
+	inv.remove("stone", inv.count_of("stone"))
+	inv.add("wood", 80)
+	inv.add("stone", 40)
+	GameState.add_money(2000)
+	bm.start_place("warehouse")
+	_check(bm.try_place(origin) and inv.count_of("wood") == 0 and inv.count_of("stone") == 0, "창고 짓기 (나무 80 + 돌 40 사용)")
+	bm.stop()
+	var wh := grid.object_at(origin) as Warehouse
+	_check(wh != null and wh.is_empty() and wh.slot_count() == 36 and wh.storage.size() == 36 and wh.filter_mode == "all", "창고: 처음 36칸, 필터 전체")
+
+	# [E] 로 창 열기 (시간 정지)
+	player.global_position = wh.interact_point()
+	await get_tree().physics_frame
+	_check(player._nearest_interactable() == wh, "창고 앞에서 [E] 안내")
+	player._interact()
+	var panel := hud._warehouse
+	_check(panel.visible and get_tree().paused and GameState.is_time_paused(), "창고 창 열면 게임·시간 멈춤")
+	_check(panel._store_slots.size() == 36 and panel._bag_slots.size() == inv.size(), "창에 창고 36칸 + 가방 칸")
+
+	# 앞 점검의 수확 품질은 무작위라 개수를 세는 묶음은 비우고 시작한다
+	for st: Array in [["carrot", "silver"], ["potato", "gold"], ["tomato", "silver"]]:
+		inv.remove(st[0], inv.count_of(st[0], st[1]), st[1])
+
+	# 창에서 클릭으로 옮기기: 클릭 = 한 묶음, 우클릭 = 1개
+	inv.add("carrot", 5, "silver")
+	panel._on_bag_right_clicked(_slot_index(inv, "carrot", "silver"))
+	_check(wh.storage.count_of("carrot", "silver") == 1 and inv.count_of("carrot", "silver") == 4, "가방 칸 우클릭 → 1개만 창고로 (품질 유지)")
+	panel._on_bag_clicked(_slot_index(inv, "carrot", "silver"))
+	_check(wh.storage.count_of("carrot", "silver") == 5 and inv.count_of("carrot", "silver") == 0, "가방 칸 클릭 → 한 묶음 창고로")
+	panel._on_store_right_clicked(_slot_index(wh.storage, "carrot", "silver"))
+	_check(wh.storage.count_of("carrot", "silver") == 4 and inv.count_of("carrot", "silver") == 1, "창고 칸 우클릭 → 1개 꺼내기")
+	_check(panel._title.text.contains("1/36"), "창 제목에 사용 칸 표시 (%s)" % panel._title.text)
+
+	# 물뿌리개 같은 상태 있는 물건은 상태 그대로 보관
+	var can_i := _slot_index(inv, "watering_can", "")
+	if can_i < 0:
+		inv.add("watering_can")
+		can_i = _slot_index(inv, "watering_can", "")
+	inv.set_slot_value(can_i, "water", 3)
+	_check(wh.deposit_slot(inv, can_i) == 1 and int(wh.storage.slot_value(_slot_index(wh.storage, "watering_can", ""), "water", -1)) == 3, "물뿌리개는 남은 물 그대로 보관")
+	_check(wh.withdraw_slot(inv, _slot_index(wh.storage, "watering_can", "")) == 1 and int(inv.slot_value(_slot_index(inv, "watering_can", ""), "water", -1)) == 3, "꺼내도 남은 물 그대로")
+
+	# 필터: 작물만 → 재료는 안 받음. 이미 든 물건은 그대로 두고 꺼낼 수 있다
+	inv.add("wood", 10)
+	wh.deposit_slot(inv, _slot_index(inv, "wood", ""))
+	_check(wh.storage.count_of("wood") == 10, "필터 전체: 나무도 받음")
+	panel._on_filter_selected(1)
+	_check(wh.filter_mode == "crop" and panel._filter.selected == 1, "필터 선택 → 작물만")
+	inv.add("stone", 5)
+	_check(wh.deposit_slot(inv, _slot_index(inv, "stone", "")) == 0 and inv.count_of("stone") == 5, "작물만: 돌은 안 받음 (가방에 그대로)")
+	_check(panel._bag_slots[_slot_index(inv, "stone", "")].modulate.a < 1.0, "받지 않는 가방 물건은 흐리게")
+	inv.add("potato", 2, "gold")
+	_check(wh.deposit_slot(inv, _slot_index(inv, "potato", "gold")) == 2, "작물만: 감자(골드)는 받음")
+	_check(wh.storage.count_of("wood") == 10 and wh.withdraw_slot(inv, _slot_index(wh.storage, "wood", "")) == 10, "필터를 바꿔도 이미 든 나무는 남아 있고 꺼낼 수 있음")
+	wh.set_filter_mode("seed")
+	_check(not wh.accepts(ItemDB.get_item("carrot")) and wh.accepts(ItemDB.get_item("carrot_seed")), "씨앗만")
+	wh.set_filter_mode("material")
+	_check(wh.accepts(ItemDB.get_item("stone")) and not wh.accepts(ItemDB.get_item("basic_fertilizer")), "재료만")
+	wh.set_filter_mode("processed")
+	_check(not wh.accepts(ItemDB.get_item("carrot")) and not wh.accepts(ItemDB.get_item("wood")), "가공품만 (아직 가공품 없음)")
+
+	# 지정 아이템: [가방에서 고르기] → 가방 칸 클릭으로 추가, 아이콘 누르면 빼기
+	wh.set_filter_mode("items")
+	_check(panel._pick.visible and not wh.accepts(ItemDB.get_item("carrot")), "지정 아이템 (비어 있으면 아무것도 안 받음)")
+	panel._pick.button_pressed = true
+	inv.add("carrot", 2)
+	var carrots := inv.count_of("carrot", "bronze")
+	var carrot_i := _slot_index(inv, "carrot", "bronze")
+	var carrot_stack: int = inv.get_slot(carrot_i).count
+	panel._on_bag_clicked(carrot_i)
+	_check(wh.filter_items.size() == 1 and wh.filter_items[0] == "carrot" and inv.count_of("carrot", "bronze") == carrots, "고르는 중: 가방 칸 클릭 → 필터에 추가 (옮기지 않음)")
+	_check(panel._chips.get_child_count() == 1, "필터 아이콘 표시")
+	panel._pick.button_pressed = false
+	panel._on_bag_clicked(carrot_i)
+	_check(wh.storage.count_of("carrot", "bronze") == carrot_stack and wh.insert("potato", 3, "bronze") == 3 and wh.insert("carrot", 3, "bronze") == 0, "지정 아이템: 당근만 받음 (자동 투입 insert 도 같은 규칙)")
+	for id: String in ["wood", "stone", "fiber", "potato", "tomato", "corn", "wheat", "radish", "spinach"]:
+		wh.add_filter_item(id)
+	_check(wh.filter_items.size() == 9 and not wh.add_filter_item("eggplant"), "지정 아이템은 최대 9개")
+	(panel._chips.get_child(0) as ItemSlot).clicked.emit(0)
+	_check("carrot" not in wh.filter_items, "필터 아이콘 누르면 빠짐")
+	wh.set_filter_mode("all")
+
+	# 칸 한도: 가득 차면 들어가는 만큼만, 나머지는 가방에 (아이템이 사라지지 않음)
+	var free := wh.storage.free_slots()
+	wh.storage.add("fiber", 99 * (free - 1))
+	inv.remove("stone", inv.count_of("stone"))
+	inv.add("stone", 150)
+	wh.deposit_slot(inv, _slot_index(inv, "stone", ""))
+	wh.deposit_all(inv)
+	_check(wh.storage.free_slots() == 0 and wh.storage.count_of("stone") == 99 and inv.count_of("stone") == 51, "꽉 차면 들어가는 만큼만 (나머지 돌 %d개는 가방에)" % inv.count_of("stone"))
+	inv.add("tomato", 1, "silver")
+	panel._on_bag_clicked(_slot_index(inv, "tomato", "silver"))
+	_check(inv.count_of("tomato", "silver") == 1, "자리 없으면 창에서도 안 옮겨짐")
+
+	# 창고는 따로따로 (다른 창고와 합쳐지지 않음): 새 Warehouse 는 비어 있다
+	var other := Warehouse.new()
+	other.setup(def, Vector2i(-50, -50))
+	_check(other.is_empty() and other.storage != wh.storage, "창고마다 따로 보관")
+	other.free()
+
+	# 증축: 돈·재료 → 칸 늘어남, 안의 물건 유지. 마지막 단계가 한도
+	var keep := wh.contents()
+	GameState.try_spend(GameState.money)
+	inv.remove("wood", inv.count_of("wood"))
+	inv.remove("stone", inv.count_of("stone"))
+	_check(not wh.upgrade(inv) and wh.level == 0, "돈·재료가 없으면 증축 불가")
+	_check(panel._upgrade.disabled and panel._upgrade.text.contains("54"), "증축 버튼 비활성 (%s)" % panel._upgrade.text)
+	GameState.add_money(1000)
+	inv.add("wood", 60)
+	inv.add("stone", 60)
+	panel._on_upgrade()
+	_check(wh.level == 1 and wh.slot_count() == 54 and wh.storage.size() == 54 and GameState.money == 0 and inv.count_of("wood") == 0, "증축 → 54칸 (1000 G + 나무 60 + 돌 60)")
+	_check(wh.contents() == keep and wh.storage.free_slots() == 18, "증축해도 안의 물건 그대로, 빈 칸 18개 추가")
+	_check(panel._store_slots.size() == 54, "창의 창고 칸도 54칸")
+	GameState.add_money(2500)
+	inv.add("wood", 120)
+	inv.add("stone", 120)
+	_check(wh.upgrade(inv) and wh.slot_count() == 72 and not wh.can_upgrade_more() and not wh.upgrade(inv), "최대 72칸, 그 이상 증축 불가 (무한히 커지지 않음)")
+	_check(panel._upgrade.disabled and panel._upgrade.text == "최대 크기", "최대 크기 표시")
+	hud._close_panels()
+	_check(not get_tree().paused and not panel.visible, "닫으면 재개")
+
+	# 저장 / 불러오기: 단계·필터·칸
+	wh.set_filter_mode("items")
+	wh.add_filter_item("carrot")
+	var state := wh.save_state()
+	world.save_manager.save_game("manual")
+	wh.take_contents()
+	wh.set_filter_mode("all")
+	world.save_manager.load_game()
+	wh = grid.object_at(origin) as Warehouse
+	_check(wh != null and wh.save_state() == state and wh.level == 2 and wh.storage.size() == 72 and wh.filter_mode == "items", "창고 저장·불러오기 (단계·필터·칸)")
+	wh.set_filter_mode("all")
+
+	# 옮겨도 내용물·단계 유지
+	state = wh.save_state()
+	for x in 4:
+		world.obstacles.remove(origin + Vector2i(x, 4))
+	await get_tree().process_frame
+	player.global_position = world.cell_center(_find_char("s"))
+	bm.start(BuildMode.Mode.MOVE)
+	_check(bm.pick(origin), "창고 집기")
+	_check(bm.try_drop(origin + Vector2i(0, 1)) and grid.object_at(origin + Vector2i(0, 1)) == wh and wh.save_state() == state, "옮겨도 안의 물건·단계 유지")
+	origin += Vector2i(0, 1)
+
+	# 철거: 가방에 자리가 없으면 막고, 있으면 안의 물건 + 건설비 + 증축 비용 모두 돌려받음
+	bm.start(BuildMode.Mode.REMOVE)
+	_check(not bm.try_remove(origin) and grid.object_at(origin) == wh, "안의 물건이 가방에 다 안 들어가면 철거 불가")
+	wh.storage.slots.fill(null)
+	wh.storage.add("tomato", 4, "gold")
+	inv.load_data([])  # 빈 가방에서 돌려받는 양을 센다
+	var tomato_before := 0
+	var money := GameState.money
+	_check(bm.try_remove(origin) and grid.object_at(origin) == null, "창고 철거")
+	var mats_back := inv.count_of("wood") == 80 + 60 + 120 and inv.count_of("stone") == 40 + 60 + 120
+	_check(inv.count_of("tomato", "gold") == tomato_before + 4 and mats_back and GameState.money == money + 1500 + 1000 + 2500, "철거하면 안의 물건 + 건설비 + 증축 비용 모두 돌려받음")
+	bm.stop()
+
+	inv.load_data(saved_inv)
+	hud._close_panels()
+	await get_tree().process_frame
+
+
+## 칸 형식 보관함에서 (id, quality) 가 든 첫 칸 번호 (없으면 -1). quality "" 면 품질은 보지 않는다
+func _slot_index(inv: Inventory, item_id: String, quality: String) -> int:
+	for i in inv.size():
+		var slot: Variant = inv.get_slot(i)
+		if slot != null and slot.id == item_id and (quality == "" or slot.get("quality", "") == quality):
+			return i
+	return -1
 
 
 func _test_continue_on_start(main: Node) -> void:

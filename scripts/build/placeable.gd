@@ -17,6 +17,7 @@ extends Node2D
 ##   on_day_end               하루 마감의 farm_daily 단계 (퇴비 익히기 같은 일 단위 처리). report 에 결과를 적을 수 있다
 ##   contents                 안에 든 아이템 (칸 형식 배열). 철거하면 가방으로 돌려주고, 자리가 없으면 철거를 막는다 (§106)
 ##   take_contents            철거 직전: 안의 아이템을 비운다 (가방에 넣는 건 BuildMode 가 한다)
+##   extra_cost               설치 뒤 더 들인 돈·재료 (창고 증축 등). 철거하면 건설비와 함께 돌려준다 (§64)
 ##   save_state / load_state  내부 상태 저장 (to_data 의 "state"). 옮겨도 노드 그대로라 상태가 유지된다 (§63)
 ## [E] 로 쓰는 시설은 "interactables" 그룹에 넣고 prompt / interact_point / can_interact / interact 를 만든다
 ## (Interactable 건물과 같은 이름이라 Player 가 같이 찾는다).
@@ -160,6 +161,11 @@ func contents() -> Array:
 
 func take_contents() -> void:
 	pass
+
+
+## {"price": G, "materials": {아이템 id: 개수}}
+func extra_cost() -> Dictionary:
+	return {"price": 0, "materials": {}}
 
 
 func save_state() -> Dictionary:

@@ -29,6 +29,9 @@ signal shipping_bin_changed
 ## 퇴비통 창 열기 요청 (bin: CompostBin) / 퇴비통 내용이 바뀜
 signal compost_bin_requested(bin: Node)
 signal compost_bin_changed
+## 창고 창 열기 요청 (warehouse: Warehouse) / 창고 내용·필터·단계가 바뀜
+signal warehouse_requested(warehouse: Node)
+signal warehouse_changed
 
 ## 저장 (kind: "auto" 하루 전환 자동 저장 / "manual" 수동 저장)
 signal game_saved(kind: String)

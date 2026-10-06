@@ -122,6 +122,35 @@ func can_add_all(items: Dictionary) -> bool:
 	return true
 
 
+## 칸 하나를 상태(물뿌리개의 남은 물 등)까지 그대로 넣는다. 넣지 못하고 남은 개수를 돌려준다.
+## 상태가 붙는 아이템은 빈 칸에 통째로 들어가고, 나머지는 add 와 같다 (같은 스택에 먼저 채움).
+func put_slot(slot: Dictionary) -> int:
+	var item := ItemDB.get_item(str(slot.get("id", "")))
+	var count := int(slot.get("count", 0))
+	if item == null or count <= 0:
+		return count
+	if item.new_slot_state().is_empty():
+		return add(item.id, count, str(slot.get("quality", Quality.NONE)))
+	var i := slots.find(null)
+	if i < 0:
+		return count
+	slots[i] = slot.duplicate(true)
+	changed.emit()
+	return 0
+
+
+## 칸 수를 늘린다 (창고 증축). 줄이지는 않는다 (안의 물건이 사라지지 않게).
+func grow(new_size: int) -> void:
+	if new_size > slots.size():
+		slots.resize(new_size)
+		changed.emit()
+
+
+## 빈 칸 수
+func free_slots() -> int:
+	return slots.count(null)
+
+
 func remove_at(index: int, count: int = 1) -> void:
 	var slot: Variant = get_slot(index)
 	if slot == null:
@@ -226,10 +255,10 @@ func to_data() -> Array:
 	return slots.duplicate(true)
 
 
+## 칸 수는 지금 크기 그대로 둔다 (가방은 SIZE, 창고는 단계별 칸 수). 넘치는 저장 칸은 건너뛴다.
 func load_data(data: Array) -> void:
-	slots.resize(SIZE)
 	slots.fill(null)
-	for i in mini(data.size(), SIZE):
+	for i in mini(data.size(), slots.size()):
 		var slot: Variant = data[i]
 		if not (slot is Dictionary) or not ItemDB.has_item(str(slot.get("id", ""))):
 			continue

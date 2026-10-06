@@ -821,6 +821,68 @@ def make_compost_bin():
     c.save("compost_bin.png")
 
 
+# ---------------------------------------------------------------- 창고 (4x4칸, 그림 64x84)
+#   돌 기초 + 세로 판자 벽 + 박공지붕(남색 지붕널) + 가운데 큰 미닫이문 + 옆에 쌓인 상자
+
+def make_warehouse():
+    w = P["wood"]
+    c = Canvas(64, 84)
+    c.ellipse(32, 82.5, 31, 1.8, SOFT_SHADOW)
+    # 벽 (세로 판자)
+    rrect(c, 3, 34, 58, 46, 1.5, w[2])
+    for x in range(6, 60, 4):
+        c.rect(x, 35, 1, 42, w[1])
+    c.rect(3, 34, 58, 1, w[3])
+    # 돌 기초
+    stone, stone_d, stone_l = hexc("b8b0a4"), hexc("8f877c"), hexc("d6cfc4")
+    c.rect(2, 76, 60, 6, stone)
+    for i, x in enumerate(range(2, 62, 6)):
+        c.rect(x, 76 + (i % 2) * 3, 1, 3, stone_d)
+    c.rect(2, 79, 60, 1, stone_d)
+    c.rect(2, 76, 60, 1, stone_l)
+    # 박공지붕 (남색 지붕널, 처마가 벽보다 조금 넓다)
+    roof, roof_d, roof_l = hexc("6f8fb5"), hexc("4f6d92"), hexc("9db8d6")
+    for y in range(4, 38):
+        inset = max(0, int(24 - (y - 4) * 0.75))
+        for x in range(inset, 64 - inset):
+            c.set(x, y, roof_d if (y - 4) % 5 == 4 else roof)
+    rrect(c, 22, 1, 20, 4, 1.5, roof_d)
+    c.rect(23, 1, 18, 1, roof_l)
+    c.rect(0, 37, 64, 1, roof_d)
+    # 박공 아래 둥근 환기창
+    c.ellipse(32, 26, 4.5, 4.5, w[0])
+    c.ellipse(32, 26, 3.4, 3.4, hexc("a8dcef"))
+    c.rect(31, 23, 1, 6, w[0]); c.rect(29, 26, 6, 1, w[0])
+    c.set(30, 24, hexc("e4f6fc"))
+    # 큰 미닫이문 (두 짝 + X 버팀목) 과 문 위 레일
+    c.rect(16, 44, 32, 2, hexc("6d6259"))
+    rrect(c, 18, 46, 28, 30, 1, w[0])
+    for x0 in (19, 33):
+        rrect(c, x0, 47, 12, 29, 1, w[1])
+        for k in range(12):
+            c.set(x0 + k, 48 + int(k * 2.3), w[3])
+            c.set(x0 + 11 - k, 48 + int(k * 2.3), w[3])
+    c.rect(32, 47, 1, 29, w[0])
+    c.set(30, 62, hexc("f5c542")); c.set(34, 62, hexc("f5c542"))
+    # 작은 창 두 개
+    for x in (6, 50):
+        rrect(c, x, 48, 8, 7, 1, w[0])
+        rrect(c, x + 1, 49, 6, 5, 1, hexc("a8dcef"))
+        c.rect(x + 4, 49, 1, 5, w[0])
+        c.set(x + 2, 50, hexc("e4f6fc"))
+    # 왼쪽 앞 상자 더미
+    for x, y in ((4, 68), (11, 68), (7, 61)):
+        rrect(c, x, y, 8, 8, 1, hexc("d9a066"))
+        c.rect(x + 1, y + 1, 6, 1, hexc("f0c48a"))
+        c.rect(x + 1, y + 4, 6, 1, hexc("b07a45"))
+    # 오른쪽 앞 자루
+    c.ellipse(55, 72, 4.5, 4, hexc("e8d6ae"))
+    c.ellipse(55, 68, 2.5, 1.5, hexc("cbb488"))
+    c.set(54, 71, hexc("f6ecd2"))
+    c.outline(INK)
+    c.save("warehouse.png")
+
+
 # ---------------------------------------------------------------- 온실 (8x7칸, 그림 128x132)
 #   지붕 없이 유리벽만 그린다 (안쪽 밭이 보이게). 게임에서는 뒷벽(위 36px)·옆벽·앞벽(아래 16px)으로 잘라 쓴다:
 #   위 20px 는 발자리 위로 솟은 뒷벽, 그 아래 한 줄(16px)이 뒷벽 자리, 맨 아래 한 줄이 앞벽, 양옆 16px 가 옆벽.
@@ -1690,6 +1752,7 @@ if __name__ == "__main__":
     make_placeables()
     make_greenhouse()
     make_compost_bin()
+    make_warehouse()
     make_well()
     make_shipping_bin()
     make_blacksmith()

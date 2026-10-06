@@ -52,5 +52,26 @@
 			"max_waiting_points": 50,
 			"max_output": 30
 		}
+	},
+	"warehouse": {
+		"name": "창고",
+		"category": "물류",
+		"description": "물건을 칸 단위로 보관하는 4x4 창고. 받을 물건 종류를 정할 수 있고, 증축하면 칸이 늘어나요.",
+		"_comment": "§67, §68. 값·재료·칸 수는 임시 밸런스. levels[0] 이 처음 지은 상태, 그 뒤가 증축 단계 (price·materials 는 그 단계로 올리는 비용). 마지막 단계가 한도라 한 창고가 무한히 커지지 않는다",
+		"size": [4, 4],
+		"texture": "res://assets/art/warehouse.png",
+		"price": 1500,
+		"materials": {"wood": 80, "stone": 40},
+		"solid": true,
+		"rotatable": false,
+		"script": "res://scripts/factory/warehouse.gd",
+		"storage": {
+			"levels": [
+				{"slots": 36},
+				{"slots": 54, "price": 1000, "materials": {"wood": 60, "stone": 60}},
+				{"slots": 72, "price": 2500, "materials": {"wood": 120, "stone": 120}}
+			],
+			"max_filter_items": 9
+		}
 	}
 }
