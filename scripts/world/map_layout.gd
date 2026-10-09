@@ -15,7 +15,8 @@ extends RefCounted
 ##   T  나무   Y  어린 나무   B  덤불   R  바위   r  갈대(지나갈 수 있음)
 ##   b  나무통   c  사과 상자   f  꽃 화분   n  간판   (소품: PROPS 에 등록)
 ##   F  분수   Q  퀘스트 게시판   h  벤치   L  가로등
-##   H  집 (왼쪽 위 기준 4x3칸)   M  씨앗 상점 (3x2칸)   S  작물 판매처 (3x2칸)
+##   H  집 (왼쪽 위 기준 4x3칸)   M  잡화점 (4x3칸, 씨앗 사기 + 작물 팔기, 안에 들어가 NPC 와 거래)
+##   J  기계상점 (3x2칸, 공장·자동화 기계를 아이템으로 판다, 안에 들어가 NPC 와 거래)
 ##   W  우물 (2x2칸, 물뿌리개를 채우는 곳)   O  출하함 (2x1칸, 하루가 끝나면 넣어 둔 것을 판다)
 ##   K  대장간 (3x2칸, 도구 강화)
 ##   C  레시피 상점 (3x2칸, 셰프 §71)
@@ -34,10 +35,10 @@ const ROWS := [
 	"TTT..O.f....B.W............B...TT~~~~TT...,,,,....ss...,,,,..BTT",
 	"TTTY......ss...................TT~~~~TTTB.,,,,....ss...,,,,...TT",
 	"TTT.......@ss......ssssss.....BTTT~~~TTT...,......ss.........YTT",
-	"TTTY.......sssssssssssssssss..BTTT~~~~TTY.....B...ss..........TT",
-	"TTTB......................ssss.TTT~~~~TTT.........ssS....Kxxx.TT",
-	"TTTB........................sssYTT~~~~TTT.M.......sbpppf.xxxxBTT",
-	"TTT....gggggg.ddd..ggggggg...ss.TTT~~~~Tcppppf..Q.pppppppxxxxYTT",
+	"TTTY.......sssssssssssssssss..BTTT~~~~TTYM....B...ss..........TT",
+	"TTTB......................ssss.TTT~~~~TTT.........ssf....Kxxx.TT",
+	"TTTB........................sssYTT~~~~TTT.........sbpppf.xxxxBTT",
+	"TTT....gggggg.ddd..ggggggg...ss.TTT~~~~Tcppppf..Q.pppppppJxxxYTT",
 	"TTT...gggggdddddddddgggggggg..ss.TT~~~~Tppppppp....ppppp.xxxx.TT",
 	"TTTY.ggggggdddddddddggggggggg..ss.B~~~~TTpppppppppppp........YTT",
 	"TTT..gggggdddddddddddggggggggg..sss####.ppppppppppppppp......BTT",
@@ -87,7 +88,7 @@ const PROPS := {
 }
 
 ## 소품·건물 글자 아래에 깔 바닥 (없으면 잔디)
-const GROUND_UNDER := {"b": "p", "c": "p", "f": "p", "F": "p", "Q": "p", "h": "p", "L": "p", "M": "p", "S": "p"}
+const GROUND_UNDER := {"b": "p", "c": "p", "f": "p", "F": "p", "Q": "p", "h": "p", "L": "p", "M": "p"}
 
 ## 괭이로 갈 수 있는 땅 글자
 const FARMABLE := ["d", "g"]
@@ -97,13 +98,14 @@ const BUILDABLE := ["d", "g"]
 ## 건물 글자 -> 건물 씬
 const BUILDINGS := {
 	"H": "res://scenes/buildings/house.tscn",
-	"M": "res://scenes/buildings/shop_stall.tscn",
-	"S": "res://scenes/buildings/sell_stand.tscn",
+	"M": "res://scenes/buildings/general_store.tscn",
+
 	"W": "res://scenes/buildings/well.tscn",
 	"O": "res://scenes/buildings/shipping_bin.tscn",
 	"K": "res://scenes/buildings/blacksmith.tscn",
 	"C": "res://scenes/buildings/recipe_shop.tscn",
 	"A": "res://scenes/buildings/sky_station.tscn",
+	"J": "res://scenes/buildings/machine_shop.tscn",
 }
 
 

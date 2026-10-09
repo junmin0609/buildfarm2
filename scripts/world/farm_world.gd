@@ -28,6 +28,10 @@ var day_cycle: DayCycle
 var save_manager: SaveManager
 ## 하늘섬 (§84, §90). 농장 맵 오른쪽 바깥에 따로 그려 두고 비행선으로 오간다
 var sky_island: SkyIsland
+## 가게 실내 (room_id -> Interior). 하늘섬보다 더 오른쪽 바깥에 따로 그린다
+var interiors := {}
+## 지금 플레이어가 있는 곳 ("farm" · "sky" · 실내 room_id)
+var area := "farm"
 
 
 func _ready() -> void:
@@ -61,7 +65,14 @@ func _ready() -> void:
 	add_child(sky_island)
 	move_child(sky_island, objects.get_index())
 	sky_island.build(self)
+	for room_id: String in Interior.ROOMS:
+		var room := Interior.new()
+		add_child(room)
+		move_child(room, objects.get_index())
+		room.build(self, room_id)
+		interiors[room_id] = room
 	Events.travel_requested.connect(travel)
+	Events.enter_requested.connect(enter_interior)
 	# 하루가 끝나 집에서 깨어나거나 저장을 불러오면, 플레이어가 있는 곳(농장/하늘섬)에 카메라 범위를 맞춘다
 	Events.day_ended.connect(func(_r: Dictionary) -> void: _apply_camera_area())
 	Events.game_loaded.connect(_apply_camera_area)
@@ -348,9 +359,57 @@ func is_on_sky_island() -> bool:
 	return SkyIsland.contains(player.global_position)
 
 
-## 플레이어가 있는 곳에 맞춰 카메라가 볼 범위를 정한다 (농장 맵 / 하늘섬 + 하늘)
+## 플레이어가 있는 곳에 맞춰 카메라가 볼 범위를 정한다 (농장 맵 / 하늘섬 + 하늘 / 가게 실내)
 func _apply_camera_area() -> void:
-	_set_camera_limits(SkyIsland.view_rect() if is_on_sky_island() else Rect2(Vector2.ZERO, Vector2(MapLayout.size() * TILE)))
+	var room_id := Interior.room_at(player.global_position)
+	if room_id != "":
+		area = room_id
+		_set_camera_limits(Interior.view_rect_of(room_id))
+	elif is_on_sky_island():
+		area = "sky"
+		_set_camera_limits(SkyIsland.view_rect())
+	else:
+		area = "farm"
+		_set_camera_limits(Rect2(Vector2.ZERO, Vector2(MapLayout.size() * TILE)))
+	Events.area_changed.emit(area)
+
+
+func is_indoors() -> bool:
+	return interiors.has(area)
+
+
+# ---------- 가게 실내 (사용자 요청: 안에 들어가 NPC에게 말 걸기)
+
+## 가게 건물 문 [E] → 실내 문 안쪽에 선다 (시간은 그대로 흐름)
+func enter_interior(room_id: String) -> bool:
+	if not interiors.has(room_id):
+		return false
+	player.wake_at(Interior.arrive_position(room_id))
+	player.facing = Vector2i.UP
+	_apply_camera_area()
+	Events.travelled.emit(room_id)
+	return true
+
+
+## 실내 문 칸을 밟으면 → 그 가게 건물 앞으로
+func exit_interior() -> void:
+	var room_id := area
+	player.wake_at(_building_front(room_id))
+	_apply_camera_area()
+	Events.travelled.emit("farm")
+
+
+## 가게 건물 문 앞 (건물이 없으면 집 앞)
+func _building_front(room_id: String) -> Vector2:
+	for b in buildings:
+		if (b is ShopBuilding and b.room_id == room_id) or (b is Blacksmith and room_id == "smith"):
+			return b.interact_point() + Vector2(0, 6)
+	return home_position
+
+
+func _physics_process(_delta: float) -> void:
+	if is_indoors() and (interiors[area] as Interior).is_door(player.my_cell()):
+		exit_interior()
 
 
 ## 비행선을 탄다. to: "sky" 하늘섬으로 / "home" 광장 정류장으로. 편도 게임 시계 travel_minutes 가 흐른다

@@ -12,6 +12,10 @@ var name := ""
 var kind: Kind = Kind.CROP
 var description := ""
 var buy_price := 0
+## 파는 곳: "general" 잡화점(씨앗·비료) / "machine" 기계상점(공장·자동화 기계, 사용자 결정)
+var shop := "general"
+## 살 때 돈과 함께 드는 재료 {아이템 id: 개수} (기계상점의 기계: 예전 건설비의 재료 몫)
+var buy_materials := {}
 ## 기준 판매가 (브론즈·출하함 기준). 품질·판매 방식 배율은 Pricing 이 곱한다.
 var sell_price := 0
 var max_stack := 99
@@ -60,6 +64,11 @@ static func from_dict(item_id: String, d: Dictionary) -> ItemDef:
 	item.kind = KIND_BY_NAME.get(d.get("kind", "crop"), Kind.CROP)
 	item.description = d.get("description", "")
 	item.buy_price = int(d.get("buy_price", 0))
+	item.shop = str(d.get("shop", "general"))
+	var mats: Variant = d.get("buy_materials", {})
+	if mats is Dictionary:
+		for mat_id: String in mats:
+			item.buy_materials[mat_id] = int(mats[mat_id])
 	item.sell_price = int(d.get("sell_price", 0))
 	item.max_stack = int(d.get("max_stack", 99))
 	item.icon = int(d.get("icon", 0))

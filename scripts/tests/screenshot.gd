@@ -146,6 +146,27 @@ func _ready() -> void:
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_smith_panel.png"))
 	hud._close_panels()
 
+	# 가게 실내 (사용자 요청): 광장의 잡화점·기계상점 → 잡화점 안 + 대화 창 → 대장간 안 → 기계상점 안
+	world.player.global_position = world.cell_center(Vector2i(46, 15))
+	world.player.facing = Vector2i.UP
+	world.player.camera.reset_smoothing()
+	await get_tree().create_timer(0.6).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_plaza_shops.png"))
+	world.enter_interior("store")
+	world.player.global_position = (world.interiors["store"] as Interior).npc.interact_point()
+	world.player.facing = Vector2i.UP
+	await get_tree().create_timer(0.8).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_store_inside.png"))
+	hud.open_dialog((world.interiors["store"] as Interior).npc)
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_store_dialog.png"))
+	hud._close_panels()
+	for room_id in ["smith", "machine"]:
+		world.enter_interior(room_id)
+		await get_tree().create_timer(0.8).timeout
+		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_%s_inside.png" % room_id))
+	world.exit_interior()
+
 	# 하늘시장 (§84~§90): 부서진 정류장·복구 창 → 복구한 정류장 → 하늘섬 → 가판대 창
 	var station: SkyStation = world.buildings.filter(func(b: Interactable) -> bool: return b is SkyStation)[0]
 	world.player.global_position = station.interact_point() + Vector2(0, 10)

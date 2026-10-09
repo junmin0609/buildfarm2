@@ -17,12 +17,20 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	Events.weather_changed.connect(set_weather)
+	# 가게 안에서는 비·눈이 안 보인다 (농장·하늘섬에서만)
+	Events.area_changed.connect(func(area: String) -> void:
+		indoors = area not in ["farm", "sky"]
+		visible = (weather == "rain" or weather == "snow") and not indoors)
 	set_weather(GameState.weather)
+
+
+## 가게 실내에 있는가
+var indoors := false
 
 
 func set_weather(new_weather: String) -> void:
 	weather = new_weather
-	visible = weather == "rain" or weather == "snow"
+	visible = (weather == "rain" or weather == "snow") and not indoors
 	_drops.clear()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 42

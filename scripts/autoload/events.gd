@@ -35,6 +35,12 @@ signal travel_requested(to: String)
 signal travelled(to: String)
 ## 정류장 복구 완료 (정류장 그림·안내가 바뀐다)
 signal sky_station_restored
+## 가게 건물 문 [E] → 그 실내로 (room_id: "store" · "smith" · "machine")
+signal enter_requested(room_id: String)
+## 실내 NPC [E] → 대화 창
+signal npc_talk_requested(npc: Node)
+## 플레이어가 있는 곳이 바뀜 ("farm" · "sky" · 실내 room_id). 비·눈 화면 효과는 실내에서 숨는다
+signal area_changed(area: String)
 ## 출하함 창 열기 요청 (bin: ShippingBin) / 출하함 내용이 바뀜
 signal shipping_bin_requested(bin: Node)
 signal shipping_bin_changed

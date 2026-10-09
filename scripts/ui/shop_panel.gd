@@ -1,6 +1,7 @@
 class_name ShopPanel
 extends PanelContainer
-## 상점 창. 왼쪽에서 씨앗을 사고, 오른쪽에서 가방 속 작물을 판다.
+## 상점 창. 잡화점 NPC 에게서 씨앗을 사거나(buy) 가방 속 작물을 팔고(sell), 기계상점 NPC 에게서 기계를 산다(machine).
+## 어느 상점에서 무엇을 파는지는 items.json 의 "shop" (general / machine). 기계는 돈과 함께 재료(buy_materials)도 든다.
 ## 여기서 파는 건 "광장 즉시 판매": 바로 돈을 받는 대신 기준가의 일부만 받는다 (data/economy.json 의 plaza).
 ## 품질이 다른 작물은 줄을 나눠 보여 주고, 가격에 품질 배율이 붙는다.
 
@@ -77,10 +78,11 @@ func _column(parent: Container, heading: String) -> VBoxContainer:
 	return list
 
 
-## mode: "buy" 씨앗만, "sell" 작물 팔기만, "all" 둘 다
+## mode: "buy" 씨앗·비료 사기, "sell" 작물 팔기, "machine" 기계 사기, "all" 사기+팔기
 func open(mode := "all") -> void:
 	_mode = mode
-	_title.text = {"buy": "씨앗 상점", "sell": "작물 판매처"}.get(mode, "잡화점")
+	_title.text = {"buy": "잡화점 · 사기", "sell": "잡화점 · 팔기", "machine": "기계상점"}.get(mode, "잡화점")
+	(_buy_list.get_parent().get_child(0) as Label).text = "기계 사기" if mode == "machine" else "씨앗·비료 사기"
 	_buy_list.get_parent().visible = mode != "sell"
 	_sell_list.get_parent().visible = mode != "buy"
 	custom_minimum_size = Vector2(1040 if mode == "all" else 680, 0)
@@ -95,14 +97,17 @@ func refresh() -> void:
 	_money_label.text = "가진 돈  %d G" % GameState.money
 	_refresh_special()
 	_clear(_buy_list)
+	var shop := "machine" if _mode == "machine" else "general"
 	for item in ItemDB.shop_items():
+		if item.shop != shop:
+			continue
 		if not Calendar.in_season_for_shop(item, GameState.day):
 			continue  # 이번 계절에 심을 수 없는 씨앗은 팔지 않는다
-		var row := item_row(item, "%d G" % item.buy_price)
+		var row := item_row(item, PlaceableDef.cost_text_of(item.buy_price, item.buy_materials))
 		for qty: int in [1, 5]:
 			var btn := Button.new()
 			btn.text = "%d개" % qty
-			btn.disabled = GameState.money < item.buy_price * qty
+			btn.disabled = buy_problem(item, qty) != ""
 			btn.pressed.connect(_buy.bind(item.id, qty))
 			row.add_child(btn)
 		_compact(row)
@@ -136,7 +141,7 @@ func refresh() -> void:
 func _refresh_special() -> void:
 	_clear(_special_box)
 	var id := GameState.daily_special
-	_special_box.visible = _mode != "sell" and DailySpecial.exists(id)
+	_special_box.visible = _mode in ["buy", "all"] and DailySpecial.exists(id)
 	if not _special_box.visible:
 		return
 	var heading := Label.new()
@@ -233,14 +238,26 @@ func _sellable_stacks() -> Array[Dictionary]:
 	return result
 
 
+## qty 개를 살 수 없는 이유 (돈·재료·가방 자리). 살 수 있으면 ""
+static func buy_problem(item: ItemDef, qty: int) -> String:
+	if GameState.money < item.buy_price * qty:
+		return "돈이 부족해요."
+	for mat_id: String in item.buy_materials:
+		if GameState.inventory.count_of(mat_id) < int(item.buy_materials[mat_id]) * qty:
+			return "%s이(가) 부족해요." % ItemDB.get_item(mat_id).name
+	if not GameState.inventory.can_add(item.id, qty):
+		return "가방에 자리가 없어요."
+	return ""
+
+
 func _buy(item_id: String, qty: int) -> void:
 	var item := ItemDB.get_item(item_id)
-	if not GameState.inventory.can_add(item_id, qty):
-		Events.toast.emit("가방에 자리가 없어요.")
+	var problem := buy_problem(item, qty)
+	if problem != "" or not GameState.try_spend(item.buy_price * qty):
+		Events.toast.emit(problem if problem != "" else "돈이 부족해요.")
 		return
-	if not GameState.try_spend(item.buy_price * qty):
-		Events.toast.emit("돈이 부족해요.")
-		return
+	for mat_id: String in item.buy_materials:
+		GameState.inventory.remove(mat_id, int(item.buy_materials[mat_id]) * qty)
 	GameState.inventory.add(item_id, qty)
 	Events.toast.emit("%s %d개를 샀어요." % [item.name, qty])
 

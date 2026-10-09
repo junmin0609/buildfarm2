@@ -42,6 +42,7 @@ var _recipes: RecipeShopPanel
 var _router: RouterPanel
 var _sky_station: SkyStationPanel
 var _sky_market: SkyMarketPanel
+var _dialog: DialogPanel
 var _compost: CompostBinPanel
 var _warehouse: WarehousePanel
 var _processor: ProcessorPanel
@@ -117,6 +118,11 @@ func _ready() -> void:
 	_place(_sky_market, Vector2(0.5, 0.5), Vector2.ZERO, Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BOTH)
 	_sky_market.hide()
 	_sky_market.close_requested.connect(_close_panels)
+	_dialog = DialogPanel.new()
+	_place(_dialog, Vector2(0.5, 1.0), Vector2(0, -150), Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BEGIN)
+	_dialog.hide()
+	_dialog.close_requested.connect(_close_panels)
+	_dialog.chosen.connect(_on_dialog_chosen)
 	_compost = CompostBinPanel.new()
 	_place(_compost, Vector2(0.5, 0.5), Vector2.ZERO, Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BOTH)
 	_compost.hide()
@@ -175,6 +181,7 @@ func _ready() -> void:
 	Events.router_requested.connect(open_router)
 	Events.sky_station_requested.connect(open_sky_station)
 	Events.sky_market_requested.connect(open_sky_market)
+	Events.npc_talk_requested.connect(open_dialog)
 	Events.travelled.connect(func(_to: String) -> void: _flash())
 	Events.day_ended.connect(_on_day_ended)
 	Events.day_ending_soon.connect(_on_day_ending_soon)
@@ -190,10 +197,10 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	var panel_open := _inventory.visible or _shop.visible or _build.visible or _menu.visible \
-			or _bin_panel.visible or _summary.visible or _night.visible or _smith.visible or _recipes.visible or _router.visible or _sky_station.visible or _sky_market.visible or _compost.visible or _warehouse.visible or _processor.visible or _generator.visible
+			or _bin_panel.visible or _summary.visible or _night.visible or _smith.visible or _recipes.visible or _router.visible or _sky_station.visible or _sky_market.visible or _dialog.visible or _compost.visible or _warehouse.visible or _processor.visible or _generator.visible
 	if (_menu.visible or _summary.visible or _night.visible) and not event.is_action_pressed("cancel"):
 		return  # 메뉴·요약이 열려 있으면 다른 키는 무시 (버튼은 GUI 가 처리)
-	var blocking := _shop.visible or _bin_panel.visible or _smith.visible or _recipes.visible or _router.visible or _sky_station.visible or _sky_market.visible or _compost.visible or _warehouse.visible or _processor.visible or _generator.visible  # 이 창이 열려 있으면 B·I 로 다른 창을 열지 않는다
+	var blocking := _shop.visible or _bin_panel.visible or _smith.visible or _recipes.visible or _router.visible or _sky_station.visible or _sky_market.visible or _dialog.visible or _compost.visible or _warehouse.visible or _processor.visible or _generator.visible  # 이 창이 열려 있으면 B·I 로 다른 창을 열지 않는다
 	if event.is_action_pressed("cancel") and not panel_open and not _build_hint.visible:
 		open_menu()  # 건설 모드 중 Esc 는 건설 모드가 받는다
 		get_viewport().set_input_as_handled()
@@ -360,6 +367,25 @@ func open_sky_market() -> void:
 	_pause_for("sky_market")
 
 
+## 상점 NPC 대화 창 (사용자 요청): 게임과 시간을 멈춘다
+func open_dialog(npc: Node) -> void:
+	_close_inventory()
+	_dialog.open(npc as Npc)
+	_prompt_box.hide()
+	_crop_info.suppressed = true
+	_pause_for("dialog")
+
+
+## 대화에서 고른 일: 상점 창(사기·팔기·기계) 또는 대장간 강화 창을 연다
+func _on_dialog_chosen(action: String) -> void:
+	_close_panels()
+	match action:
+		"smith":
+			open_blacksmith()
+		"buy", "sell", "machine":
+			_open_shop(action)
+
+
 ## 비행: 화면을 잠깐 어둡게 했다 밝힌다
 func _flash() -> void:
 	_fade.modulate.a = 1.0
@@ -436,6 +462,7 @@ func _close_panels() -> void:
 	_router.hide()
 	_sky_station.hide()
 	_sky_market.hide()
+	_dialog.hide()
 	_compost.hide()
 	_warehouse.hide()
 	_processor.hide()
@@ -447,6 +474,7 @@ func _close_panels() -> void:
 	GameState.set_time_paused("router", false)
 	GameState.set_time_paused("sky_station", false)
 	GameState.set_time_paused("sky_market", false)
+	GameState.set_time_paused("dialog", false)
 	GameState.set_time_paused("compost_bin", false)
 	GameState.set_time_paused("warehouse", false)
 	GameState.set_time_paused("shipping_bin", false)

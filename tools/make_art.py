@@ -1624,6 +1624,108 @@ def make_recipe_shop():
     c.save("recipe_shop.png")
 
 
+# ---------------------------------------------------------------- 들어가는 가게 (사용자 요청) + 상점 NPC
+#   잡화점 (4x3칸, 64x60): 크림색 벽 + 초록 차양 + 큰 진열창 + 가운데 문, 씨앗 자루·상자
+#   기계상점 (3x2칸, 48x44): 철판 지붕 + 톱니 간판 + 셔터 문
+#   NPC (16x24): 잡화점 하나(초록 앞치마) / 대장장이 철수(가죽 앞치마·수염) / 기계상점 미나(파란 작업복·고글)
+
+def make_general_store():
+    w = P["wood"]
+    c = Canvas(64, 60)
+    c.ellipse(32, 58.5, 30, 1.6, SOFT_SHADOW)
+    rrect(c, 2, 20, 60, 39, 2, hexc("f4e6c8"))                  # 벽
+    c.rect(2, 54, 60, 5, hexc("e2cfa6"))
+    for x in (2, 60):
+        c.rect(x, 20, 2, 39, w[1])
+    roof, roof_d, roof_l = hexc("7fb069"), hexc("5f9050"), hexc("a6cf8c")   # 초록 지붕
+    for y in range(4, 22):
+        inset = max(0, int(12 - (y - 4) * 0.8))
+        for x in range(inset, 64 - inset):
+            c.set(x, y, roof_d if (y - 4) % 4 == 3 else roof)
+    c.rect(12, 4, 40, 1, roof_l)
+    rrect(c, 20, 0, 24, 7, 2, w[2]); c.rect(22, 2, 20, 3, hexc("fff8ea"))   # 간판
+    for x in (24, 30, 36):
+        c.rect(x, 3, 3, 1, hexc("c98a2e"))
+    for x in range(4, 60):                                       # 줄무늬 차양
+        col = hexc("7fb069") if (x // 4) % 2 == 0 else hexc("fff8ea")
+        c.rect(x, 24, 1, 4, col)
+    c.rect(4, 24, 56, 1, roof_d)
+    for x0 in (6, 42):                                           # 진열창
+        rrect(c, x0, 31, 16, 13, 1, w[1])
+        rrect(c, x0 + 1, 32, 14, 11, 1, hexc("ffe9b0"))
+        c.rect(x0 + 2, 39, 12, 3, w[0])
+        for k, col in enumerate(("e0715f", "f2c443", "7fb069")):
+            rrect(c, x0 + 2 + k * 4, 35, 3, 4, 1, hexc(col))
+    rrect(c, 26, 34, 12, 25, 2, w[0]); rrect(c, 27, 35, 10, 24, 1.5, w[2])   # 문
+    c.rect(32, 35, 1, 24, w[1]); c.set(30, 47, hexc("f5c542")); c.set(34, 47, hexc("f5c542"))
+    rrect(c, 4, 48, 8, 9, 2, hexc("ead3a8")); c.rect(4, 51, 8, 2, hexc("8fb35a"))   # 씨앗 자루
+    rrect(c, 52, 49, 8, 8, 1, w[2]); c.rect(52, 52, 8, 1, w[0])  # 상자
+    c.outline(INK)
+    c.save("general_store.png")
+
+
+def make_machine_shop():
+    w = P["wood"]
+    m, md, ml = hexc("8fa3b8"), hexc("6f8296"), hexc("c6d3df")
+    c = Canvas(48, 44)
+    c.ellipse(24, 42.5, 22, 1.5, SOFT_SHADOW)
+    rrect(c, 2, 16, 44, 27, 1.5, hexc("c9b9a2"))                 # 벽 (벽돌)
+    for row, y in enumerate(range(18, 42, 4)):
+        c.rect(3, y, 42, 1, hexc("ad9c84"))
+        for x in range(4 if row % 2 else 8, 45, 8):
+            c.rect(x, y + 1, 1, 3, hexc("ad9c84"))
+    for y in range(4, 18):                                       # 철판 지붕
+        inset = max(0, int(9 - (y - 4) * 0.7))
+        for x in range(inset, 48 - inset):
+            c.set(x, y, md if x % 4 == 0 else m)
+    c.rect(9, 4, 30, 1, ml)
+    rrect(c, 15, 25, 18, 18, 1, md)                              # 셔터 문
+    for y in range(27, 42, 3):
+        c.rect(16, y, 16, 1, ml)
+    c.ellipse(9, 10, 5, 5, hexc("f2c443")); c.ellipse(9, 10, 2, 2, md)   # 톱니 간판
+    for a in range(8):
+        ang = a * math.pi / 4
+        c.rect(int(9 + math.cos(ang) * 5.5), int(10 + math.sin(ang) * 5.5), 2, 2, hexc("c9922a"))
+    rrect(c, 36, 26, 8, 6, 1, hexc("ffd27a")); c.rect(40, 26, 1, 6, md)
+    c.outline(INK)
+    c.save("machine_shop.png")
+
+
+def npc(c, skin, hair, top, top_d, apron=None, extra=None):
+    """16x24 정면 서 있는 사람"""
+    c.ellipse(8, 22.5, 5, 1.2, SOFT_SHADOW)
+    c.rect(5, 18, 2, 4, hexc("5b4636")); c.rect(9, 18, 2, 4, hexc("5b4636"))   # 다리
+    rrect(c, 3, 10, 10, 9, 2, top)                               # 몸
+    c.rect(3, 16, 10, 2, top_d)
+    c.rect(2, 11, 2, 6, top); c.rect(12, 11, 2, 6, top)          # 팔
+    c.set(2, 17, skin); c.set(13, 17, skin)
+    if apron:
+        rrect(c, 5, 12, 6, 7, 1, apron)
+    c.ellipse(8, 6.5, 4.2, 4.2, skin)                            # 머리
+    c.rect(4, 2, 8, 3, hair); c.set(4, 5, hair); c.set(11, 5, hair)
+    c.set(6, 7, INK); c.set(10, 7, INK); c.set(8, 9, hexc("e0715f"))
+    if extra:
+        extra(c)
+    c.outline(INK)
+
+
+def make_npcs():
+    skin = hexc("f2d3b0")
+    c = Canvas(T, 24)
+    npc(c, skin, hexc("7a4e32"), hexc("fff8ea"), hexc("e6d6b8"), apron=hexc("7fb069"))
+    c.save("npc_store.png")
+    c = Canvas(T, 24)
+    def beard(cv):
+        cv.rect(5, 8, 6, 3, hexc("8a5a3a")); cv.set(6, 7, INK); cv.set(10, 7, INK)
+    npc(c, hexc("e8b98f"), hexc("5b3a29"), hexc("c0503a"), hexc("92281e"), apron=hexc("8a5a3a"), extra=beard)
+    c.save("npc_smith.png")
+    c = Canvas(T, 24)
+    def goggles(cv):
+        cv.rect(4, 3, 8, 2, hexc("6f8296")); cv.set(6, 3, hexc("c2ecfa")); cv.set(10, 3, hexc("c2ecfa"))
+    npc(c, skin, hexc("3b2a20"), hexc("5aa3cc"), hexc("3f7fa8"), extra=goggles)
+    c.save("npc_machine.png")
+
+
 # ---------------------------------------------------------------- 하늘시장 (§84~§90)
 #   광장 비행선 정류장 (4x3칸, 64x60): 부서진 모습 / 복구한 모습 (계류탑 + 깃발 + 작은 비행선)
 #   하늘섬 가판대 (3x2칸, 48x40): 하늘색 줄무늬 천막 / 하늘섬 비행선 (4x3칸, 64x72): 풍선 + 나무 곤돌라
@@ -2573,6 +2675,9 @@ if __name__ == "__main__":
     make_shipping_bin()
     make_blacksmith()
     make_recipe_shop()
+    make_general_store()
+    make_machine_shop()
+    make_npcs()
     make_sky_station()
     make_sky_stall()
     make_airship()

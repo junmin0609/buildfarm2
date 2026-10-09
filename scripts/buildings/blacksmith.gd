@@ -1,14 +1,15 @@
 class_name Blacksmith
 extends Interactable
-## 광장의 대장간 (BUILD_FARM_PLAN §43). [E]를 누르면 도구 강화 창이 열린다 (강화 규칙은 ToolUpgrade).
+## 광장의 대장간 (BUILD_FARM_PLAN §43). [E] → 안으로 들어가 대장장이에게 말을 걸어 도구를 강화한다 (사용자 요청).
+## 강화 규칙은 ToolUpgrade, 실내는 Interior("smith").
 
 
 func _init() -> void:
 	size_tiles = Vector2i(3, 2)
 	solid_height = 18.0
 	door_x = 24.0
-	prompt = "[E] 대장간 (도구 강화)"
+	prompt = "[E] 대장간 들어가기"
 
 
 func interact(_player: Node) -> void:
-	Events.blacksmith_requested.emit()
+	Events.enter_requested.emit("smith")

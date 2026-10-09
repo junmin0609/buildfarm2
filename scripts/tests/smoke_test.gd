@@ -132,8 +132,8 @@ func _ready() -> void:
 	hud._close_panels()
 	Events.shop_requested.emit("sell")
 	_check(hud._shop._sell_list.get_parent().visible and not hud._shop._buy_list.get_parent().visible, "판매처는 팔기만")
-	var stands := world.buildings.filter(func(b: Interactable) -> bool: return b is ShopStall)
-	_check(stands.size() == 2 and stands.any(func(b: ShopStall) -> bool: return b.shop_mode == "sell"), "광장에 상점·판매처")
+	var stores := world.buildings.filter(func(b: Interactable) -> bool: return b is ShopBuilding)
+	_check(stores.size() == 2 and stores.any(func(b: ShopBuilding) -> bool: return b.room_id == "store") and stores.any(func(b: ShopBuilding) -> bool: return b.room_id == "machine") and not world.buildings.any(func(b: Interactable) -> bool: return b is ShopStall), "광장에 잡화점·기계상점 (작물 판매처는 잡화점으로 합침)")
 	hud._close_panels()
 	_check(not get_tree().paused, "닫으면 재개")
 
@@ -230,6 +230,9 @@ func _ready() -> void:
 
 	# ---------- 도구 딜레이 0.5초 (사용자 결정)
 	await _test_tool_cooldown(world)
+
+	# ---------- 가게 실내 + NPC 대화 (사용자 요청)
+	await _test_interiors(world, hud)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -1298,7 +1301,14 @@ func _test_blacksmith(world: FarmWorld, hud: HUD) -> void:
 	player.global_position = smith.interact_point()
 	_check(player._nearest_interactable() == smith, "대장간 앞에서 [E] 안내")
 	smith.interact(player)
-	_check(hud._smith.visible and GameState.is_time_paused() and get_tree().paused, "대장간 창을 열면 시간 정지")
+	_check(world.area == "smith", "대장간 [E] → 안으로 들어감")
+	var smith_npc: Npc = (world.interiors["smith"] as Interior).npc
+	player.global_position = smith_npc.interact_point()
+	await get_tree().physics_frame
+	player._interact()
+	_check(hud._dialog.visible and hud._dialog._name.text == "대장장이 철수", "대장장이에게 말 걸기 → 대화 창")
+	hud._dialog.choose("smith")
+	_check(hud._smith.visible and GameState.is_time_paused() and get_tree().paused, "[도구 강화] → 강화 창 (시간 정지)")
 
 	# 데이터: 네 도구 모두 강화 경로 (돈 + 자원)
 	var paths_ok := true
@@ -1404,6 +1414,8 @@ func _test_blacksmith(world: FarmWorld, hud: HUD) -> void:
 	inv.load_data(saved_inv)
 	GameState.money = money0
 	GameState.select_slot(0)
+	world.player.global_position = world.home_position
+	world._apply_camera_area()  # 대장간 안에서 시작한 점검이라 농장 범위로 돌려놓는다
 	await get_tree().process_frame
 
 
@@ -3426,6 +3438,80 @@ func _test_tool_cooldown(world: FarmWorld) -> void:
 	await _wait_real(600)
 	_check(player.tool_uses - uses == held, "떼면 멈춤")
 	inv.load_data(saved_inv)
+
+
+func _test_interiors(world: FarmWorld, hud: HUD) -> void:
+	var player := world.player
+	var cam := player.camera
+	var inv := GameState.inventory
+	var saved_inv := inv.to_data()
+	var store: ShopBuilding = world.buildings.filter(func(b: Interactable) -> bool: return b is ShopBuilding and b.room_id == "store")[0]
+	_check(MapLayout.char_at(Vector2i(41, 11)) == "M" and store.size_tiles == Vector2i(4, 3) and MapLayout.char_at(Vector2i(57, 14)) == "J", "잡화점 4x3 (41, 11) · 기계상점 (57, 14)")
+
+	# 문 [E] → 실내 (걸을 때는 시간이 흐름)
+	GameState.set_clock(9 * 60)
+	player.global_position = store.interact_point()
+	await get_tree().physics_frame
+	_check(player._nearest_interactable() == store and store.prompt == "[E] 잡화점 들어가기", "잡화점 문 앞 안내")
+	player._interact()
+	var room: Interior = world.interiors["store"]
+	_check(world.area == "store" and world.is_indoors() and cam.limit_left == int(Interior.view_rect_of("store").position.x), "잡화점 안으로 (카메라는 방 범위)")
+	_check(not GameState.is_time_paused() and not get_tree().paused, "실내를 걸을 때는 시간이 흐름")
+	var t0 := GameState.minutes
+	GameState.advance_time(30.0)
+	_check(GameState.minutes > t0, "실내에서도 시계가 감")
+	for i in 30:
+		player.velocity = Vector2(0, -240)
+		player.move_and_slide()
+	_check(Interior.room_at(player.global_position) == "store", "벽을 넘어 나갈 수 없음")
+
+	# NPC 에게 말 걸기 → 대화 → 사기 / 팔기
+	player.global_position = room.npc.interact_point()
+	await get_tree().physics_frame
+	_check(player._nearest_interactable() == room.npc and room.npc.prompt.contains("말 걸기"), "계산대 앞에서 [E] 말 걸기 안내")
+	player._interact()
+	_check(hud._dialog.visible and get_tree().paused and GameState.is_time_paused() and hud._dialog._buttons.get_child_count() == 3, "대화 창 (사기·팔기·나가기, 게임·시간 멈춤)")
+	hud._dialog.choose("buy")
+	var names := hud._shop._buy_list.get_children().map(func(r: Node) -> String: return r.get_child(1).text)
+	_check(hud._shop.visible and not hud._dialog.visible and hud._shop._title.text == "잡화점 · 사기" and names.any(func(n: String) -> bool: return n.ends_with("씨앗")) and "기본 비료" in names and not "컨베이어" in names, "[사기] → 제철 씨앗·비료 (기계는 없음) %s" % [names])
+	hud._close_panels()
+	inv.add("carrot", 3, "silver")
+	player._interact()
+	hud._dialog.choose("sell")
+	_check(hud._shop.visible and hud._shop._sell_list.get_parent().visible and not hud._shop._buy_list.get_parent().visible and hud._shop._sell_list.get_child_count() >= 1, "[팔기] → 작물 팔기")
+	hud._close_panels()
+	player._interact()
+	hud._dialog.choose("")
+	_check(not hud._dialog.visible and not get_tree().paused, "[나가기] → 대화 닫힘")
+
+	# 문 칸을 밟으면 밖으로
+	player.global_position = world.cell_center(Interior.origin_of("store") + Vector2i(4, 6))
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(world.area == "farm" and player.global_position.distance_to(store.interact_point()) < 24.0 and cam.limit_left == 0, "문을 밟으면 잡화점 앞으로 (카메라 농장 범위)")
+
+	# 기계상점: 기계를 판다
+	var shop: ShopBuilding = world.buildings.filter(func(b: Interactable) -> bool: return b is ShopBuilding and b.room_id == "machine")[0]
+	player.global_position = shop.interact_point()
+	await get_tree().physics_frame
+	player._interact()
+	player.global_position = (world.interiors["machine"] as Interior).npc.interact_point()
+	await get_tree().physics_frame
+	player._interact()
+	hud._dialog.choose("machine")
+	var mnames := hud._shop._buy_list.get_children().map(func(r: Node) -> String: return r.get_child(1).text)
+	_check(world.area == "machine" and hud._shop._title.text == "기계상점" and "컨베이어" in mnames and not "당근 씨앗" in mnames, "기계상점 [기계 사기] → 컨베이어 %s" % [mnames])
+	hud._close_panels()
+
+	# 실내에서 저장 → 불러오면 실내에서, 하루가 끝나면 집 앞
+	world.save_manager.save_game("manual")
+	world.save_manager.load_game()
+	_check(world.area == "machine" and cam.limit_left == int(Interior.view_rect_of("machine").position.x), "실내에서 저장·불러오기 → 실내에서 이어서")
+	GameState.sleep()
+	hud._close_panels()
+	_check(world.area == "farm" and player.global_position == world.home_position, "실내에서 하루가 끝나면 집 앞에서 깨어남")
+	inv.load_data(saved_inv)
+	await get_tree().process_frame
 
 
 ## 실제 시각으로 ms 만큼 기다린다 (프레임마다 확인)
