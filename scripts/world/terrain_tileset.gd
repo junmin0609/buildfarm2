@@ -25,6 +25,8 @@ const DIRT := Vector2i(6, 0)
 const PATHS: Array[Vector2i] = [Vector2i(7, 0), Vector2i(5, 2), Vector2i(6, 2), Vector2i(7, 2)]
 const PLAZA: Array[Vector2i] = [Vector2i(0, 3), Vector2i(1, 3)]
 const BRIDGE := Vector2i(2, 3)
+## 개울가 석축 (무드 개편, 못 지나감)
+const EMBANK := Vector2i(3, 3)
 const WATER := Vector2i(0, 1)      # (0,1)~(1,1) 두 프레임 애니메이션
 const SOIL := Vector2i(2, 1)
 const SOIL_WET := Vector2i(3, 1)
@@ -39,6 +41,7 @@ const SOLID := {
 	FENCE_H: Rect2(-8, -3, 16, 6),
 	FENCE_V: Rect2(-2, -8, 4, 16),
 	FENCE_POST: Rect2(-2, -4, 4, 8),
+	EMBANK: Rect2(-8, -8, 16, 16),
 }
 
 
@@ -58,7 +61,7 @@ static func build() -> TileSet:
 	plain.append_array(GRASS_WARM)
 	plain.append_array(PATHS)
 	plain.append_array(PLAZA)
-	plain.append_array([DIRT, SOIL, SOIL_WET, FENCE_H, FENCE_V, FENCE_POST, CURSOR, BRIDGE])
+	plain.append_array([DIRT, SOIL, SOIL_WET, FENCE_H, FENCE_V, FENCE_POST, CURSOR, BRIDGE, EMBANK])
 	for coords in plain:
 		source.create_tile(coords)
 

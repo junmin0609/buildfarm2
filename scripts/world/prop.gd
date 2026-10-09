@@ -10,14 +10,23 @@ extends Node2D
 @export var collision := Rect2(-5, -5, 10, 5)
 ## false 면 지나갈 수 있다 (갈대·꽃 같은 것)
 @export var solid := true
+## 그림 변형 (꽃밭·화분 색 등). 비어 있지 않으면 자리마다 하나를 골라 쓴다 (늘 같은 자리엔 같은 그림)
+@export var variants: Array[Texture2D] = []
+## 간판 글자 (아치·팻말). sign_rect 는 그림 왼쪽 위 기준 간판 판 자리
+@export var sign_text := ""
+@export var sign_rect := Rect2()
 
 
 func _ready() -> void:
 	var sprite := Sprite2D.new()
 	sprite.texture = texture
+	if not variants.is_empty():
+		sprite.texture = variants[absi(hash(Vector2i(position.round()))) % variants.size()]
 	sprite.centered = false
 	sprite.offset = -foot
 	add_child(sprite)
+	if sign_text != "":
+		add_child(Art.sign_label(sign_text, sign_rect, -foot))
 	if not solid:
 		return
 

@@ -52,7 +52,7 @@ func _ready() -> void:
 
 	_check(farm.farmable_cells.size() >= 100, "밭 칸 (실제 %d)" % farm.farmable_cells.size())
 	_check(world.buildings.size() == 8, "건물 8개 배치 (집·잡화점·우물·출하함·대장간·기계상점·레시피 상점·비행선 정류장)")
-	_check(world.fences.get_used_cells().is_empty(), "농장에 울타리 없음")
+	_check(world.fences.get_used_cells().all(func(c: Vector2i) -> bool: return c.x >= 41) and not world.fences.get_used_cells().is_empty(), "농장에 울타리 없음 (울타리는 광장 길가에만)")
 	_check(world.objects.get_children().filter(func(n: Node) -> bool: return n is Prop).size() > 100, "나무·바위 소품 배치")
 	var home_cell := world.world_to_cell(world.cell_center(_find_char("@")))
 	_near_home_at_start = world.obstacles.all().filter(func(ob: Obstacle) -> bool: return Vector2(ob.cell).distance_to(Vector2(home_cell)) < 6).size()
@@ -1298,8 +1298,8 @@ func _test_blacksmith(world: FarmWorld, hud: HUD) -> void:
 	var saved_inv := inv.to_data()
 	var money0 := GameState.money
 	var smith: Blacksmith = world.buildings.filter(func(b: Interactable) -> bool: return b is Blacksmith)[0]
-	var smith_cell := Vector2i(floori(smith.global_position.x / Art.TILE), floori(smith.global_position.y / Art.TILE) - 2)
-	_check(smith_cell == _find_char("K") and smith_cell.x > _find_char("#").x, "대장간은 메인 광장 (맵의 K, 3x2)")
+	var smith_cell := Vector2i(floori(smith.global_position.x / Art.TILE), floori(smith.global_position.y / Art.TILE) - 3)
+	_check(smith_cell == _find_char("K") and smith_cell.x > _find_char("#").x, "대장간은 메인 광장 (맵의 K, 4x3)")
 	player.global_position = smith.interact_point()
 	_check(player._nearest_interactable() == smith, "대장간 앞에서 [E] 안내")
 	smith.interact(player)
@@ -2769,7 +2769,7 @@ func _test_recipe_shop(world: FarmWorld, hud: HUD) -> void:
 
 	# 광장 건물 [E] → 창 (게임·시간 멈춤)
 	var shops := world.buildings.filter(func(b: Interactable) -> bool: return b is RecipeShop)
-	_check(shops.size() == 1 and MapLayout.char_at(Vector2i(54, 12)) == "C", "광장에 레시피 상점 (3x2)")
+	_check(shops.size() == 1 and MapLayout.char_at(Vector2i(52, 37)) == "C", "광장에 레시피 상점 (3x2)")
 	if shops.is_empty():
 		return
 	player.global_position = shops[0].interact_point()
@@ -3203,7 +3203,7 @@ func _test_sky_market(world: FarmWorld, hud: HUD) -> void:
 
 	# 비행선 정류장: 복구 전 (§89)
 	var stations := world.buildings.filter(func(b: Interactable) -> bool: return b is SkyStation)
-	_check(stations.size() == 1 and MapLayout.char_at(Vector2i(94, 47)) == "A" and stations[0].prompt.contains("오래된"), "광장에 오래된 비행선 정류장")
+	_check(stations.size() == 1 and MapLayout.char_at(Vector2i(94, 45)) == "A" and stations[0].prompt.contains("오래된"), "광장에 오래된 비행선 정류장")
 	if stations.is_empty():
 		return
 	var station: SkyStation = stations[0]
@@ -3545,10 +3545,10 @@ func _test_plaza(world: FarmWorld) -> void:
 	var walk := 0
 	for y in MapLayout.size().y:
 		for x in range(41, MapLayout.size().x):
-			if not MapLayout.char_at(Vector2i(x, y)) in ["T", "~", "#", "x", "M", "C", "K", "J", "A", "Y", "B", "R"]:
+			if not MapLayout.char_at(Vector2i(x, y)) in ["T", "~", "#", "x", "M", "C", "K", "J", "A", "Y", "B", "R", "*", "P", "e", "=", "l", "u", "4", "6", "7", "8"]:
 				walk += 1
-	_check(walk >= 2400, "광장 걸을 수 있는 칸 %d (예전 771)" % walk)
-	_check(MapLayout.char_at(Vector2i(73, 32)) == "F" and MapLayout.char_at(Vector2i(73, 18)) == "p", "분수 광장 + 큰길")
+	_check(walk >= 2000, "광장 걸을 수 있는 칸 %d (예전 771, 꽃밭·나무로 채움)" % walk)
+	_check(MapLayout.char_at(Vector2i(74, 30)) == "F" and MapLayout.char_at(Vector2i(73, 18)) == "p", "분수 광장 + 큰길")
 	var right_edge := float(MapLayout.size().x * FarmWorld.TILE)
 	_check(SkyIsland.island_rect().position.x > right_edge and Vector2(Interior.origin_of("store") * FarmWorld.TILE).x > SkyIsland.island_rect().end.x, "하늘섬·가게 실내는 넓힌 맵 밖")
 	# 예전(버전 1) 저장: 광장에 서 있었으면 집 앞으로, 농장이면 그대로
@@ -3565,7 +3565,7 @@ func _test_interiors(world: FarmWorld, hud: HUD) -> void:
 	var inv := GameState.inventory
 	var saved_inv := inv.to_data()
 	var store: ShopBuilding = world.buildings.filter(func(b: Interactable) -> bool: return b is ShopBuilding and b.room_id == "store")[0]
-	_check(MapLayout.char_at(Vector2i(46, 11)) == "M" and store.size_tiles == Vector2i(4, 3) and MapLayout.char_at(Vector2i(86, 12)) == "J" and MapLayout.char_at(Vector2i(79, 12)) == "K", "상점가 잡화점 4x3 (46, 11) · 공방 거리 대장간 (79, 12) · 기계상점 (86, 12)")
+	_check(MapLayout.char_at(Vector2i(52, 11)) == "M" and store.size_tiles == Vector2i(5, 3) and MapLayout.char_at(Vector2i(85, 11)) == "J" and MapLayout.char_at(Vector2i(79, 11)) == "K", "잡화점 5x3 (52, 11) · 대장간 (79, 11) · 기계상점 (85, 11)")
 
 	# 문 [E] → 실내 (걸을 때는 시간이 흐름)
 	GameState.set_clock(9 * 60)

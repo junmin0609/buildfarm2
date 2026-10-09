@@ -188,7 +188,7 @@ func _ready() -> void:
 	await get_tree().create_timer(0.6).timeout
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_plaza_shops.png"))
 	# 넓힌 광장: 분수 광장·공방 거리·정류장 마당, 그리고 줌을 당긴 전체 모습
-	for spot: Array in [[Vector2i(73, 30), "fountain"], [Vector2i(83, 17), "workshop"], [Vector2i(95, 52), "station"]]:
+	for spot: Array in [[Vector2i(74, 33), "fountain"], [Vector2i(83, 18), "workshop"], [Vector2i(96, 50), "station"], [Vector2i(54, 17), "store"], [Vector2i(74, 49), "creek"], [Vector2i(44, 18), "entrance"]]:
 		world.player.global_position = world.cell_center(spot[0])
 		world.player.camera.reset_smoothing()
 		await get_tree().create_timer(0.6).timeout

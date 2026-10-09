@@ -6,7 +6,8 @@
 [node name="GeneralStore" type="Node2D"]
 script = ExtResource("1_shop")
 texture = ExtResource("2_tex")
-ground_shadow = true
 prompt = "[E] 잡화점 들어가기"
 room_id = "store"
-tiles = Vector2i(4, 3)
+tiles = Vector2i(5, 3)
+sign_text = "잡화점"
+sign_rect = Rect2(14, 27, 52, 18)

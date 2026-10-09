@@ -15,6 +15,9 @@ const REACH := 14.0
 @export var door_x := 8.0
 ## 그림에 바닥 그림자가 없는 건물만 켠다: 밑변에 픽셀 계단 모양의 옅은 접지 그림자 (빛은 다른 그림처럼 왼쪽 위)
 @export var ground_shadow := false
+## 간판 글자 (무드 개편): 그림의 간판 판 자리(sign_rect, 그림 왼쪽 위 기준)에 도트 폰트로 얹는다. 비어 있으면 없음
+@export var sign_text := ""
+@export var sign_rect := Rect2()
 
 ## 그림자 줄: [위로부터 y, 왼쪽에서 들여쓰기, 오른쪽에서 들여쓰기, 진하기]
 const SHADOW_ROWS := [[-1, 2, -1, 0.16], [0, 1, -2, 0.24], [1, 3, 0, 0.16], [2, 6, 3, 0.08]]
@@ -37,6 +40,8 @@ func _ready() -> void:
 	sprite.centered = false
 	sprite.offset = Vector2(0, -texture.get_height())
 	add_child(sprite)
+	if sign_text != "":
+		add_child(Art.sign_label(sign_text, sign_rect, sprite.offset))
 	_add_collision()
 
 

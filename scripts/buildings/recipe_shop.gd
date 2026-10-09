@@ -4,9 +4,11 @@ extends Interactable
 
 
 func _init() -> void:
-	size_tiles = Vector2i(3, 2)
-	solid_height = 18.0
-	door_x = 24.0
+	size_tiles = Vector2i(4, 3)
+	solid_height = 22.0
+	door_x = 32.0
+	sign_text = "레시피"
+	sign_rect = Rect2(6, 25, 52, 18)
 	prompt = "[E] 레시피 상점 (셰프)"
 
 

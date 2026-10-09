@@ -134,6 +134,9 @@ P = {
     "sand": [hexc("c49a6a"), hexc("dcb985"), hexc("e8cc9c"), hexc("f4e0b6")],
     "water": [hexc("5a9fc8"), hexc("6eb3d6"), hexc("89c5e0"), hexc("dcf2f8")],
     "stone": [hexc("a99782"), hexc("c8b9a2"), hexc("ddd1bd"), hexc("efe7d8")],
+    # 무드 이미지의 꿀색 자갈 (돌길·광장 바닥). 줄눈은 따뜻한 갈색
+    "cobble": [hexc("bf8d5a"), hexc("dcae7c"), hexc("e9c595"), hexc("f6dfb6")],
+    "mortar": [hexc("c49468"), hexc("b8885c"), hexc("cf9f71")],
     "wood": [hexc("7a4e32"), hexc("a8714a"), hexc("c98f5e"), hexc("e6b77f")],
     "leaf": [hexc("3d6b35"), hexc("4f8a3f"), hexc("64a64a"), hexc("7fc05a"), hexc("a8dc78")],
     "ink": INK,
@@ -217,9 +220,9 @@ def dirt(c, rng):
         c.set(x, y, d[3]); c.set(x, y + 1, d[0])
 
 
-def cobbles(c, rng, sizes, count, mortar):
+def cobbles(c, rng, sizes, count, mortar, st=None):
     """둥근 돌을 겹치지 않게 흩뿌린다. 돌마다 왼쪽 위는 밝고 아래는 그늘."""
-    st = P["stone"]
+    st = st or P["stone"]
     noise_fill(c, mortar, [10, 3], rng)
     placed = []
     for _ in range(count * 30):
@@ -238,14 +241,51 @@ def cobbles(c, rng, sizes, count, mortar):
             c.set(x + 2, y + 1, st[3])
 
 
+def packed_cobbles(c, rng, row_h=4):
+    """무드 이미지의 꿀색 자갈: 엇갈린 줄로 빽빽이 깐 둥근 돌. 줄눈 1px, 돌마다 색을 조금씩 달리한다.
+    가로로 이어 붙여도 이음매가 안 보이게 줄마다 16px 안에서 폭을 나눈다"""
+    st, m = P["cobble"], P["mortar"]
+    c.rect(0, 0, T, T, m[1])
+    for row, y in enumerate(range(0, T, row_h)):
+        widths, total = [], 0
+        while total < T:
+            wdt = rng.choice((4, 5, 5, 6))
+            wdt = min(wdt, T - total) if T - total - wdt < 3 else wdt
+            widths.append(wdt)
+            total += wdt
+        x = rng.randrange(0, 4) if row % 2 else 0
+        for wdt in widths:
+            tone = rng.choice((0, 1, 1, 2))
+            for xx in range(wdt - 1):
+                for yy in range(row_h - 1):
+                    px, py = (x + xx) % T, y + yy
+                    corner = (xx in (0, wdt - 2)) and (yy in (0, row_h - 2))
+                    if corner:
+                        continue
+                    c.set(px, py, st[tone + 1] if yy == 0 or xx == 0 else st[tone])
+            c.set((x + 1) % T, y, st[3])
+            x += wdt
+
+
 def path(c, rng):
-    s = P["sand"]
-    cobbles(c, rng, [(5, 4), (4, 4), (6, 5), (4, 3), (5, 5)], 6, [s[1], s[2]])
+    packed_cobbles(c, rng)
 
 
 def plaza(c, rng):
-    s = P["sand"]
-    cobbles(c, rng, [(7, 6), (6, 7), (7, 7), (5, 6)], 4, [s[2], s[3]])
+    packed_cobbles(c, rng, row_h=5)
+
+
+def embankment(c, rng):
+    """개울가 석축 (무드 이미지): 위에서 본 돌담. 회갈색 돌을 엇갈려 쌓고 아래쪽은 그늘"""
+    st = [hexc("6f6a5c"), hexc("8a8574"), hexc("a39d8a"), hexc("bdb7a3")]
+    c.rect(0, 0, T, T, st[0])
+    for row, y in enumerate((0, 5, 10)):
+        off = 0 if row % 2 == 0 else 4
+        for x in range(-off, T, 8):
+            rrect(c, x + 1, y + 1, 7, 4, 1.2, st[1])
+            rrect(c, x + 1, y + 1, 6, 3, 1.0, st[2])
+            c.set(x + 2, y + 1, st[3])
+    c.rect(0, 15, T, 1, hexc("4f4a40"))
 
 
 def water(c, rng, phase):
@@ -338,6 +378,7 @@ def make_tiles():
     for i in range(2):
         c, done = sub(atlas, i, 3); plaza(c, random.Random(201 + i)); done()
     c, done = sub(atlas, 2, 3); bridge(c); done()
+    c, done = sub(atlas, 3, 3); embankment(c, random.Random(301)); done()
     atlas.save("tiles.png")
 
 
@@ -1536,159 +1577,410 @@ def make_shipping_bin():
 
 # ---------------------------------------------------------------- 대장간 (광장, 3x2칸, 그림 48x44)
 
-def make_blacksmith():
-    w = P["wood"]
-    st = [hexc("7d6f63"), hexc("9a8b7d"), hexc("b5a696"), hexc("cdbfae"), hexc("e6dccd")]
-    c = Canvas(48, 44)
-    c.ellipse(24, 42.5, 23, 1.6, SOFT_SHADOW)
-    # 돌벽
-    rrect(c, 2, 18, 44, 25, 2, st[2])
-    for row, y in enumerate(range(21, 42, 4)):
-        c.rect(3, y, 42, 1, st[1])
-        for x in range(4 if row % 2 else 9, 45, 10):
-            c.rect(x, y + 1, 1, 3, st[1])
-    # 굴뚝과 연기
-    rrect(c, 34, 2, 7, 14, 1, st[1])
-    c.rect(34, 2, 7, 2, st[0])
-    for x, y, r in ((38, 0.5, 1.6), (35.5, -1, 1.2)):
-        c.ellipse(x, y, r, r, hexc("efe7d8"))
-    # 지붕 (짙은 청회색 널)
-    roof, roof_d, roof_l = hexc("6f7f96"), hexc("56647a"), hexc("93a3b8")
-    for y in range(6, 20):
-        inset = max(0, int(10 - (y - 6) * 0.8))
-        for x in range(inset, 48 - inset):
-            c.set(x, y, roof_d if (y - 6) % 4 == 3 else roof)
-    c.rect(10, 6, 28, 1, roof_l)
-    # 넓은 문 (안에 불빛)
-    rrect(c, 17, 27, 14, 16, 2, w[0])
-    rrect(c, 18, 28, 12, 15, 1.5, hexc("5b3a29"))
-    c.ellipse(24, 38, 4, 3, hexc("f29b50"))
-    c.ellipse(24, 38.5, 2, 1.5, hexc("ffd27a"))
-    # 모루 간판
-    rrect(c, 4, 25, 10, 8, 1.5, w[2])
-    c.rect(6, 27, 6, 2, hexc("6f7f96"))
-    c.rect(8, 29, 2, 2, hexc("6f7f96"))
-    c.rect(6, 31, 6, 1, hexc("56647a"))
-    # 창
-    rrect(c, 35, 26, 8, 6, 1, hexc("ffd27a")); c.rect(39, 26, 1, 6, w[1])
-    c.outline(INK)
-    c.save("blacksmith.png")
-
-
 # ---------------------------------------------------------------- 레시피 상점 (셰프, 광장, 3x2칸, 그림 48x44)
 #   크림색 회벽 + 붉은 기와 지붕 + 줄무늬 차양 + 요리사 모자 간판 + 굴뚝 김
-
-def make_recipe_shop():
-    w = P["wood"]
-    c = Canvas(48, 44)
-    c.ellipse(24, 42.5, 23, 1.6, SOFT_SHADOW)
-    # 회벽 + 나무 기둥
-    rrect(c, 2, 18, 44, 25, 2, hexc("f4e6c8"))
-    c.rect(2, 39, 44, 4, hexc("e2cfa6"))
-    for x in (2, 44):
-        c.rect(x, 18, 2, 25, w[1])
-    # 굴뚝과 김
-    rrect(c, 8, 3, 6, 13, 1, hexc("c7826a"))
-    c.rect(8, 3, 6, 2, hexc("a8654f"))
-    for x, y, r in ((11, 1.0, 1.5), (13.5, -0.5, 1.1)):
-        c.ellipse(x, y, r, r, hexc("fbf6ec"))
-    # 지붕 (붉은 기와)
-    roof, roof_d, roof_l = hexc("d9775a"), hexc("b85d44"), hexc("eda083")
-    for y in range(6, 20):
-        inset = max(0, int(10 - (y - 6) * 0.8))
-        for x in range(inset, 48 - inset):
-            c.set(x, y, roof_d if (y - 6) % 4 == 3 else roof)
-    c.rect(10, 6, 28, 1, roof_l)
-    # 줄무늬 차양 (문 위)
-    for x in range(14, 34):
-        col = hexc("e0715f") if (x // 3) % 2 == 0 else hexc("fff8ea")
-        c.rect(x, 22, 1, 4, col)
-        c.set(x, 26, col if x % 3 != 2 else CLEAR)
-    c.rect(14, 22, 20, 1, hexc("b85d44"))
-    # 문
-    rrect(c, 18, 28, 12, 15, 2, w[0])
-    rrect(c, 19, 29, 10, 14, 1.5, w[2])
-    c.rect(24, 29, 1, 14, w[1])
-    c.set(22, 36, hexc("f5c542")); c.set(26, 36, hexc("f5c542"))
-    # 요리사 모자 간판 (왼쪽)
-    rrect(c, 4, 26, 10, 10, 1.5, w[2])
-    c.ellipse(9, 29.5, 3.2, 2.2, hexc("ffffff"))
-    c.rect(7, 30, 5, 3, hexc("ffffff"))
-    c.rect(7, 33, 5, 1, hexc("d9c9a8"))
-    # 창 (오른쪽, 따뜻한 불빛 + 화분)
-    rrect(c, 35, 27, 8, 7, 1, hexc("ffd27a")); c.rect(39, 27, 1, 7, w[1]); c.rect(35, 30, 8, 1, w[1])
-    rrect(c, 34, 34, 10, 3, 1, w[1])
-    for x, col in ((36, "7fb069"), (38, "e0715f"), (40, "7fb069"), (42, "f5c542")):
-        c.set(x, 33, hexc(col))
-    c.outline(INK)
-    c.save("recipe_shop.png")
-
 
 # ---------------------------------------------------------------- 들어가는 가게 (사용자 요청) + 상점 NPC
 #   잡화점 (4x3칸, 64x60): 크림색 벽 + 초록 차양 + 큰 진열창 + 가운데 문, 씨앗 자루·상자
 #   기계상점 (3x2칸, 48x44): 철판 지붕 + 톱니 간판 + 셔터 문
 #   NPC (16x24): 잡화점 하나(초록 앞치마) / 대장장이 철수(가죽 앞치마·수염) / 기계상점 미나(파란 작업복·고글)
 
+# ---------------------------------------------------------------- 무드 개편 (사용자가 준 무드 이미지: 아늑한 마을 광장)
+#   나무 골조 + 색 지붕 + 줄무늬 차양 + 불 켜진 창 + 걸린 등불 + 꽃 상자 + 간판
+#   간판 글자는 게임이 도트 폰트(16px)로 얹는다. 간판 자리는 SIGNS, 게임 쪽 sign_rect 와 맞춘다
+
+WOOD_WALL = [hexc("8a5a34"), hexc("a06d3c"), hexc("b88248"), hexc("cf9a5e")]
+GLOW = [hexc("e8a64a"), hexc("ffd27a"), hexc("fff0b8")]
+CREAM_BOARD = hexc("f6ead2")
+FLOWERS = [hexc("fbf6ec"), hexc("f0a8bd"), hexc("b49be0"), hexc("f3d36b"), hexc("ffffff")]
+
+# 간판 자리 (x, y, 폭, 높이). 게임에서는 판 가운데에 글자를 얹는다
+SIGNS = {
+    "general_store": (14, 27, 52, 18),
+    "blacksmith": (6, 25, 52, 18),
+    "machine_shop": (11, 27, 68, 18),
+    "recipe_shop": (6, 25, 52, 18),
+    "arch": (6, 0, 52, 18),
+    "farm_sign": (6, 3, 56, 18),
+}
+
+
+def gable_roof(c, x0, x1, y0, y1, pal, slope=0.8):
+    """앞에서 본 박공 지붕 (기와 줄 + 줄마다 엇갈린 이음매)"""
+    base, dark, light = pal
+    inset0 = (y1 - y0) * slope
+    for y in range(y0, y1):
+        inset = max(0, int(inset0 - (y - y0) * slope))
+        row = (y - y0) // 4
+        for x in range(x0 + inset, x1 - inset):
+            seam = (x + row * 3) % 7 == 0 and (y - y0) % 4 != 0
+            c.set(x, y, dark if (y - y0) % 4 == 3 or seam else base)
+    top = int(inset0)
+    c.rect(x0 + top, y0, max(1, x1 - x0 - 2 * top), 1, light)
+
+
+def plank_wall(c, x, y, w, h):
+    c.rect(x, y, w, h, WOOD_WALL[2])
+    for xx in range(x, x + w, 5):
+        c.rect(xx, y, 1, h, WOOD_WALL[1])
+        c.rect(xx + 1, y, 1, h, WOOD_WALL[3])
+    c.rect(x, y, w, 2, WOOD_WALL[0])
+
+
+def awning(c, x, y, w, col, col2, depth=6, edge=None):
+    for xx in range(x, x + w):
+        stripe = col if ((xx - x) // 4) % 2 == 0 else col2
+        c.rect(xx, y, 1, depth, stripe)
+        if (xx - x) % 4 in (1, 2):
+            c.set(xx, y + depth, stripe)
+    c.rect(x, y, w, 1, edge or col)
+
+
+def glow_window(c, x, y, w, h, stuff=None):
+    rrect(c, x, y, w, h, 1, WOOD_WALL[0])
+    c.rect(x + 1, y + 1, w - 2, h - 2, GLOW[1])
+    c.rect(x + 1, y + 1, w - 2, 2, GLOW[2])
+    c.rect(x + w // 2, y + 1, 1, h - 2, WOOD_WALL[0])
+    c.rect(x + 1, y + h // 2, w - 2, 1, WOOD_WALL[0])
+    for i, col in enumerate(stuff or []):
+        cx = x + 2 + i * 3
+        if cx + 2 < x + w - 1:
+            c.rect(cx, y + h - 4, 2, 3, col)
+
+
+def lantern(c, x, y):
+    c.rect(x, y, 3, 1, hexc("3a2e28"))
+    c.set(x + 1, y + 1, hexc("3a2e28"))
+    rrect(c, x, y + 2, 3, 4, 0.8, GLOW[1])
+    c.set(x + 1, y + 3, GLOW[2])
+    c.rect(x, y + 6, 3, 1, hexc("3a2e28"))
+
+
+def flower_box(c, x, y, w):
+    rrect(c, x, y + 2, w, 3, 0.8, WOOD_WALL[1])
+    c.rect(x, y + 2, w, 1, WOOD_WALL[3])
+    for k in range(0, w - 1, 2):
+        c.set(x + k, y + 1, P["leaf"][2])
+        c.set(x + k + 1, y, FLOWERS[(k // 2) % len(FLOWERS)])
+
+
+def vines(c, pts):
+    for i, (x, y) in enumerate(pts):
+        c.ellipse(x, y, 2.2, 1.8, P["leaf"][1 + i % 2])
+        c.set(int(x), int(y) - 1, FLOWERS[(i % 2) * 4])
+
+
+def sign_board(c, x, y, w, h):
+    """글자 간판 (흰 판 + 나무 테두리). 글자는 게임이 그린다"""
+    rrect(c, x, y, w, h, 2, WOOD_WALL[0])
+    rrect(c, x + 1, y + 1, w - 2, h - 2, 1.5, CREAM_BOARD)
+    c.rect(x + 2, y + h - 3, w - 4, 1, hexc("e2d2b2"))
+
+
+def chimney(c, x, y, h, col=None):
+    col = col or hexc("8a8574")
+    rrect(c, x, y, 6, h, 1, col)
+    c.rect(x, y, 6, 2, hexc("6f6a5c"))
+    for xx, yy, r in ((x + 3, y - 2, 1.6), (x + 1, y - 4.5, 1.2)):
+        c.ellipse(xx, yy, r, r, hexc("efe7d8"))
+
+
+def cozy_shop(W, H, floor_rows, roof_pal, awn, board):
+    """가게 공통 모양. 바닥 floor_rows 칸 + 위로 솟는 지붕. 돌려주는 값: (캔버스, 벽 위 y)"""
+    c = Canvas(W, H)
+    c.ellipse(W / 2, H - 1.5, W / 2 - 1, 1.8, SOFT_SHADOW)
+    wall_top = H - floor_rows * T + 8
+    plank_wall(c, 2, wall_top, W - 4, H - wall_top - 1)
+    c.rect(2, H - 4, W - 4, 3, hexc("8a8574"))                          # 돌 기단
+    for x in range(3, W - 3, 6):
+        c.set(x, H - 3, hexc("6f6a5c"))
+    for x in (2, W - 5):                                                  # 기둥
+        c.rect(x, wall_top, 3, H - wall_top - 4, WOOD_WALL[0])
+    gable_roof(c, 0, W, 6, wall_top + 1, roof_pal)
+    c.rect(1, wall_top, W - 2, 2, WOOD_WALL[0])                           # 처마 들보
+    sign_board(c, *board)
+    if awn:
+        awning(c, 5, wall_top + 3, W - 10, awn[0], awn[1], 5, awn[2])
+    return c, wall_top
+
+
+def shop_door(c, x, y):
+    rrect(c, x, y, 14, 23, 2, WOOD_WALL[0])
+    rrect(c, x + 1, y + 1, 12, 22, 1.5, WOOD_WALL[1])
+    c.rect(x + 3, y + 3, 8, 6, GLOW[1]); c.rect(x + 7, y + 3, 1, 6, WOOD_WALL[0])
+    c.set(x + 10, y + 13, hexc("f5c542"))
+
+
 def make_general_store():
-    w = P["wood"]
-    c = Canvas(64, 60)
-    c.ellipse(32, 58.5, 30, 1.6, SOFT_SHADOW)
-    rrect(c, 2, 20, 60, 39, 2, hexc("f4e6c8"))                  # 벽
-    c.rect(2, 54, 60, 5, hexc("e2cfa6"))
-    for x in (2, 60):
-        c.rect(x, 20, 2, 39, w[1])
-    roof, roof_d, roof_l = hexc("7fb069"), hexc("5f9050"), hexc("a6cf8c")   # 초록 지붕
-    for y in range(4, 22):
-        inset = max(0, int(12 - (y - 4) * 0.8))
-        for x in range(inset, 64 - inset):
-            c.set(x, y, roof_d if (y - 4) % 4 == 3 else roof)
-    c.rect(12, 4, 40, 1, roof_l)
-    rrect(c, 20, 0, 24, 7, 2, w[2]); c.rect(22, 2, 20, 3, hexc("fff8ea"))   # 간판
-    for x in (24, 30, 36):
-        c.rect(x, 3, 3, 1, hexc("c98a2e"))
-    for x in range(4, 60):                                       # 줄무늬 차양
-        col = hexc("7fb069") if (x // 4) % 2 == 0 else hexc("fff8ea")
-        c.rect(x, 24, 1, 4, col)
-    c.rect(4, 24, 56, 1, roof_d)
-    for x0 in (6, 42):                                           # 진열창
-        rrect(c, x0, 31, 16, 13, 1, w[1])
-        rrect(c, x0 + 1, 32, 14, 11, 1, hexc("ffe9b0"))
-        c.rect(x0 + 2, 39, 12, 3, w[0])
-        for k, col in enumerate(("e0715f", "f2c443", "7fb069")):
-            rrect(c, x0 + 2 + k * 4, 35, 3, 4, 1, hexc(col))
-    rrect(c, 26, 34, 12, 25, 2, w[0]); rrect(c, 27, 35, 10, 24, 1.5, w[2])   # 문
-    c.rect(32, 35, 1, 24, w[1]); c.set(30, 47, hexc("f5c542")); c.set(34, 47, hexc("f5c542"))
-    rrect(c, 4, 48, 8, 9, 2, hexc("ead3a8")); c.rect(4, 51, 8, 2, hexc("8fb35a"))   # 씨앗 자루
-    rrect(c, 52, 49, 8, 8, 1, w[2]); c.rect(52, 52, 8, 1, w[0])  # 상자
+    """잡화점 (5x3칸, 80x86): 초록 기와 + 초록 줄무늬 차양 + 씨앗 진열창 + 덩굴꽃 (무드: 씨앗상점)"""
+    W, H = 80, 86
+    c, top = cozy_shop(W, H, 3, (hexc("3f6e4c"), hexc("2f5a3c"), hexc("5f8f66")),
+                       (hexc("5f9a6d"), hexc("fbf3e1"), hexc("3f6e4c")), SIGNS["general_store"])
+    chimney(c, 62, 15, 14)
+    door_x = W // 2 - 7
+    shop_door(c, door_x, H - 27)
+    seeds = [hexc("e0715f"), hexc("7fb069"), hexc("f3d36b"), hexc("b49be0")]
+    for x0 in (8, W - 26):
+        glow_window(c, x0, H - 28, 18, 13, seeds)
+        flower_box(c, x0 - 1, H - 15, 20)
+    lantern(c, door_x - 5, top + 9); lantern(c, door_x + 16, top + 9)
+    vines(c, [(4, 44), (7, 40), (10, 36), (13, 32), (16, 28), (3, 50), (5, 55), (19, 24)])
     c.outline(INK)
     c.save("general_store.png")
 
 
-def make_machine_shop():
-    w = P["wood"]
-    m, md, ml = hexc("8fa3b8"), hexc("6f8296"), hexc("c6d3df")
-    c = Canvas(48, 44)
-    c.ellipse(24, 42.5, 22, 1.5, SOFT_SHADOW)
-    rrect(c, 2, 16, 44, 27, 1.5, hexc("c9b9a2"))                 # 벽 (벽돌)
-    for row, y in enumerate(range(18, 42, 4)):
-        c.rect(3, y, 42, 1, hexc("ad9c84"))
-        for x in range(4 if row % 2 else 8, 45, 8):
-            c.rect(x, y + 1, 1, 3, hexc("ad9c84"))
-    for y in range(4, 18):                                       # 철판 지붕
-        inset = max(0, int(9 - (y - 4) * 0.7))
-        for x in range(inset, 48 - inset):
-            c.set(x, y, md if x % 4 == 0 else m)
-    c.rect(9, 4, 30, 1, ml)
-    rrect(c, 15, 25, 18, 18, 1, md)                              # 셔터 문
-    for y in range(27, 42, 3):
-        c.rect(16, y, 16, 1, ml)
-    c.ellipse(9, 10, 5, 5, hexc("f2c443")); c.ellipse(9, 10, 2, 2, md)   # 톱니 간판
-    for a in range(8):
+def make_blacksmith():
+    """대장간 (4x3칸, 64x82): 짙은 슬레이트 지붕 + 갈색 차양 + 불빛 문 + 수레바퀴 + 망치 깃발 (무드)"""
+    W, H = 64, 82
+    c, top = cozy_shop(W, H, 3, (hexc("4a4d55"), hexc("383a41"), hexc("6a6e78")),
+                       (hexc("8a5a3a"), hexc("ead7b5"), hexc("5b3a29")), SIGNS["blacksmith"])
+    chimney(c, 48, 19, 14, hexc("7a7a7a"))
+    rrect(c, 22, H - 26, 20, 22, 2, WOOD_WALL[0])                       # 넓은 문 + 화덕 불빛
+    rrect(c, 23, H - 25, 18, 21, 1.5, hexc("4a2e1e"))
+    c.ellipse(32, H - 11, 6, 4, hexc("f29b50")); c.ellipse(32, H - 10, 3, 2, GLOW[2])
+    glow_window(c, W - 17, H - 26, 12, 10)
+    cx, cy = 11, H - 18                                                  # 수레바퀴
+    c.ellipse(cx, cy, 6, 6, WOOD_WALL[0]); c.ellipse(cx, cy, 4.5, 4.5, WOOD_WALL[3])
+    for a in range(4):
         ang = a * math.pi / 4
-        c.rect(int(9 + math.cos(ang) * 5.5), int(10 + math.sin(ang) * 5.5), 2, 2, hexc("c9922a"))
-    rrect(c, 36, 26, 8, 6, 1, hexc("ffd27a")); c.rect(40, 26, 1, 6, md)
+        for r in range(1, 5):
+            c.set(int(cx + math.cos(ang) * r), int(cy + math.sin(ang) * r), WOOD_WALL[0])
+            c.set(int(cx - math.cos(ang) * r), int(cy - math.sin(ang) * r), WOOD_WALL[0])
+    rrect(c, W - 9, top + 10, 7, 14, 0.5, hexc("3a3d45"))                # 망치 깃발
+    for k in range(5):
+        c.set(W - 8 + k, top + 13 + k, hexc("d9d4c8")); c.set(W - 4 - k, top + 13 + k, hexc("d9d4c8"))
+    c.rect(W - 9, top + 12, 3, 2, hexc("d9d4c8")); c.rect(W - 5, top + 12, 3, 2, hexc("d9d4c8"))
+    c.rect(W - 9, top + 8, 7, 2, WOOD_WALL[0])
+    lantern(c, 17, top + 9); lantern(c, 44, top + 9)
+    c.outline(INK)
+    c.save("blacksmith.png")
+
+
+def make_machine_shop():
+    """기계상점 (5x3칸, 80x86): 청록 지붕 + 톱니 + 구리 보일러·파이프 + 파랑 줄무늬 차양 (무드)"""
+    W, H = 80, 86
+    c, top = cozy_shop(W, H, 3, (hexc("4f6f63"), hexc("3c574d"), hexc("6f9184")),
+                       (hexc("507a97"), hexc("f2f0e6"), hexc("3a5a72")), SIGNS["machine_shop"])
+    for gx, gy, r in ((34, 17, 5), (44, 19, 3.5)):                        # 박공 톱니
+        for a in range(8):
+            ang = a * math.pi / 4 + 0.2
+            c.rect(int(gx + math.cos(ang) * (r + 0.6)) - 1, int(gy + math.sin(ang) * (r + 0.6)) - 1, 2, 2, hexc("7d838c"))
+        c.ellipse(gx, gy, r, r, hexc("9aa0a8")); c.ellipse(gx, gy, r * 0.45, r * 0.45, hexc("4f6f63"))
+    rrect(c, 1, top - 4, 9, H - top, 3, hexc("a8653a"))                  # 구리 보일러 + 파이프
+    c.rect(2, top - 2, 2, H - top - 6, hexc("cf8a52"))
+    for yy in (top + 4, top + 16):
+        c.rect(1, yy, 9, 1, hexc("7a4528"))
+    c.rect(4, 2, 3, top - 6, hexc("6a6a70")); c.rect(4, 2, 1, top - 6, hexc("8a8a92"))
+    door_x = W // 2 - 7
+    shop_door(c, door_x, H - 27)
+    parts = [hexc("9aa0a8"), hexc("6f7a86"), hexc("c46a3a"), hexc("5f8a6a")]
+    glow_window(c, 13, H - 28, 16, 12, parts)
+    glow_window(c, W - 26, H - 28, 18, 12, parts)
+    lantern(c, door_x - 5, top + 9); lantern(c, door_x + 16, top + 9)
     c.outline(INK)
     c.save("machine_shop.png")
+
+
+def make_recipe_shop():
+    """레시피 상점 (4x3칸, 64x82): 붉은 기와 + 분홍 줄무늬 차양 + 꽃 상자 (무드 톤)"""
+    W, H = 64, 82
+    c, top = cozy_shop(W, H, 3, (hexc("b8604a"), hexc("94483a"), hexc("d98a6e")),
+                       (hexc("e59a9a"), hexc("fbf3e1"), hexc("b85d44")), SIGNS["recipe_shop"])
+    chimney(c, 10, 19, 14, hexc("c7826a"))
+    shop_door(c, 25, H - 27)
+    glow_window(c, 6, H - 26, 14, 11, [hexc("e8a65a"), hexc("fbf6ec"), hexc("d9534f")])
+    glow_window(c, W - 20, H - 26, 14, 11, [hexc("fbf6ec"), hexc("e8a65a"), hexc("7fb069")])
+    flower_box(c, 5, H - 15, 16); flower_box(c, W - 21, H - 15, 16)
+    lantern(c, 20, top + 9); lantern(c, 41, top + 9)
+    c.outline(INK)
+    c.save("recipe_shop.png")
+
+
+def make_mood_props():
+    w = P["wood"]
+    st = [hexc("6f6a5c"), hexc("8a8574"), hexc("a39d8a"), hexc("bdb7a3")]
+    water = P["water"]
+    # 새싹 석상 분수 (3x3칸, 48x56): 둥근 돌 수반 + 새싹 머리 석상 + 물줄기 + 수련
+    c = Canvas(48, 56)
+    c.ellipse(24, 50, 23, 5, SOFT_SHADOW)
+    c.ellipse(24, 42, 23, 12, st[0]); c.ellipse(24, 41, 23, 11.5, st[2])
+    c.ellipse(24, 41.5, 19, 9, water[1]); c.ellipse(20, 40, 9, 3, water[2])
+    for x, y in ((12, 44), (34, 39), (28, 46)):
+        c.ellipse(x, y, 2.5, 1.5, P["leaf"][2]); c.set(x, y - 1, FLOWERS[1])
+    rrect(c, 19, 34, 10, 7, 2, st[1]); c.rect(19, 34, 10, 1, st[3])      # 받침
+    c.ellipse(24, 25, 10, 9.5, st[1]); c.ellipse(24, 24.5, 9.5, 9, st[2])  # 둥근 몸통 = 머리
+    c.ellipse(20.5, 21, 4, 3.5, st[3])
+    c.rect(20, 25, 2, 2, st[0]); c.rect(27, 25, 2, 2, st[0])             # 눈·볼·입
+    c.set(18, 28, hexc("c9a59a")); c.set(30, 28, hexc("c9a59a")); c.rect(23, 29, 3, 1, st[0])
+    c.rect(24, 11, 1, 6, P["leaf"][1])                                     # 새싹
+    c.ellipse(20, 11, 4, 2.4, P["leaf"][2]); c.ellipse(28.5, 10.5, 4, 2.4, P["leaf"][3])
+    c.set(19, 10, P["leaf"][4]); c.set(28, 9, P["leaf"][4])
+    for sx in (-1, 1):                                                   # 물줄기
+        for k in range(9):
+            c.set(24 + sx * (11 + k // 2), 30 + k + (k * k) // 10, water[3])
+    c.outline(INK)
+    c.save("fountain.png")
+
+    # 꽃 화분 상자 (1칸) 3색
+    for i, cols in enumerate([(FLOWERS[0], FLOWERS[3]), (FLOWERS[1], FLOWERS[0]), (FLOWERS[2], FLOWERS[4])]):
+        c = Canvas(T, 18)
+        c.ellipse(8, 16.5, 7, 1.2, SOFT_SHADOW)
+        rrect(c, 1, 9, 14, 7, 1.2, w[2]); c.rect(2, 9, 12, 1, w[3]); c.rect(1, 12, 14, 1, w[1])
+        c.ellipse(8, 7, 7, 4.5, P["leaf"][1]); c.ellipse(6, 6, 4, 3, P["leaf"][2])
+        for k, (x, y) in enumerate(((3, 5), (7, 3), (11, 5), (5, 8), (10, 7), (8, 6))):
+            c.set(x, y, cols[k % 2]); c.set(x + 1, y, cols[k % 2])
+        c.outline(INK)
+        c.save("planter_%d.png" % i)
+
+    # 꽃밭 (1칸) 3종
+    for i in range(3):
+        rng = random.Random(40 + i)
+        c = Canvas(T, T)
+        c.ellipse(8, 10, 7.5, 5.5, P["leaf"][0]); c.ellipse(8, 9, 7, 5, P["leaf"][1]); c.ellipse(6, 8, 4, 3, P["leaf"][2])
+        for _ in range(9):
+            x, y = rng.randrange(2, 14), rng.randrange(5, 13)
+            col = FLOWERS[(rng.randrange(5) + i) % 5]
+            c.set(x, y, col); c.set(x + 1, y, col); c.set(x, y - 1, col)
+        c.outline(INK)
+        c.save("flowerbed_%d.png" % i)
+
+    # 나무 아치 (4칸 폭, 64x60): 기둥 둘 + 들보 + 간판(글자는 게임) + 등불 + 덩굴
+    c = Canvas(64, 60)
+    for x in (4, 54):
+        c.ellipse(x + 3, 58, 5, 1.5, SOFT_SHADOW)
+        c.rect(x, 12, 6, 46, w[1]); c.rect(x + 1, 12, 2, 46, w[2])
+    rrect(c, 0, 14, 64, 5, 1, w[1]); c.rect(1, 14, 62, 1, w[3])
+    sign_board(c, *SIGNS["arch"])
+    lantern(c, 6, 20); lantern(c, 55, 20)
+    vines(c, [(4, 26), (9, 30), (5, 35), (58, 28), (55, 33), (59, 38)])
+    c.outline(INK)
+    c.save("arch.png")
+
+    # "내 농장" 팻말 (64x34): 왼쪽(농장 쪽)이 뾰족한 판 + 기둥 둘. 글자는 게임이 얹는다
+    c = Canvas(64, 34)
+    c.ellipse(32, 32.5, 22, 1.3, SOFT_SHADOW)
+    for x in (16, 46):
+        c.rect(x, 18, 3, 15, w[1]); c.rect(x, 18, 1, 15, w[2])
+    bx, by, bw, bh = SIGNS["farm_sign"]
+    sign_board(c, bx, by, bw, bh)
+    for k in range(5):
+        c.rect(bx - 1 - k, by + 2 + k, 1, bh - 4 - 2 * k, WOOD_WALL[0])
+    vines(c, [(60, 6), (58, 18), (61, 13)])
+    c.outline(INK)
+    c.save("farm_sign.png")
+
+    # 이정표 (24x36): 기둥 + 화살표 판 셋 (새싹·망치·톱니 그림)
+    c = Canvas(24, 36)
+    c.ellipse(12, 34.5, 5, 1.2, SOFT_SHADOW)
+    c.rect(11, 4, 3, 31, w[1]); c.rect(11, 4, 1, 31, w[2])
+    for i, y in enumerate((5, 14, 23)):
+        right = i != 1
+        x0 = 1 if right else 4
+        rrect(c, x0, y, 19, 7, 1, w[2]); c.rect(x0 + 1, y, 17, 1, w[3])
+        for k in range(3):
+            tx = (x0 + 19 + k) if right else (x0 - 1 - k)
+            c.rect(tx, y + 1 + k, 1, 5 - 2 * k, w[2])
+        ix = x0 + 4
+        if i == 0:
+            c.set(ix, y + 3, P["leaf"][2]); c.set(ix + 1, y + 2, P["leaf"][3]); c.set(ix + 1, y + 4, P["leaf"][1])
+        elif i == 1:
+            c.rect(ix + 7, y + 2, 4, 2, hexc("5a5a62")); c.rect(ix + 8, y + 4, 1, 2, w[0])
+        else:
+            c.ellipse(ix + 1, y + 3.5, 2, 2, hexc("8b8f96")); c.set(ix + 1, y + 3, w[2])
+    c.outline(INK)
+    c.save("signpost.png")
+
+    # 칠판 간판 (16x20): 새싹 / 모루 / 톱니
+    chalk = hexc("e8e8d8")
+    def seed_icon(cv):
+        cv.set(7, 8, P["leaf"][3]); cv.set(8, 7, P["leaf"][3]); cv.set(6, 7, P["leaf"][3]); cv.rect(7, 9, 1, 3, chalk)
+    def anvil_icon(cv):
+        cv.rect(5, 8, 7, 2, chalk); cv.rect(7, 10, 3, 2, chalk)
+    def gear_icon(cv):
+        cv.ellipse(8, 9.5, 3, 3, chalk); cv.set(8, 9, hexc("2f3b2f"))
+    for name, draw in (("seed", seed_icon), ("smith", anvil_icon), ("gear", gear_icon)):
+        c = Canvas(T, 20)
+        c.ellipse(8, 18.5, 6, 1.2, SOFT_SHADOW)
+        c.rect(2, 12, 1, 7, w[0]); c.rect(13, 12, 1, 7, w[0])
+        rrect(c, 2, 3, 12, 12, 1, w[1]); c.rect(3, 4, 10, 10, hexc("2f3b2f"))
+        draw(c)
+        c.outline(INK)
+        c.save("chalk_%s.png" % name)
+
+    # 씨앗 수레 (32x26)
+    c = Canvas(32, 26)
+    c.ellipse(16, 24, 14, 1.5, SOFT_SHADOW)
+    rrect(c, 2, 11, 26, 8, 1, w[2]); c.rect(3, 11, 24, 1, w[3]); c.rect(2, 15, 26, 1, w[1])
+    c.rect(27, 8, 4, 2, w[1])
+    for x in (8, 22):
+        c.ellipse(x, 21, 3.5, 3.5, w[0]); c.ellipse(x, 21, 1.5, 1.5, w[3])
+    for x, col in ((6, hexc("e6d3a8")), (13, hexc("e6d3a8")), (20, hexc("d9c39a"))):
+        rrect(c, x, 4, 7, 8, 2, col); c.rect(x + 2, 6, 3, 2, P["leaf"][2])
+    for x in (4, 26):
+        c.ellipse(x, 9, 2.5, 2, P["leaf"][2]); c.set(x, 8, FLOWERS[1])
+    c.outline(INK)
+    c.save("seed_cart.png")
+
+    # 모루 (16x16)
+    c = Canvas(T, T)
+    c.ellipse(8, 14.5, 6, 1.2, SOFT_SHADOW)
+    rrect(c, 5, 10, 7, 4, 1, w[1])
+    c.rect(2, 5, 12, 3, hexc("4a4d55")); c.rect(5, 8, 6, 2, hexc("4a4d55")); c.rect(0, 5, 3, 2, hexc("4a4d55"))
+    c.rect(3, 5, 10, 1, hexc("7a7e88"))
+    c.outline(INK)
+    c.save("anvil.png")
+
+    # 기계 상자 더미 (32x22)
+    c = Canvas(32, 22)
+    c.ellipse(16, 20.5, 14, 1.3, SOFT_SHADOW)
+    for x, y, col in ((1, 9, hexc("6f7a86")), (16, 10, hexc("5f8a6a")), (8, 1, hexc("c46a3a"))):
+        rrect(c, x, y, 14, 10, 1, col); c.rect(x + 1, y + 1, 12, 1, hexc("c9ccd1"))
+        c.ellipse(x + 7, y + 5.5, 2.5, 2.5, hexc("9aa0a8")); c.set(x + 7, y + 5, hexc("4a4d55"))
+    c.outline(INK)
+    c.save("machine_crates.png")
+
+    # 마을 상점 노점 (48x42, 장식): 분홍 줄무늬 천막 + 채소 상자 + 깃발 줄
+    c = Canvas(48, 42)
+    c.ellipse(24, 40.5, 22, 1.5, SOFT_SHADOW)
+    for x in (3, 42):
+        c.rect(x, 10, 3, 30, w[1])
+    rrect(c, 1, 26, 46, 13, 1.5, w[2]); c.rect(2, 26, 44, 1, w[3])
+    for i, col in enumerate((hexc("e2603e"), hexc("f0a83a"), hexc("8fb36a"), hexc("d9534f"), hexc("f3d36b"))):
+        bx = 4 + i * 8
+        rrect(c, bx, 20, 7, 6, 1, w[1])
+        for k in range(2):
+            c.ellipse(bx + 2 + k * 3, 19.5, 1.7, 1.7, col)
+    awning(c, 0, 4, 48, hexc("e59a9a"), hexc("fbf3e1"), 7, hexc("b85d44"))
+    for x in range(4, 46, 8):
+        c.set(x, 1, (hexc("7fb069"), hexc("f3d36b"), hexc("e59a9a"))[(x // 8) % 3])
+    lantern(c, 6, 13)
+    c.outline(INK)
+    c.save("market_stall.png")
+
+    # 배송함 나루터 상자 (32x28, 장식)
+    c = Canvas(32, 28)
+    c.ellipse(16, 26.5, 14, 1.3, SOFT_SHADOW)
+    rrect(c, 3, 12, 20, 13, 1, w[2]); c.rect(4, 12, 18, 2, w[3]); c.rect(3, 18, 20, 1, w[1])
+    rrect(c, 8, 4, 10, 7, 1, CREAM_BOARD); c.rect(11, 6, 4, 3, w[1])
+    c.rect(25, 3, 2, 22, w[0]); lantern(c, 25, 5)
+    rrect(c, 18, 19, 12, 7, 1, hexc("d9c39a"))
+    c.outline(INK)
+    c.save("dock_box.png")
+
+    # 수련 2종, 오리 (물 위, 장식)
+    for i in range(2):
+        c = Canvas(T, T)
+        c.ellipse(7 + i, 8, 5, 3, P["leaf"][1]); c.ellipse(6 + i, 7.5, 3.5, 2, P["leaf"][2])
+        c.set(9 + i, 8, P["water"][1])
+        if i == 1:
+            c.set(5, 6, FLOWERS[1]); c.set(6, 5, FLOWERS[0])
+        c.save("lily_%d.png" % i)
+    c = Canvas(T, T)
+    c.ellipse(8, 11, 5, 1, P["water"][2])
+    c.ellipse(7, 9, 5, 3, hexc("fbfbf4")); c.ellipse(11, 6, 2.2, 2.2, hexc("fbfbf4"))
+    c.rect(13, 6, 2, 1, hexc("f0a83a")); c.set(11, 5, INK)
+    c.outline(INK)
+    c.save("duck.png")
 
 
 def npc(c, skin, hair, top, top_d, apron=None, extra=None):
@@ -2704,6 +2996,7 @@ if __name__ == "__main__":
     make_shop()
     make_shop_decor()
     make_plaza_props()
+    make_mood_props()
     make_placeables()
     make_greenhouse()
     make_compost_bin()

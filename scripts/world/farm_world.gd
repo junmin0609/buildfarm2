@@ -247,7 +247,7 @@ func _build_edges() -> void:
 ## 경계를 덮어야 하는 잔디 쪽 이웃인가 (길·물·흙이 아니고 맵 안)
 func _is_grass_neighbor(cell: Vector2i) -> bool:
 	var other := _floor_char_at(cell)
-	if other == "#":
+	if other == "#" or other == "e":
 		other = "~"
 	return other != "" and not TerrainTileSet.EDGE_ROWS.has(other)
 
@@ -266,9 +266,10 @@ static func _make_noise() -> FastNoiseLite:
 ## 소품 밑에 깔린 바닥까지 고려한 바닥 글자
 func _floor_char_at(cell: Vector2i) -> String:
 	var ch := MapLayout.char_at(cell)
-	if MapLayout.GROUND_UNDER.get(ch, "") == "p" and _near_plaza(cell):
-		return "p"
-	return "." if MapLayout.GROUND_UNDER.has(ch) else ch
+	var under: String = MapLayout.GROUND_UNDER.get(ch, "")
+	if under == "p":
+		return "p" if _near_plaza(cell) else "."
+	return under if under != "" else ch
 
 
 func _floor_char(ch: String) -> String:
@@ -285,7 +286,11 @@ func _near_plaza(cell: Vector2i) -> bool:
 
 func _ground_tile(ch: String, cell: Vector2i) -> Vector2i:
 	var h := absi(hash(cell))
+	if MapLayout.GROUND_UNDER.get(ch, "") in ["~", "#"]:
+		ch = MapLayout.GROUND_UNDER[ch]  # 물 위 수련·오리, 나루터 판자 위 상자
 	match ch:
+		"e":
+			return TerrainTileSet.EMBANK
 		",":
 			return TerrainTileSet.FLOWERS[h % TerrainTileSet.FLOWERS.size()]
 		"d", "x":

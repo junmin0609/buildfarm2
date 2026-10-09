@@ -31,6 +31,25 @@ const UI_ICONS := preload("res://assets/art/ui_icons.png")
 ## UI 그림은 3배로 키워 저장돼 있다. 픽셀 1칸 = 3px
 const UI_SCALE := 3
 
+## 간판 글자 색 (무드 이미지의 짙은 나무색)
+const SIGN_INK := Color("4a3020")
+
+
+## 건물·소품 그림의 간판 판 위에 얹는 글자 (사용자 요청: 무드 이미지처럼 가게 이름 간판).
+## rect 는 그림 왼쪽 위 기준 간판 판 자리, origin 은 노드 기준 그림 왼쪽 위 (스프라이트 offset). 도트 폰트 16px = 한 칸
+static func sign_label(text: String, rect: Rect2, origin: Vector2) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_override("font", pixel_font(false))
+	label.add_theme_font_size_override("font_size", 16)
+	label.add_theme_color_override("font_color", SIGN_INK)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.position = origin + rect.position + Vector2(0, -1)
+	label.size = rect.size
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return label
+
 
 static func item_region(item: ItemDef) -> Rect2:
 	return Rect2(item.icon * TILE, 0, TILE, TILE)
