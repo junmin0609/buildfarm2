@@ -33,12 +33,9 @@ var tier := 1
 var capacity := 0
 ## 한 번 칠 때 장애물을 깎는 양 (강화하면 빨라진다 §43)
 var power := 1
-## 괭이: 바라보는 방향으로 한 번에 가는 칸 수
-var till_length := 1
-## 물뿌리개: 바라보는 방향으로 한 번에 물 주는 칸 수 (철 물뿌리개 3)
-var water_area := 1
-## 괭이·물뿌리개: 앞쪽 N x N 을 한 번에 (금 도구 3, 0 이면 줄 모양). 가까운 가장자리가 클릭한 칸
-var work_square := 0
+## 괭이·물뿌리개: 꾹 누르기(차지) 최대 단계 (사용자 결정: 돌 1 · 구리 2 · 철 3 · 금 4).
+## 1초마다 한 단계: 1 = 1칸, 2 = 앞으로 3칸, 3 = 앞쪽 3x3, 4 = 앞쪽 5x5 (work_cells)
+var max_charge := 1
 ## 대장간 강화 (§43): {"to": 다음 단계 아이템 id, "price": G, "materials": {아이템 id: 개수}}. 없으면 최고 단계
 var upgrade := {}
 
@@ -81,9 +78,7 @@ static func from_dict(item_id: String, d: Dictionary) -> ItemDef:
 	item.tier = int(d.get("tier", 1))
 	item.capacity = int(d.get("capacity", 0))
 	item.power = maxi(1, int(d.get("power", 1)))
-	item.till_length = maxi(1, int(d.get("till_length", 1)))
-	item.water_area = maxi(1, int(d.get("water_area", 1)))
-	item.work_square = maxi(0, int(d.get("work_square", 0)))
+	item.max_charge = clampi(int(d.get("max_charge", 1)), 1, 4)
 	item.upgrade = d.get("upgrade", {}) if d.get("upgrade", {}) is Dictionary else {}
 	item.grows = d.get("grows", "")
 	item.grow_days = int(d.get("grow_days", 0))
@@ -98,23 +93,32 @@ static func from_dict(item_id: String, d: Dictionary) -> ItemDef:
 	return item
 
 
-## 괭이·물뿌리개가 cell 을 dir 쪽으로 쓸 때 닿는 칸들 (가까운 칸부터).
-## work_square 면 cell 이 가까운 가장자리 가운데인 N x N, 아니면 dir 쪽 줄 (괭이 till_length, 물뿌리개 water_area)
-func work_cells(cell: Vector2i, dir: Vector2i) -> Array[Vector2i]:
+## 차지 단계마다 닿는 범위: [줄 길이, 정사각형 한 변] (정사각형이 0 이면 줄)
+const CHARGE_AREAS := [[1, 0], [3, 0], [0, 3], [0, 5]]
+
+
+## 괭이·물뿌리개를 cell 에 dir 쪽으로, 차지 level 로 쓸 때 닿는 칸들 (가까운 칸부터).
+## 줄은 cell 부터 dir 쪽으로, 정사각형은 cell 이 가까운 가장자리 가운데. level 은 이 도구의 max_charge 까지
+static func area_cells(cell: Vector2i, dir: Vector2i, level: int) -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
 	if dir == Vector2i.ZERO:
 		dir = Vector2i.DOWN
-	if work_square > 0:
+	var area: Array = CHARGE_AREAS[clampi(level, 1, CHARGE_AREAS.size()) - 1]
+	var square: int = area[1]
+	if square > 0:
 		var side := Vector2i(dir.y, dir.x)  # dir 에 수직
-		var half := work_square / 2
-		for i in work_square:
-			for j in range(-half, work_square - half):
+		var half := square / 2
+		for i in square:
+			for j in range(-half, square - half):
 				cells.append(cell + dir * i + side * j)
 		return cells
-	var length := till_length if tool_type == "hoe" else water_area
-	for i in maxi(1, length):
+	for i in int(area[0]):
 		cells.append(cell + dir * i)
 	return cells
+
+
+func work_cells(cell: Vector2i, dir: Vector2i, level := 1) -> Array[Vector2i]:
+	return area_cells(cell, dir, mini(level, max_charge))
 
 
 func is_sellable() -> bool:

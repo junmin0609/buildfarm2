@@ -3,7 +3,7 @@
 		"name": "괭이",
 		"kind": "tool",
 		"tool": "hoe",
-		"description": "흙을 갈아 씨앗을 심을 수 있는 밭으로 만들어요.",
+		"description": "흙을 갈아 씨앗을 심을 수 있는 밭으로 만들어요. 한 번에 1칸.",
 		"max_stack": 1,
 		"icon": 0,
 		"tier": 1,
@@ -34,7 +34,7 @@
 		"kind": "tool",
 		"tool": "axe",
 		"tier": 1,
-		"description": "나뭇가지와 그루터기를 베어 나무를 얻어요.",
+		"description": "나뭇가지와 그루터기를 베어 나무를 얻어요. 큰 그루터기도 여러 번 치면 베여요.",
 		"max_stack": 1,
 		"icon": 8,
 		"upgrade": {
@@ -49,7 +49,7 @@
 		"kind": "tool",
 		"tool": "pickaxe",
 		"tier": 1,
-		"description": "돌을 깨서 돌을 얻어요.",
+		"description": "돌을 깨서 돌을 얻어요. 큰 바위·광산 바위도 여러 번 치면 깨져요.",
 		"max_stack": 1,
 		"icon": 9,
 		"upgrade": {
@@ -398,9 +398,10 @@
 		"tier": 2,
 		"max_stack": 1,
 		"icon": 16,
-		"upgrade": {"to": "hoe_3", "price": 2000, "materials": {"iron_bar": 5}}, "till_length": 3,
+		"upgrade": {"to": "hoe_3", "price": 2000, "materials": {"iron_bar": 5}},
+		"max_charge": 2,
 		"power": 1,
-		"description": "바라보는 방향으로 3칸을 한 번에 갈아요."
+		"description": "그냥 누르면 1칸, 1초 꾹 누르면 바라보는 방향으로 3칸을 갈아요."
 	},
 	"watering_can_2": {
 		"name": "구리 물뿌리개",
@@ -409,9 +410,10 @@
 		"tier": 2,
 		"max_stack": 1,
 		"icon": 17,
-		"upgrade": {"to": "watering_can_3", "price": 2000, "materials": {"iron_bar": 5}}, "capacity": 20,
-		"water_area": 1,
-		"description": "물이 더 많이 들어가요. 우물에서 채워요."
+		"upgrade": {"to": "watering_can_3", "price": 2000, "materials": {"iron_bar": 5}},
+		"max_charge": 2,
+		"capacity": 20,
+		"description": "물이 20번 들어가요. 1초 꾹 누르면 바라보는 방향으로 3칸에 물을 줘요."
 	},
 	"axe_2": {
 		"name": "구리 도끼",
@@ -420,8 +422,9 @@
 		"tier": 2,
 		"max_stack": 1,
 		"icon": 18,
-		"upgrade": {"to": "axe_3", "price": 2000, "materials": {"iron_bar": 5}}, "power": 2,
-		"description": "더 빨리 베고, 큰 그루터기도 벨 수 있어요."
+		"upgrade": {"to": "axe_3", "price": 2000, "materials": {"iron_bar": 5}},
+		"power": 2,
+		"description": "돌 도끼보다 2배 빨리 베어요."
 	},
 	"pickaxe_2": {
 		"name": "구리 곡괭이",
@@ -430,8 +433,9 @@
 		"tier": 2,
 		"max_stack": 1,
 		"icon": 19,
-		"upgrade": {"to": "pickaxe_3", "price": 2000, "materials": {"iron_bar": 5}}, "power": 2,
-		"description": "더 빨리 깨고, 큰 바위도 깰 수 있어요."
+		"upgrade": {"to": "pickaxe_3", "price": 2000, "materials": {"iron_bar": 5}},
+		"power": 2,
+		"description": "돌 곡괭이보다 2배 빨리 깨요."
 	},
 	"wheat_seed": {
 		"name": "밀 씨앗",
@@ -811,7 +815,7 @@
 		"kind": "material",
 		"sell_price": 18,
 		"icon": 87,
-		"description": "광산 10층부터 나와요. 구리 곡괭이가 있어야 캘 수 있어요. 용광로에서 철 주괴로 구워요."
+		"description": "광산 10층부터 나와요. 용광로에서 철 주괴로 구워요."
 	},
 	"hoe_3": {
 		"name": "철 괭이",
@@ -820,7 +824,7 @@
 		"tier": 3,
 		"max_stack": 1,
 		"icon": 88,
-		"till_length": 5,
+		"max_charge": 3,
 		"power": 1,
 		"_comment": "도구 3·4단계 (사용자 결정: 돌→구리→철→금, 강화 재료는 용광로에서 구운 주괴, 수치는 임시)",
 		"upgrade": {
@@ -828,7 +832,7 @@
 			"price": 6000,
 			"materials": {"gold_bar": 5}
 		},
-		"description": "바라보는 방향으로 5칸을 한 번에 갈아요."
+		"description": "그냥 1칸, 1초 꾹 누르면 앞으로 3칸, 2초 누르면 앞쪽 3x3을 갈아요."
 	},
 	"watering_can_3": {
 		"name": "철 물뿌리개",
@@ -837,14 +841,14 @@
 		"tier": 3,
 		"max_stack": 1,
 		"icon": 89,
+		"max_charge": 3,
 		"capacity": 30,
-		"water_area": 3,
 		"upgrade": {
 			"to": "watering_can_4",
 			"price": 6000,
 			"materials": {"gold_bar": 5}
 		},
-		"description": "물이 30번 들어가고, 바라보는 방향으로 3칸에 한 번에 물을 줘요."
+		"description": "물이 30번 들어가요. 1초 꾹 누르면 앞으로 3칸, 2초 누르면 앞쪽 3x3에 물을 줘요."
 	},
 	"axe_3": {
 		"name": "철 도끼",
@@ -859,7 +863,7 @@
 			"price": 6000,
 			"materials": {"gold_bar": 5}
 		},
-		"description": "구리 도끼보다 더 빨리 베어요."
+		"description": "돌 도끼보다 3배 빨리 베어요."
 	},
 	"pickaxe_3": {
 		"name": "철 곡괭이",
@@ -874,7 +878,7 @@
 			"price": 6000,
 			"materials": {"gold_bar": 5}
 		},
-		"description": "더 빨리 깨고, 광산의 금 바위도 깰 수 있어요."
+		"description": "돌 곡괭이보다 3배 빨리 깨요."
 	},
 	"hoe_4": {
 		"name": "금 괭이",
@@ -883,9 +887,9 @@
 		"tier": 4,
 		"max_stack": 1,
 		"icon": 92,
-		"work_square": 3,
+		"max_charge": 4,
 		"power": 1,
-		"description": "앞쪽 3x3 (9칸)을 한 번에 갈아요."
+		"description": "그냥 1칸, 1초 앞으로 3칸, 2초 앞쪽 3x3, 3초 꾹 누르면 앞쪽 5x5를 갈아요."
 	},
 	"watering_can_4": {
 		"name": "금 물뿌리개",
@@ -894,9 +898,9 @@
 		"tier": 4,
 		"max_stack": 1,
 		"icon": 93,
+		"max_charge": 4,
 		"capacity": 45,
-		"work_square": 3,
-		"description": "물이 45번 들어가고, 앞쪽 3x3 (9칸)에 한 번에 물을 줘요."
+		"description": "물이 45번 들어가요. 꾹 누르는 시간에 따라 3칸 · 3x3 · 5x5에 물을 줘요."
 	},
 	"axe_4": {
 		"name": "금 도끼",
@@ -906,7 +910,7 @@
 		"max_stack": 1,
 		"icon": 94,
 		"power": 5,
-		"description": "가장 빠른 도끼. 큰 그루터기도 금방 베어요."
+		"description": "돌 도끼보다 5배 빨리 베어요."
 	},
 	"pickaxe_4": {
 		"name": "금 곡괭이",
@@ -916,14 +920,14 @@
 		"max_stack": 1,
 		"icon": 95,
 		"power": 5,
-		"description": "가장 빠른 곡괭이. 무엇이든 금방 깨요."
+		"description": "돌 곡괭이보다 5배 빨리 깨요."
 	},
 	"gold_ore": {
 		"name": "금 광석",
 		"kind": "material",
 		"sell_price": 30,
 		"icon": 96,
-		"description": "광산 15층부터 나와요. 철 곡괭이가 있어야 캘 수 있어요. 용광로에서 금 주괴로 구워요."
+		"description": "광산 15층부터 나와요. 용광로에서 금 주괴로 구워요."
 	},
 	"furnace": {
 		"name": "용광로",

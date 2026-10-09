@@ -32,6 +32,11 @@ var _swing := 0.0
 var _swing_item: ItemDef = null
 var _prompt_text := ""
 var _bubble_time := 0.0
+## 꾹 누르기 (사용자 결정: 구리 이상 괭이·물뿌리개는 누르는 시간 1초마다 범위가 한 단계씩 넓어지고, 떼면 쓴다)
+const CHARGE_STEP := 1.0
+## 누른 시간 (초). -1 = 차지 중 아님
+var _charge := -1.0
+var _charge_item: ItemDef = null
 
 
 func _world() -> FarmWorld:
@@ -52,7 +57,13 @@ func _physics_process(delta: float) -> void:
 	_swing = maxf(_swing - delta, 0.0)
 	_bubble_time += delta
 	_update_sprite(dir != Vector2.ZERO)
-	# 도구: 누르고 있으면 딜레이마다 계속 쓴다
+	# 꾹 누르기: 시간이 쌓이고, 범위를 바닥에 미리 보여 준다. 다른 것으로 바꾸거나 창이 열리면 취소
+	if _charge >= 0.0:
+		if GameState.is_input_locked() or (_world() and _world().build_mode.is_active()) or GameState.selected_item() != _charge_item:
+			cancel_charge()
+		else:
+			_charge += delta
+	# 도구: 누르고 있으면 딜레이마다 계속 쓴다 (꾹 누르기 도구는 떼야 쓴다)
 	if _holding and not Input.is_action_pressed("use_tool"):
 		_holding = false
 	if _holding and Time.get_ticks_msec() >= _next_use_ms and not GameState.is_input_locked() and not (_world() and _world().build_mode.is_active()):
@@ -61,6 +72,11 @@ func _physics_process(delta: float) -> void:
 	var world := _world()
 	if world:
 		world.farm.set_cursor(target_cell(), not world.build_mode.is_active())
+		var preview: Array[Vector2i] = []
+		if _charge >= 0.0 and charge_level() > 1:
+			var cell := target_cell()
+			preview = _charge_item.work_cells(cell, work_dir(cell), charge_level())
+		world.farm.set_preview(preview)
 	_update_prompt()
 	queue_redraw()
 
@@ -137,32 +153,69 @@ func _unhandled_input(event: InputEvent) -> void:
 	if GameState.is_input_locked():
 		return  # 가방 창이 열려 있는 동안 (시간은 흐른다)
 	if event.is_action_pressed("use_tool"):
-		_holding = true
-		try_use_tool()
+		if is_chargeable(GameState.selected_item()):
+			start_charge()
+		else:
+			_holding = true
+			try_use_tool()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_released("use_tool"):
 		_holding = false
+		if _charge >= 0.0:
+			release_charge()
 	elif event.is_action_pressed("interact"):
 		_interact()
 		get_viewport().set_input_as_handled()
 
 
-## 딜레이가 끝났으면 손에 든 것을 쓴다. 썼으면 true (딜레이 중이면 무시하고 false)
-func try_use_tool() -> bool:
+## 딜레이가 끝났으면 손에 든 것을 쓴다. 썼으면 true (딜레이 중이면 무시하고 false). level: 꾹 누른 단계
+func try_use_tool(level := 1) -> bool:
 	var now := Time.get_ticks_msec()
 	if now < _next_use_ms:
 		return false
 	_next_use_ms = now + roundi(tool_cooldown * 1000.0)
 	tool_uses += 1
-	_use_selected()
+	_use_selected(level)
 	return true
+
+
+## 꾹 누르기로 범위를 고르는 도구인가 (구리 이상 괭이·물뿌리개)
+static func is_chargeable(item: ItemDef) -> bool:
+	return item != null and item.max_charge > 1 and item.tool_type in ["hoe", "watering_can"]
+
+
+func start_charge() -> void:
+	_charge = 0.0
+	_charge_item = GameState.selected_item()
+
+
+## 지금 차지 단계: 1초마다 하나씩, 도구 최대 단계까지
+func charge_level() -> int:
+	if _charge < 0.0 or _charge_item == null:
+		return 1
+	return clampi(1 + int(_charge / CHARGE_STEP), 1, _charge_item.max_charge)
+
+
+## 떼면 그 단계 범위로 쓴다
+func release_charge() -> void:
+	var level := charge_level()
+	cancel_charge()
+	_next_use_ms = 0  # 꾹 누르는 동안 이미 기다렸다
+	try_use_tool(level)
+
+
+func cancel_charge() -> void:
+	_charge = -1.0
+	_charge_item = null
+	if _world():
+		_world().farm.set_preview([])
 
 
 ## 지금까지 도구를 쓴 횟수 (점검용)
 var tool_uses := 0
 
 
-func _use_selected() -> void:
+func _use_selected(level := 1) -> void:
 	var cell := target_cell()
 	var item := GameState.selected_item()
 	_start_swing(item)
@@ -179,9 +232,9 @@ func _use_selected() -> void:
 	if item == null:
 		return
 	if item.tool_type == "watering_can":
-		WateringCan.use(_world(), cell, GameState.inventory, GameState.selected_slot, work_dir(cell))
+		WateringCan.use(_world(), cell, GameState.inventory, GameState.selected_slot, work_dir(cell), level)
 		return
-	if _world().farm.use_item(cell, item, work_dir(cell)) and item.kind in [ItemDef.Kind.SEED, ItemDef.Kind.FERTILIZER]:
+	if _world().farm.use_item(cell, item, work_dir(cell), level) and item.kind in [ItemDef.Kind.SEED, ItemDef.Kind.FERTILIZER]:
 		GameState.inventory.remove_at(GameState.selected_slot, 1)
 
 
@@ -242,6 +295,18 @@ func _draw() -> void:
 	if _prompt_text != "":
 		var bob := roundf(sin(_bubble_time * 5.0) * 1.0)
 		draw_texture_rect_region(Art.UI_ICONS, Rect2(-7, -38 + bob, 16, 16), Rect2(3 * Art.TILE, 0, Art.TILE, Art.TILE))
+	# 꾹 누르기: 머리 위 막대 (단계마다 한 칸, 찬 칸은 금색)
+	if _charge >= 0.0 and _charge_item:
+		var steps := _charge_item.max_charge - 1
+		var w := 6.0
+		var x0 := -(steps * (w + 1.0) - 1.0) / 2.0
+		for i in steps:
+			var r := Rect2(x0 + i * (w + 1.0), -30, w, 3)
+			draw_rect(r.grow(1.0), Color("5b3a29"))
+			var fill := clampf(_charge / CHARGE_STEP - i, 0.0, 1.0)
+			draw_rect(r, Color("e6d5b0"))
+			if fill > 0.0:
+				draw_rect(Rect2(r.position, Vector2(w * fill, 3)), Color("f2c443") if fill >= 1.0 else Color("c98a2e"))
 	if _swing <= 0.0 or _swing_item == null:
 		return
 	var t := 1.0 - _swing / SWING_TIME

@@ -91,8 +91,9 @@ static func lines(item: ItemDef, quality := Quality.NONE, water := -1) -> Array:
 			out.append(["등급 %d" % item.tier, TEXT_SOFT])
 			if item.capacity > 0:
 				out.append(["물 %d / %d" % [maxi(water, 0), item.capacity], TEXT_SOFT])
-			if item.till_length > 1:
-				out.append(["한 번에 %d칸 갈기" % item.till_length, TEXT_SOFT])
+			if item.max_charge > 1:
+				var steps := ["3칸", "3x3", "5x5"].slice(0, item.max_charge - 1)
+				out.append(["꾹 누르기: " + " → ".join(steps) + " (1초마다)", TEXT_SOFT])
 			if item.power > 1:
 				out.append(["작업 속도 ×%d" % item.power, TEXT_SOFT])
 			if not item.upgrade.is_empty():

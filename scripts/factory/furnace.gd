@@ -5,6 +5,8 @@ extends Placeable
 ## 게임 시계로 굽고 (창이 열려 시계가 멈추면 같이 멈춤), 밤사이에도 하던 것은 마저 굽는다.
 ## 다 구운 주괴는 용광로 안에 쌓이고 (같은 주괴만, max_output 까지), [E] 나 아무것이나 들고 클릭하면 가방으로 꺼낸다.
 ## 굽는 법은 placeables.json 의 "furnace" (광석 id → 개수·석탄·분·결과물).
+## 컨베이어 (사용자 결정: 이 용광로에 입구·출구를 붙임): 입구로 광석·석탄을 받아 두고(ore_buffer·coal_buffer 까지),
+## 한 번 구울 만큼 모이면 알아서 굽기 시작한다. 출구로 주괴를 내보낸다. 이렇게 받아 둔 게 있으면 밤사이에도 계속 굽는다.
 
 ## 지금 굽는 광석 id ("" = 쉬는 중)
 var smelting := ""
@@ -13,6 +15,9 @@ var minutes_left := 0.0
 ## 다 구운 주괴 (id, 개수)
 var output_id := ""
 var output := 0
+## 컨베이어로 받아 둔 광석 {id: 개수} 와 석탄
+var ore_in := {}
+var coal_in := 0
 
 const REACH := 14.0
 
@@ -43,6 +48,71 @@ func max_output() -> int:
 
 func is_working() -> bool:
 	return smelting != ""
+
+
+func ore_buffer() -> int:
+	return int(config().get("ore_buffer", 10))
+
+
+func coal_buffer() -> int:
+	return int(config().get("coal_buffer", 5))
+
+
+func ore_in_total() -> int:
+	var n := 0
+	for k: String in ore_in:
+		n += int(ore_in[k])
+	return n
+
+
+# ---------- 컨베이어 (Placeable 훅)
+
+## 입구: 광석(받아 둘 자리가 있으면)과 석탄을 받는다
+func accept_item(item_id: String, _quality: String) -> bool:
+	if item_id == "coal":
+		if coal_in >= coal_buffer():
+			return false
+		coal_in += 1
+	elif not recipe_of(item_id).is_empty():
+		if ore_in_total() >= ore_buffer():
+			return false
+		ore_in[item_id] = int(ore_in.get(item_id, 0)) + 1
+	else:
+		return false
+	_try_auto_start()
+	_changed()
+	return true
+
+
+## 출구: 다 구운 주괴 1개
+func provide_item() -> Dictionary:
+	if output <= 0:
+		return {}
+	var id := output_id
+	output -= 1
+	if output == 0:
+		output_id = ""
+	_try_auto_start()
+	_changed()
+	return {"id": id, "quality": Quality.NONE}
+
+
+## 받아 둔 광석·석탄으로 한 번 구울 수 있으면 시작한다 (쉬는 중이고, 남은 주괴와 같은 종류일 때만)
+func _try_auto_start() -> void:
+	if is_working() or output >= max_output():
+		return
+	for ore_id: String in ore_in.keys():
+		var r := recipe_of(ore_id)
+		var bar := str(r.get("output", ""))
+		if int(ore_in[ore_id]) < int(r.get("ore", 5)) or coal_in < int(r.get("coal", 1)) or (output > 0 and output_id != bar):
+			continue
+		ore_in[ore_id] = int(ore_in[ore_id]) - int(r.get("ore", 5))
+		if int(ore_in[ore_id]) <= 0:
+			ore_in.erase(ore_id)
+		coal_in -= int(r.get("coal", 1))
+		smelting = ore_id
+		minutes_left = float(r.get("minutes", 60))
+		return
 
 
 ## 광석을 넣어 굽기 시작한다. 시작했으면 "", 아니면 안 되는 이유
@@ -86,30 +156,36 @@ func take_output(inv: Inventory) -> int:
 	return n
 
 
+## 게임 시계 minutes 분만큼 굽는다. 다 구우면 받아 둔 것으로 이어서, 남은 시간도 이어 쓴다. 다 구운 개수
 func advance(minutes: float) -> int:
-	if not is_working():
-		return 0
-	minutes_left -= minutes
-	if minutes_left > 0.0:
-		return 0
-	var bar := str(recipe_of(smelting).get("output", ""))
-	output_id = bar
-	output += 1
-	smelting = ""
-	minutes_left = 0.0
-	_changed()
-	return 1
+	var made := 0
+	var left := minutes
+	while is_working() and left > 0.0:
+		if left < minutes_left:
+			minutes_left -= left
+			break
+		left -= minutes_left
+		output_id = str(recipe_of(smelting).get("output", ""))
+		output += 1
+		made += 1
+		smelting = ""
+		minutes_left = 0.0
+		_try_auto_start()
+	if made > 0:
+		_changed()
+	return made
 
 
 func on_time(minutes: float) -> void:
 	advance(minutes)
 
 
-## 밤사이: 굽던 것은 마저 굽는다 (손으로 넣는 기계라 새로 시작하지는 않음)
+## 밤사이: 굽던 것은 마저 굽고, 컨베이어로 받아 둔 게 있으면 이어서 굽는다
 func on_night_production(_w: FarmWorld, report: Dictionary, minutes: float) -> void:
-	if advance(minutes) > 0:
+	var made := advance(minutes)
+	if made > 0:
 		var night: Dictionary = report.get("night_production", {})
-		night["processed"] = int(night.get("processed", 0)) + 1
+		night["processed"] = int(night.get("processed", 0)) + made
 		report["night_production"] = night
 
 
@@ -152,6 +228,10 @@ func contents() -> Array:
 		out.append({"id": "coal", "count": int(r.get("coal", 1)), "quality": Quality.NONE})
 	if output > 0:
 		out.append({"id": output_id, "count": output, "quality": Quality.NONE})
+	for ore_id: String in ore_in:
+		out.append({"id": ore_id, "count": int(ore_in[ore_id]), "quality": Quality.NONE})
+	if coal_in > 0:
+		out.append({"id": "coal", "count": coal_in, "quality": Quality.NONE})
 	return out
 
 
@@ -160,11 +240,13 @@ func take_contents() -> void:
 	minutes_left = 0.0
 	output = 0
 	output_id = ""
+	ore_in.clear()
+	coal_in = 0
 	_changed()
 
 
 func save_state() -> Dictionary:
-	return {"smelting": smelting, "minutes_left": minutes_left, "output_id": output_id, "output": output}
+	return {"smelting": smelting, "minutes_left": minutes_left, "output_id": output_id, "output": output, "ore_in": ore_in.duplicate(), "coal_in": coal_in}
 
 
 func load_state(data: Dictionary) -> void:
@@ -176,6 +258,13 @@ func load_state(data: Dictionary) -> void:
 	output = maxi(0, int(data.get("output", 0))) if ItemDB.has_item(output_id) else 0
 	if output == 0:
 		output_id = ""
+	ore_in.clear()
+	var saved_in: Variant = data.get("ore_in", {})
+	if saved_in is Dictionary:
+		for k: Variant in saved_in:
+			if not recipe_of(str(k)).is_empty() and int(saved_in[k]) > 0:
+				ore_in[str(k)] = mini(int(saved_in[k]), ore_buffer())
+	coal_in = clampi(int(data.get("coal_in", 0)), 0, coal_buffer())
 	_changed()
 
 

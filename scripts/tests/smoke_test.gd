@@ -470,15 +470,13 @@ func _test_clearing(world: FarmWorld) -> void:
 	_check(not obs.is_blocked(spot) and inv.count_of("wood") >= wood + 2, "그루터기 → 도끼 3번, 나무 +2~3")
 	await get_tree().process_frame
 
-	# 큰 바위: 기본 곡괭이로는 안 됨
+	# 큰 바위: 돌 곡괭이로도 깨지만 여러 번 (사용자 결정: 강화는 속도·범위만)
 	obs.spawn(spot, "big_rock")
-	for i in 10:
+	for i in 5:
 		obs.try_clear(spot, pick)
-	_check(obs.is_blocked(spot) and obs.obstacle_at(spot).hp == 6, "큰 바위는 기본 곡괭이로 못 깸")
-	var strong := ItemDef.from_dict("pickaxe", {"kind": "tool", "tool": "pickaxe", "tier": 2})
-	for i in 6:
-		obs.try_clear(spot, strong)
-	_check(not obs.is_blocked(spot), "강화 곡괭이(등급 2)로는 깸")
+	_check(obs.is_blocked(spot) and obs.obstacle_at(spot).hp == 1, "큰 바위: 돌 곡괭이 5번엔 아직")
+	obs.try_clear(spot, pick)
+	_check(not obs.is_blocked(spot), "큰 바위: 돌 곡괭이 6번에 깸")
 	await get_tree().process_frame
 
 	# 가방이 가득 차면 깨지지 않고 남는다
@@ -512,8 +510,6 @@ func _test_clearing(world: FarmWorld) -> void:
 	var bad := 0
 	for ob: Obstacle in obs.all():
 		if world.farm.tiles.has(ob.cell) or world.build.is_occupied(ob.cell):
-			bad += 1
-		if ob.def.id in ["big_rock", "big_stump"] and ob.def.tier < 2:
 			bad += 1
 	_check(bad == 0 and not obs.can_grow_at(tilled), "밭·시설 위에는 안 자람")
 
@@ -1327,7 +1323,8 @@ func _test_blacksmith(world: FarmWorld, hud: HUD) -> void:
 		var next := ToolUpgrade.next_of(item)
 		paths_ok = paths_ok and next != null and next.tier == item.tier + 1 and next.tool_type == item.tool_type 				and ToolUpgrade.price_of(item) > 0 and not ToolUpgrade.materials_of(item).is_empty()
 	_check(paths_ok, "괭이·물뿌리개·도끼·곡괭이 강화 경로 (돈 + 자원, items.json)")
-	_check(ItemDB.get_item("pickaxe_2").tier >= ObstacleDB.get_def("big_rock").tier and ItemDB.get_item("axe_2").tier >= ObstacleDB.get_def("big_stump").tier 			and ItemDB.get_item("pickaxe").tier < ObstacleDB.get_def("big_rock").tier, "강한 장애물(약 20%)은 강화 도끼·곡괭이가 있어야 치움")
+	var all_tier1 := ["big_rock", "big_stump", "mine_iron", "mine_gold"].all(func(id: String) -> bool: return ObstacleDB.get_def(id).tier <= ItemDB.get_item("pickaxe").tier)
+	_check(all_tier1, "돌 도구로도 모든 장애물을 치움 (강화는 속도·범위만)")
 
 	# 돈·재료가 모자라면 안 됨
 	inv.load_data([])
@@ -1385,7 +1382,9 @@ func _test_blacksmith(world: FarmWorld, hud: HUD) -> void:
 		if free:
 			start = c
 			break
-	_check(farm.use_item(start, inv.item_at(hoe_slot), Vector2i.DOWN) and farm.tiles.has(start) and farm.tiles.has(start + Vector2i.DOWN) and farm.tiles.has(start + Vector2i.DOWN * 2), "강화 괭이는 바라보는 방향으로 3칸을 한 번에 갊")
+	_check(farm.use_item(start, inv.item_at(hoe_slot), Vector2i.DOWN) and farm.tiles.has(start) and not farm.tiles.has(start + Vector2i.DOWN), "구리 괭이: 그냥 누르면 1칸")
+	farm.tiles.erase(start)
+	_check(farm.use_item(start, inv.item_at(hoe_slot), Vector2i.DOWN, 2) and farm.tiles.has(start) and farm.tiles.has(start + Vector2i.DOWN) and farm.tiles.has(start + Vector2i.DOWN * 2), "구리 괭이: 1초 꾹 누르면 바라보는 방향으로 3칸")
 	player.global_position = world.cell_center(start + Vector2i(1, 0))
 	_check(player.work_dir(start + Vector2i(3, 0)) == Vector2i.RIGHT and player.work_dir(start + Vector2i(1, -2)) == Vector2i.UP, "일하는 방향 = 대상 칸 쪽")
 
@@ -1591,7 +1590,7 @@ func _test_drag_and_tooltip(hud: HUD) -> void:
 	var can_lines := ItemTooltip.lines(ItemDB.get_item("watering_can"), "", 5).map(func(l: Array) -> String: return l[0])
 	_check("등급 1" in can_lines and "물 5 / 12" in can_lines and "대장간에서 강화할 수 있어요" in can_lines, "도구 툴팁: 등급·물·강화 가능")
 	var hoe2_lines := ItemTooltip.lines(ItemDB.get_item("hoe_2")).map(func(l: Array) -> String: return l[0])
-	_check("등급 2" in hoe2_lines and "한 번에 3칸 갈기" in hoe2_lines, "강화 도구 툴팁: 등급·범위")
+	_check("등급 2" in hoe2_lines and "꾹 누르기: 3칸 (1초마다)" in hoe2_lines, "구리 도구 툴팁: 등급·꾹 누르기 범위")
 	var crop_lines := ItemTooltip.lines(ItemDB.get_item("potato"), "gold").map(func(l: Array) -> String: return l[0])
 	_check("기준가 48 G" in crop_lines and "출하함 48 G · 광장 38 G" in crop_lines, "작물 툴팁: 품질 기준가·판매 방식별 가격")
 	var fert_lines := ItemTooltip.lines(ItemDB.get_item("premium_fertilizer")).map(func(l: Array) -> String: return l[0])
@@ -3564,6 +3563,29 @@ func _test_furnace_tools(world: FarmWorld) -> void:
 	f2.free()
 	var refund := f.contents().map(func(st: Dictionary) -> String: return "%s %d" % [st.id, st.count])
 	_check(refund == ["gold_ore 5", "coal 1"], "철거하면 굽던 광석·석탄을 돌려받음 %s" % [refund])
+	# 컨베이어 (사용자 결정: 이 용광로에 입구·출구): 광석·석탄을 받아 두고 모이면 알아서 굽고, 주괴를 내보냄
+	f.take_contents()
+	_check((f.def.data.get("ports", []) as Array).size() == 2 and f.def.rotatable, "용광로: 입구·출구 하나씩, 돌릴 수 있음")
+	_check(not f.accept_item("wheat", Quality.NONE) and f.accept_item("coal", Quality.NONE), "입구: 광석·석탄만 받음")
+	for i in 4:
+		f.accept_item("iron_ore", Quality.NONE)
+	_check(not f.is_working() and f.ore_in_total() == 4, "광석 4개로는 아직 안 구움")
+	f.accept_item("iron_ore", Quality.NONE)
+	_check(f.is_working() and f.smelting == "iron_ore" and f.ore_in_total() == 0 and f.coal_in == 0, "5개 + 석탄 → 알아서 굽기 시작")
+	for i in 12:
+		f.accept_item("iron_ore", Quality.NONE)
+	_check(f.ore_in_total() == f.ore_buffer(), "받아 두는 광석은 %d개까지" % f.ore_buffer())
+	f.accept_item("coal", Quality.NONE)
+	f.on_time(60.0)
+	_check(f.output == 1 and f.is_working() and f.ore_in_total() == 5, "다 구우면 받아 둔 것으로 바로 다음 굽기")
+	var out := f.provide_item()
+	_check(out.get("id", "") == "iron_bar" and f.output == 0, "출구: 철 주괴를 내보냄")
+	var night := {}
+	f.accept_item("coal", Quality.NONE)
+	f.on_night_production(world, night, 300.0)
+	_check(f.output == 2 and f.ore_in_total() == 0, "밤사이 받아 둔 것도 이어서 구움 (%d)" % f.output)
+	var st2 := f.save_state()
+	_check(st2.has("ore_in") and st2.has("coal_in"), "받아 둔 광석·석탄도 저장")
 	grid.remove(f)
 
 	# 도구 3·4단계
@@ -3598,42 +3620,86 @@ func _test_furnace_tools(world: FarmWorld) -> void:
 			break
 	_check(origin.x >= 0, "넓은 밭 자리 찾음 %s" % origin)
 	if origin.x >= 0:
+		var count_tiles := func() -> int:
+			var n := 0
+			for y in 5:
+				for x in 9:
+					if farm.tiles.has(origin + Vector2i(x, y)):
+						n += 1
+			return n
+		var clear_tiles := func() -> void:
+			for y in 5:
+				for x in 9:
+					farm.tiles.erase(origin + Vector2i(x, y))
 		var hoe3 := ItemDB.get_item("hoe_3")
-		farm.use_item(origin, hoe3, Vector2i.RIGHT)
-		var line := range(5).all(func(i: int) -> bool: return farm.tiles.has(origin + Vector2i(i, 0))) and not farm.tiles.has(origin + Vector2i(5, 0))
-		_check(line, "철 괭이: 바라보는 방향으로 5칸")
-		var sq := origin + Vector2i(1, 2)  # 아래로 갈면 sq 가 가까운 가장자리 가운데 → x 0~2, y 2~4
-		farm.use_item(sq, ItemDB.get_item("hoe_4"), Vector2i.DOWN)
+		var hoe4 := ItemDB.get_item("hoe_4")
+		# 단계: 1 = 1칸, 2 = 앞으로 3칸, 3 = 앞쪽 3x3, 4 = 앞쪽 5x5. 도구 최대 단계까지만
+		var sizes := [1, 2, 3, 4].map(func(lv: int) -> int:
+			clear_tiles.call()
+			farm.use_item(origin + Vector2i(2, 0), hoe4, Vector2i.DOWN, lv)
+			return count_tiles.call())
+		_check(sizes == [1, 3, 9, 25], "금 괭이: 그냥 1칸 · 1초 3칸 · 2초 3x3 · 3초 5x5 %s" % [sizes])
+		clear_tiles.call()
+		farm.use_item(origin + Vector2i(2, 0), hoe3, Vector2i.DOWN, 4)
+		_check(count_tiles.call() == 9, "철 괭이는 3초를 눌러도 3x3까지")
+		clear_tiles.call()
+		farm.use_item(origin, hoe3, Vector2i.RIGHT, 2)
+		var line: bool = range(3).all(func(i: int) -> bool: return farm.tiles.has(origin + Vector2i(i, 0))) and count_tiles.call() == 3
+		_check(line, "1초 = 바라보는 방향으로 3칸 (오른쪽)")
+		var sq := origin + Vector2i(1, 2)
+		farm.use_item(sq, hoe3, Vector2i.DOWN, 3)
 		var n9 := 0
 		for y in range(2, 5):
 			for x in range(0, 3):
 				if farm.tiles.has(origin + Vector2i(x, y)):
 					n9 += 1
-		_check(n9 == 9 and not farm.tiles.has(origin + Vector2i(3, 2)) and not farm.tiles.has(origin + Vector2i(1, 5)), "금 괭이: 앞쪽 3x3 (9칸)")
-		# 물뿌리개: 철 3칸 줄, 금 3x3, 물이 모자라면 거기까지
+		_check(n9 == 9 and not farm.tiles.has(origin + Vector2i(3, 2)), "철 괭이 2초: 앞쪽 3x3 (클릭한 칸이 가까운 가장자리 가운데)")
+		# 물뿌리개도 같은 단계, 물이 모자라면 거기까지
 		inv.load_data([])
 		inv.add("watering_can_3")
 		inv.set_slot_value(0, "water", 30)
-		WateringCan.use(world, origin, inv, 0, Vector2i.RIGHT)
-		var wet := range(3).all(func(i: int) -> bool: return farm.get_tile(origin + Vector2i(i, 0)).watered) and not farm.get_tile(origin + Vector2i(3, 0)).watered
-		_check(wet and WateringCan.water_left(inv, 0) == 27, "철 물뿌리개: 3칸에 물 (물 3 씀)")
+		WateringCan.use(world, origin, inv, 0, Vector2i.RIGHT, 2)
+		var wet := range(3).all(func(i: int) -> bool: return farm.get_tile(origin + Vector2i(i, 0)).watered)
+		_check(wet and WateringCan.water_left(inv, 0) == 27, "철 물뿌리개 1초: 3칸에 물 (물 3 씀)")
 		inv.load_data([])
 		inv.add("watering_can_4")
 		inv.set_slot_value(0, "water", 5)
-		_check(WateringCan.use(world, sq, inv, 0, Vector2i.DOWN) and WateringCan.water_left(inv, 0) == 0, "금 물뿌리개: 물이 5뿐이면 5칸만 주고 멈춤")
+		_check(WateringCan.use(world, sq, inv, 0, Vector2i.DOWN, 3) and WateringCan.water_left(inv, 0) == 0, "금 물뿌리개 2초: 물이 5뿐이면 5칸만 주고 멈춤")
 		var watered := 0
 		for y in range(2, 5):
 			for x in range(0, 3):
 				if farm.get_tile(origin + Vector2i(x, y)).watered:
 					watered += 1
 		_check(watered == 5 and ItemDB.get_item("watering_can_4").capacity == 45 and ItemDB.get_item("watering_can_3").capacity == 30, "금 물뿌리개 용량 45 · 철 30")
+		# 플레이어: 꾹 누르기 (1초마다 한 단계, 떼면 씀, 바닥에 미리보기)
+		clear_tiles.call()
+		inv.load_data([])
+		inv.add("hoe_4")
+		GameState.select_slot(0)
+		var player := world.player
+		player.global_position = world.cell_center(origin + Vector2i(4, 0))
+		player.facing = Vector2i.DOWN
+		_check(Player.is_chargeable(hoe4) and not Player.is_chargeable(ItemDB.get_item("hoe")) and not Player.is_chargeable(ItemDB.get_item("pickaxe_4")), "꾹 누르기: 구리 이상 괭이·물뿌리개만 (돌 괭이는 바로)")
+		player.start_charge()
+		player._charge = 2.2
+		_check(player.charge_level() == 3, "2.2초 누름 → 3단계")
+		player._physics_process(0.0)
+		_check(farm._preview.size() == 9, "누르는 동안 바닥에 3x3 미리보기")
+		player.release_charge()
+		_check(count_tiles.call() == 9 and farm._preview.is_empty() and player._charge < 0.0, "떼면 3x3 을 갈고 미리보기 사라짐")
+		player.start_charge()
+		player._charge = 9.0
+		_check(player.charge_level() == 4, "오래 눌러도 금 괭이 최대 4단계")
+		inv.load_data([])
+		player._physics_process(0.0)
+		_check(player._charge < 0.0, "손에 든 것이 바뀌면 꾹 누르기 취소")
 		for y in 5:
 			for x in 9:
 				farm.tiles.erase(origin + Vector2i(x, y))
 		farm.queue_redraw()
-	# 금 바위: 철 곡괭이부터, 광산 15층부터 · 20층 보물 층
+	# 금 바위: 돌 곡괭이로도 (5번), 금 곡괭이는 1번. 광산 15층부터 · 20층 보물 층
 	var gold := ObstacleDB.get_def("mine_gold")
-	_check(gold != null and gold.tier == 3 and ItemDB.get_item("pickaxe_2").tier < gold.tier and ItemDB.get_item("pickaxe_3").tier >= gold.tier, "금 바위: 철 곡괭이부터")
+	_check(gold != null and gold.tier == 1 and gold.hits == 5 and ItemDB.get_item("pickaxe_4").power >= gold.hits, "금 바위: 돌 곡괭이 5번 · 금 곡괭이 1번")
 	_check(Mine.rock_weights(16).has("mine_gold") and not Mine.rock_weights(14).has("mine_gold") and Mine.rock_weights(20).has("mine_gold") and not Mine.rock_weights(10).has("mine_gold"), "금 바위는 15층부터 + 20층 보물 층")
 	_check(ItemDB.get_item("pickaxe_4").power > ItemDB.get_item("pickaxe_3").power and ItemDB.get_item("pickaxe_3").power > ItemDB.get_item("pickaxe_2").power, "곡괭이 세기 2 → 3 → 5")
 	inv.load_data(saved_inv)
@@ -3697,12 +3763,11 @@ func _test_mine(world: FarmWorld, hud: Node) -> void:
 	var spot := Mine.ORIGIN + Vector2i(15, 9)
 	mine.rocks.remove(spot)
 	mine.rocks.spawn(spot, "mine_iron", 1)
-	for i in 6:
+	for i in 3:
 		mine.rocks.try_clear(spot, ItemDB.get_item("pickaxe"))
-	_check(mine.rocks.obstacle_at(spot) != null, "철 바위: 기본 곡괭이로는 안 깨짐")
-	for i in 6:
-		mine.rocks.try_clear(spot, pick)
-	_check(mine.rocks.obstacle_at(spot) == null and inv.count_of("iron_ore") >= 1, "철 바위: 강화 곡괭이로 철 광석")
+	_check(mine.rocks.obstacle_at(spot) != null, "철 바위: 돌 곡괭이 3번엔 아직")
+	mine.rocks.try_clear(spot, ItemDB.get_item("pickaxe"))
+	_check(mine.rocks.obstacle_at(spot) == null and inv.count_of("iron_ore") >= 1, "철 바위: 돌 곡괭이 4번에 철 광석")
 	# 5층에 닿으면 정류장이 열리고, 엘리베이터로 오간다
 	Events.mine_requested.emit(5)
 	_check(mine.floor_no == 5 and Mine.deepest() == 5 and Mine.elevator_stops() == [0, 5], "5층 도착 → 정류장 열림 %s" % [Mine.elevator_stops()])

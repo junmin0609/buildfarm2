@@ -22,6 +22,8 @@ var rng := RandomNumberGenerator.new()
 
 var _cursor_cell := Vector2i.ZERO
 var _cursor_visible := false
+## 꾹 누르는 동안 보여 줄 괭이·물뿌리개 범위 (Player 가 정함)
+var _preview: Array[Vector2i] = []
 
 
 var _pulse := 0.0
@@ -229,9 +231,9 @@ func till_line(cell: Vector2i, dir: Vector2i, length: int) -> bool:
 
 
 ## 손에 든 아이템을 칸에 쓴다. 새 도구는 여기에 한 줄 추가하면 된다.
-## dir: 플레이어가 그 칸을 향한 방향 (강화 괭이처럼 여러 칸에 쓰는 도구용)
+## dir: 플레이어가 그 칸을 향한 방향, level: 꾹 누른 차지 단계 (구리 이상 괭이의 넓은 범위, ItemDef.work_cells)
 ## 괭이·곡괭이로 작물이 있는 칸을 치면 작물을 뽑는다 (다 자란 작물은 그 전에 수확된다: Player 가 수확을 먼저 처리).
-func use_item(cell: Vector2i, item: ItemDef, dir := Vector2i.DOWN) -> bool:
+func use_item(cell: Vector2i, item: ItemDef, dir := Vector2i.DOWN, level := 1) -> bool:
 	if item == null:
 		return false
 	if removes_crops(item) and get_tile(cell) != null and get_tile(cell).has_crop():
@@ -243,13 +245,11 @@ func use_item(cell: Vector2i, item: ItemDef, dir := Vector2i.DOWN) -> bool:
 		ItemDef.Kind.TOOL:
 			match item.tool_type:
 				"hoe":
-					if item.work_square > 0:  # 금 괭이: 앞쪽 3x3
-						var any := false
-						for c: Vector2i in item.work_cells(cell, dir):
-							if till(c):
-								any = true
-						return any
-					return till_line(cell, dir, item.till_length)
+					var any := false
+					for c: Vector2i in item.work_cells(cell, dir, level):
+						if till(c):
+							any = true
+					return any
 				"watering_can":
 					return water(cell)
 		ItemDef.Kind.SEED:
@@ -257,6 +257,13 @@ func use_item(cell: Vector2i, item: ItemDef, dir := Vector2i.DOWN) -> bool:
 		ItemDef.Kind.FERTILIZER:
 			return fertilize(cell, item)
 	return false
+
+
+func set_preview(cells: Array[Vector2i]) -> void:
+	if cells == _preview:
+		return
+	_preview = cells
+	queue_redraw()
 
 
 func set_cursor(cell: Vector2i, visible_now: bool) -> void:
@@ -358,6 +365,10 @@ func _draw() -> void:
 			# 시든 작물은 누렇게 바랜 색
 			var tint := WITHERED_TINT if tile.withered else Color.WHITE
 			draw_texture_rect_region(Art.CROPS, Rect2(rect.position + Vector2(0, -2), rect.size), crop_rect, tint)
+	for c: Vector2i in _preview:
+		var pr := Rect2(Vector2(c * TILE), Vector2(TILE, TILE))
+		draw_rect(pr.grow(-1), Color(1, 0.95, 0.7, 0.22))
+		draw_rect(pr.grow(-1), Color(1, 0.95, 0.7, 0.75), false, 1.0)
 	if _cursor_visible:
 		var r := Rect2(Vector2(_cursor_cell * TILE), Vector2(TILE, TILE))
 		var glow := 0.6 + 0.3 * sin(_pulse * 4.0)

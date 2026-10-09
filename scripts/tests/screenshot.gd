@@ -747,6 +747,20 @@ func _ready() -> void:
 		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_smith_tiers.png"))
 		hud._close_panels()
 
+	# 꾹 누르기 (사용자 결정: 금 괭이 2초 → 앞쪽 3x3): 머리 위 막대 + 바닥 미리보기
+	if furn_fspot.x >= 0:
+		GameState.inventory.slots[0] = {"id": "hoe_4", "count": 1}
+		GameState.select_slot(0)
+		world.player.global_position = world.cell_center(furn_fspot + Vector2i(1, -3))
+		world.player.facing = Vector2i.UP
+		world.player.camera.reset_smoothing()
+		world.player.start_charge()
+		world.player._charge = 2.4
+		await get_tree().create_timer(0.3).timeout
+		world.player._charge = 2.4
+		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_charge.png"))
+		world.player.cancel_charge()
+
 	# 광산 (사용자 결정: 북쪽 숲길 끝 입구 · 아래로 내려가는 층 · 엘리베이터)
 	var shot := func(file: String) -> void:
 		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://%s.png" % file))

@@ -28,8 +28,8 @@ static func is_can(inv: Inventory, index: int) -> bool:
 
 
 ## index 칸의 물뿌리개를 cell 에 쓴다. 무언가 했으면 true.
-## 철·금 물뿌리개는 dir 쪽 여러 칸 (ItemDef.work_cells). 물 1 = 한 칸, 물이 떨어지면 거기까지
-static func use(world: FarmWorld, cell: Vector2i, inv: Inventory, index: int, dir := Vector2i.DOWN) -> bool:
+## 구리 이상 물뿌리개는 꾹 누른 단계(level)만큼 dir 쪽 여러 칸 (ItemDef.work_cells). 물 1 = 한 칸, 물이 떨어지면 거기까지
+static func use(world: FarmWorld, cell: Vector2i, inv: Inventory, index: int, dir := Vector2i.DOWN, level := 1) -> bool:
 	var source := water_source_at(world, cell)
 	if source != null:
 		var added := refill(inv, index, source)
@@ -42,7 +42,7 @@ static func use(world: FarmWorld, cell: Vector2i, inv: Inventory, index: int, di
 			Events.toast.emit("%s에 물이 없어요." % source.water_source_name())
 		return added > 0
 	var item := inv.item_at(index)
-	var cells: Array[Vector2i] = item.work_cells(cell, dir) if item else [cell]
+	var cells: Array[Vector2i] = item.work_cells(cell, dir, level) if item else [cell]
 	var need := cells.filter(func(c: Vector2i) -> bool:
 		var t := world.farm.get_tile(c)
 		return t != null and not t.watered)

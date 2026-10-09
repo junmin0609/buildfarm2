@@ -455,15 +455,20 @@
 		"price": 0,
 		"materials": {"furnace": 1},
 		"solid": true,
-		"rotatable": false,
+		"rotatable": true,
 		"script": "res://scripts/factory/furnace.gd",
+		"_ports": "컨베이어 (사용자 결정): 왼쪽으로 광석·석탄을 받아 오른쪽으로 주괴를 내보낸다. R 로 돌릴 수 있음",
+		"ports": [{"type": "in", "cell": [0, 0], "side": "left"}, {"type": "out", "cell": [0, 0], "side": "right"}],
 		"furnace": {
 			"recipes": {
 				"copper_ore": {"ore": 5, "coal": 1, "minutes": 30, "output": "copper_bar"},
 				"iron_ore": {"ore": 5, "coal": 1, "minutes": 60, "output": "iron_bar"},
 				"gold_ore": {"ore": 5, "coal": 1, "minutes": 120, "output": "gold_bar"}
 			},
-			"max_output": 10
+			"max_output": 10,
+			"_buffer": "컨베이어로 받아 두는 양: 광석은 종류 상관없이 합쳐서 ore_buffer 개, 석탄 coal_buffer 개",
+			"ore_buffer": 10,
+			"coal_buffer": 5
 		}
 	}
 }
