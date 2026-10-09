@@ -98,6 +98,15 @@
 			"solid": true,
 			"drops": [{"item": "iron_ore", "min": 1, "max": 2}]
 		},
+		"mine_gold": {
+			"name": "금 바위",
+			"textures": ["res://assets/art/mine_gold.png"],
+			"tools": ["pickaxe"],
+			"tier": 3,
+			"hits": 5,
+			"solid": true,
+			"drops": [{"item": "gold_ore", "min": 1, "max": 2}]
+		},
 		"big_stump": {
 			"name": "큰 그루터기",
 			"textures": ["res://assets/art/big_stump.png"],

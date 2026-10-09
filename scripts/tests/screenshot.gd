@@ -710,6 +710,43 @@ func _ready() -> void:
 			get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_mid_processor_panel.png"))
 			hud._close_panels()
 
+	# 용광로 (사용자 결정: 1x1, 광석 5 + 석탄 1 → 주괴): 하나는 굽는 중(불빛), 하나는 다 구움(주괴 아이콘) + 대장간 창 (철·금 단계)
+	var furn_fdef := PlaceableDB.get_def("furnace")
+	var furn_fspot := Vector2i(-1, -1)
+	var furn_fcells: Array = world.farm.farmable_cells.keys()
+	furn_fcells.sort()
+	for c: Vector2i in furn_fcells:
+		var ok := true
+		for x in 4:
+			for y in 2:
+				var cc: Vector2i = c + Vector2i(x, y)
+				ok = ok and world.build.is_buildable_ground(cc) and not world.build.is_occupied(cc) and not world.farm.tiles.has(cc)
+		if ok:
+			furn_fspot = c
+			break
+	if furn_fspot.x >= 0:
+		for x in 4:
+			for y in 2:
+				world.obstacles.remove(furn_fspot + Vector2i(x, y))
+		var furn_f1 := world.build.place(furn_fdef, furn_fspot) as Furnace
+		var furn_f2 := world.build.place(furn_fdef, furn_fspot + Vector2i(2, 0)) as Furnace
+		GameState.inventory.add("iron_ore", 10)
+		GameState.inventory.add("coal", 2)
+		furn_f1.start(GameState.inventory, "iron_ore")
+		furn_f2.start(GameState.inventory, "iron_ore")
+		furn_f2.on_time(60.0)
+		world.player.global_position = world.cell_center(furn_fspot + Vector2i(1, 1))
+		world.player.facing = Vector2i.UP
+		world.player.camera.reset_smoothing()
+		await get_tree().create_timer(0.8).timeout
+		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_furnace.png"))
+		GameState.inventory.add("pickaxe_2")
+		GameState.inventory.add("iron_bar", 3)
+		hud.open_blacksmith()
+		await get_tree().create_timer(0.5).timeout
+		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_smith_tiers.png"))
+		hud._close_panels()
+
 	# 광산 (사용자 결정: 북쪽 숲길 끝 입구 · 아래로 내려가는 층 · 엘리베이터)
 	var shot := func(file: String) -> void:
 		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://%s.png" % file))

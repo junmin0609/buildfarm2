@@ -3048,7 +3048,7 @@ def material_icon(c, kind):
         st = [hexc("7d6f63"), hexc("9a8b7d"), hexc("b5a696"), hexc("cdbfae"), hexc("e6dccd")]
         blob(c, [(8, 9.5, 4.8), (5.5, 10.5, 3), (10.5, 10.5, 3.2)], st)
         c.set(6, 7, st[4]); c.set(7, 7, st[4])
-    elif kind in ORE_ICONS:
+    elif kind in ORE_ICONS or kind == "gold_ore":
         # 광석 덩이: 회갈색 돌 + 광석 알갱이 (석탄은 통째로 검다)
         ore = kind.replace("_ore", "")
         d, m, hi = (hexc(x) for x in ORE[ore])
@@ -3228,6 +3228,8 @@ MACHINE_ICONS = [("sprinkler_1", "sprinkler_1"), ("sprinkler_2", "sprinkler_2"),
                  ("splitter", "splitter_0"), ("merger", "merger_0"), ("filter_splitter", "filter_splitter_0"),
                  ("manual_processor", "processor"), ("electric_processor", "electric_processor"), ("small_generator", "generator"),
                  ("mid_processor", "mid_processor")]  # 중급 가공기 (아이콘 79번)
+# 용광로 (97번) 와 주괴 3종 (98번부터): 금 광석 다음에 붙인다
+FURNACE_ICONS = ["furnace", "copper_bar", "iron_bar", "gold_bar"]
 # 그다음 새 아이템 (아이콘 80번부터): 봄 양배추 · 2급 가공품. 앞 번호를 밀지 않게 맨 뒤에 붙인다
 NEW_ICONS = ["cabbage_seed", "cabbage", "pickled_cabbage", "vegetable_pickle_set", "premium_jam"]
 NEW_PRODUCTS = ["pickled_cabbage", "vegetable_pickle_set", "premium_jam"]
@@ -3236,6 +3238,8 @@ ICON = 32
 USER_ICONS = Path(__file__).resolve().parent.parent / "assets" / "art_src" / "items"
 # 광산 광석 (아이콘 85번부터)
 ORE_ICONS = ["coal", "copper_ore", "iron_ore"]
+# 도구 3·4단계 (철·금, 아이콘 88번부터) + 금 광석 (96번). 그림은 사용자 그림 (assets/art_src/items)
+TOOL_ICONS_34 = ["hoe_3", "watering_can_3", "axe_3", "pickaxe_3", "hoe_4", "watering_can_4", "axe_4", "pickaxe_4"]
 
 
 def load_png(name, folder=None):
@@ -3298,6 +3302,7 @@ ORE = {  # 광석 무늬 색: [어두운, 밝은, 반짝임]
     "coal": ["2b2b2e", "4a4a50", "77777f"],
     "copper": ["9a4a24", "c46a3a", "f0a070"],
     "iron": ["4f5866", "a9b8cc", "eef3f8"],
+    "gold": ["a8741a", "f2c443", "fff3c0"],
 }
 CAVE = [hexc("3a2f26"), hexc("4a3d33"), hexc("54453a"), hexc("5f4f42"), hexc("6e5c4d")]
 CAVE_ROCK = [hexc("5e5650"), hexc("78706a"), hexc("948b82"), hexc("ada398"), hexc("c8beb2")]
@@ -3315,6 +3320,39 @@ def ore_rock(c, ore, seed):
             c.set(x, y, m); c.set(x + 1, y, d); c.set(x, y + 1, d)
             c.set(x, y - 1, hi) if r.random() < 0.6 else None
     c.outline(hexc("231a14"))
+
+
+def make_furnace():
+    """용광로 (1x1, 16x24): 돌 아궁이 + 굴뚝. 아궁이 자리(아래 가운데)에 굽는 동안 불빛을 얹는다 (Furnace._draw_fire)"""
+    c = Canvas(T, T + 8)
+    H = c.h
+    c.ellipse(8, H - 1.5, 7, 1.5, SOFT_SHADOW)
+    st = [hexc("6f665e"), hexc("8a8178"), hexc("a39a90"), hexc("bdb3a8")]
+    rrect(c, 1, 8, 14, H - 9, 2, st[1])
+    for y in range(9, H - 2, 3):          # 돌 줄눈
+        off = 0 if (y // 3) % 2 else 2
+        for x in range(2 + off, 14, 4):
+            c.rect(x, y, 3, 2, st[2])
+            c.set(x, y, st[3])
+    c.rect(5, 2, 6, 7, st[0]); c.rect(5, 2, 6, 1, st[2]); c.rect(6, 0, 4, 2, hexc("5b5550"))   # 굴뚝
+    c.ellipse(8, H - 5.5, 4, 3.2, hexc("2a1d16")); c.rect(4, H - 6, 8, 3, hexc("2a1d16"))   # 아궁이
+    c.rect(4, H - 3, 8, 1, hexc("8a5a3a"))
+    c.outline(INK)
+    c.save("furnace.png")
+
+
+BAR_COLORS = {"copper_bar": ["9a4a24", "c46a3a", "f0a070"], "iron_bar": ["4f5866", "a9b8cc", "eef3f8"], "gold_bar": ["a8741a", "f2c443", "fff3c0"]}
+
+
+def bar_icon(c, kind):
+    """주괴: 비스듬한 사다리꼴 덩이 두 개"""
+    d, m, hi = (hexc(x) for x in BAR_COLORS[kind])
+    for oy, ox in ((8, 1), (4, 4)):
+        for y in range(5):
+            c.rect(ox + y // 2, oy + y, 10 - y // 2 * 2, 1, m if y else hi)
+        c.rect(ox, oy + 4, 10, 1, d)
+        c.set(ox + 2, oy + 1, hi); c.set(ox + 3, oy + 1, hi)
+    c.outline(INK)
 
 
 def make_mine():
@@ -3344,7 +3382,7 @@ def make_mine():
         done()
     wall.save("mine_wall.png")
 
-    for name, ore, seed in (("mine_stone", None, 1), ("mine_coal", "coal", 2), ("mine_copper", "copper", 3), ("mine_iron", "iron", 4)):
+    for name, ore, seed in (("mine_stone", None, 1), ("mine_coal", "coal", 2), ("mine_copper", "copper", 3), ("mine_iron", "iron", 4), ("mine_gold", "gold", 5)):
         c = Canvas(T, T)
         ore_rock(c, ore, seed)
         c.save(name + ".png")
@@ -3428,11 +3466,16 @@ def make_items():
     order += [item for item, _ in MACHINE_ICONS]  # 기계 (아이콘 64번부터)
     order += NEW_ICONS  # 양배추·2급 가공품 (아이콘 80번부터)
     order += ORE_ICONS  # 광석 (아이콘 85번부터)
+    order += TOOL_ICONS_34 + ["gold_ore"]  # 철·금 도구 (88번부터), 금 광석 (96번)
+    order += FURNACE_ICONS  # 용광로 (97번), 주괴 (98번부터)
     machine_art = dict(MACHINE_ICONS)
     atlas = Canvas(len(order) * T, T)
     for col, item in enumerate(order):
         c, done = sub(atlas, col, 0)
-        if item in ("hoe_2", "watering_can_2", "axe_2", "pickaxe_2"):
+        if item in TOOL_ICONS_34:  # 사용자 그림이 없을 때만 보이는 대체 그림: 2단계 모양
+            base = item[:-2]
+            c.template({"hoe": HOE, "watering_can": CAN, "axe": AXE, "pickaxe": PICKAXE}[base], ICON_PAL_2)
+        elif item in ("hoe_2", "watering_can_2", "axe_2", "pickaxe_2"):
             c.template({"hoe_2": HOE, "watering_can_2": CAN, "axe_2": AXE, "pickaxe_2": PICKAXE}[item], ICON_PAL_2)
             c.set(13, 13, hexc("fff3c0")); c.set(14, 12, hexc("fff3c0"))  # 반짝임
         elif item == "hoe":
@@ -3443,9 +3486,13 @@ def make_items():
             c.template(AXE, ICON_PAL)
         elif item == "pickaxe":
             c.template(PICKAXE, ICON_PAL)
+        elif item == "furnace":
+            shrink_icon(c, load_png("furnace.png"))
+        elif item in BAR_COLORS:
+            bar_icon(c, item)
         elif item in machine_art:
             shrink_icon(c, load_png(machine_art[item] + ".png"))
-        elif item in ("fiber", "wood", "stone", "conveyor") or item in ORE_ICONS:
+        elif item in ("fiber", "wood", "stone", "conveyor", "gold_ore") or item in ORE_ICONS:
             material_icon(c, item)
         elif item.endswith("_fertilizer"):
             fertilizer_bag(c, item)
@@ -3600,6 +3647,7 @@ if __name__ == "__main__":
     make_mid_processor()
     make_well()
     make_mine()
+    make_furnace()
     make_shipping_bin()
     make_blacksmith()
     make_recipe_shop()

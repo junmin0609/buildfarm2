@@ -444,5 +444,26 @@
 		"script": "res://scripts/build/fixture.gd",
 		"fixture": "well",
 		"front_clear": true
+	},
+	"furnace": {
+		"name": "용광로",
+		"category": "가공",
+		"description": "광석 5개 + 석탄 1개 → 주괴 1개. 광석을 들고 클릭해서 넣고, [E] 로 꺼내요.",
+		"_comment": "사용자 결정: 1x1, 기계상점, 손으로 넣고 꺼내기, 굽는 시간은 게임 시계 (구리 30분·철 1시간·금 2시간). 한 번에 하나씩, 밤사이엔 굽던 것만 마저. 수치는 임시",
+		"size": [1, 1],
+		"texture": "res://assets/art/furnace.png",
+		"price": 0,
+		"materials": {"furnace": 1},
+		"solid": true,
+		"rotatable": false,
+		"script": "res://scripts/factory/furnace.gd",
+		"furnace": {
+			"recipes": {
+				"copper_ore": {"ore": 5, "coal": 1, "minutes": 30, "output": "copper_bar"},
+				"iron_ore": {"ore": 5, "coal": 1, "minutes": 60, "output": "iron_bar"},
+				"gold_ore": {"ore": 5, "coal": 1, "minutes": 120, "output": "gold_bar"}
+			},
+			"max_output": 10
+		}
 	}
 }

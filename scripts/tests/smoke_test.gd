@@ -242,6 +242,7 @@ func _ready() -> void:
 	_test_mid_processor(world)
 	await _test_townsfolk(world, hud)
 	_test_mine(world, hud)
+	_test_furnace_tools(world)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -1342,8 +1343,7 @@ func _test_blacksmith(world: FarmWorld, hud: HUD) -> void:
 	_check(not ToolUpgrade.apply(inv, hoe_slot) and inv.item_at(hoe_slot).id == "hoe", "돈이 모자라면 강화 안 됨")
 	GameState.money = 10000
 	_check(not ToolUpgrade.apply(inv, hoe_slot) and inv.item_at(hoe_slot).id == "hoe" and GameState.money == 10000, "재료가 모자라면 강화 안 됨 (돈도 그대로)")
-	inv.add("stone", 99)
-	inv.add("wood", 99)
+	inv.add("copper_bar", 99)
 	hud._smith.refresh()
 	_check(hud._smith._list.get_child_count() == 4, "대장간 창에 도구 4개")
 
@@ -1351,9 +1351,9 @@ func _test_blacksmith(world: FarmWorld, hud: HUD) -> void:
 	var hoe := ItemDB.get_item("hoe")
 	var price := ToolUpgrade.price_of(hoe)
 	var mats := ToolUpgrade.materials_of(hoe)
-	_check(ToolUpgrade.apply(inv, hoe_slot) and inv.item_at(hoe_slot).id == "hoe_2", "강화하면 바로 강화 괭이 (같은 칸)")
-	_check(GameState.money == 10000 - price and inv.count_of("stone") == 99 - int(mats.stone) and inv.count_of("wood") == 99 - int(mats.wood), "강화 비용: %d G + 돌 %d + 나무 %d" % [price, int(mats.stone), int(mats.wood)])
-	_check(ToolUpgrade.next_of(inv.item_at(hoe_slot)) == null and not ToolUpgrade.check(inv, hoe_slot).ok, "최고 단계는 더 강화 안 됨")
+	_check(ToolUpgrade.apply(inv, hoe_slot) and inv.item_at(hoe_slot).id == "hoe_2" and inv.item_at(hoe_slot).name == "구리 괭이", "강화하면 바로 구리 괭이 (같은 칸)")
+	_check(GameState.money == 10000 - price and mats.keys() == ["copper_bar"] and inv.count_of("copper_bar") == 99 - int(mats.copper_bar), "강화 비용: %d G + 구리 주괴 %d" % [price, int(mats.copper_bar)])
+	_check(ToolUpgrade.next_of(inv.item_at(hoe_slot)).id == "hoe_3" and not ToolUpgrade.check(inv, hoe_slot).ok and ToolUpgrade.check(inv, hoe_slot).reason.contains("철 주괴"), "구리 → 철은 철 주괴가 있어야 (%s)" % ToolUpgrade.check(inv, hoe_slot).reason)
 
 	# 물뿌리개: 물은 그대로, 용량 증가
 	var can_slot: int = slot_of.call("watering_can")
@@ -3512,6 +3512,134 @@ func _test_townsfolk(world: FarmWorld, hud: HUD) -> void:
 
 
 ## 중급 가공기 + 2급 레시피 (사용자 결정: 새 기계 · 새 레시피만 2급 · 봄 양배추 · 상급은 나중에)
+## 용광로 (사용자 결정: 1x1, 기계상점, 손으로 넣고 꺼내기, 광석 5 + 석탄 1 → 주괴 1) + 도구 3·4단계 (돌→구리→철→금, 강화 재료는 주괴)
+func _test_furnace_tools(world: FarmWorld) -> void:
+	var grid := world.build
+	var farm := world.farm
+	var inv := GameState.inventory
+	var saved_inv := inv.to_data()
+	var saved_money := GameState.money
+	var fdef := PlaceableDB.get_def("furnace")
+	_check(fdef != null and fdef.size == Vector2i(1, 1) and fdef.machine_item() == ItemDB.get_item("furnace") and ItemDB.get_item("furnace").shop == "machine", "용광로: 1x1, 기계상점 기계")
+	var spot := _free_clear_cell(world)
+	var f := grid.place(fdef, spot) as Furnace
+	_check(f != null and grid.object_at(spot) == f, "용광로 설치")
+	if f == null:
+		return
+	inv.load_data([])
+	inv.add("copper_ore", 7)
+	_check(f.start(inv, "copper_ore").contains("석탄") and inv.count_of("copper_ore") == 7 and not f.is_working(), "석탄이 없으면 못 구움")
+	inv.add("coal", 3)
+	_check(f.start(inv, "stone").contains("광석"), "광석이 아니면 안 들어감")
+	inv.add("pickaxe")
+	var slot := -1
+	for i in inv.size():
+		if inv.item_at(i) and inv.item_at(i).id == "copper_ore":
+			slot = i
+	_check(f.use_held_item(inv, slot) and f.is_working() and inv.count_of("copper_ore") == 2 and inv.count_of("coal") == 2, "광석을 들고 클릭 → 굽기 시작 (광석 5 · 석탄 1 빠짐)")
+	_check(not f.start(inv, "copper_ore").is_empty(), "굽는 중엔 더 못 넣음 (한 번에 하나)")
+	f.on_time(29.0)
+	_check(f.output == 0 and f.is_working(), "구리 주괴: 게임 시계 29분엔 아직")
+	f.on_time(1.0)
+	_check(f.output == 1 and f.output_id == "copper_bar" and not f.is_working() and f._icon.visible and f.prompt.contains("꺼내기"), "30분 → 구리 주괴 1 (위에 아이콘)")
+	inv.add("iron_ore", 5)
+	_check(f.start(inv, "iron_ore").contains("먼저 꺼내"), "다른 주괴가 남아 있으면 먼저 꺼내야")
+	f.interact(world.player)
+	_check(inv.count_of("copper_bar") == 1 and f.output == 0, "[E] → 구리 주괴를 가방으로")
+	_check(f.start(inv, "iron_ore") == "" and is_equal_approx(f.minutes_left, 60.0), "철 주괴는 1시간")
+	# 밤사이: 굽던 것만 마저
+	var report := {}
+	f.on_night_production(world, report, 120.0)
+	_check(f.output == 1 and f.output_id == "iron_bar" and int(report.get("night_production", {}).get("processed", 0)) == 1, "밤사이 굽던 철 주괴 완성")
+	# 저장 · 철거 환불
+	inv.add("gold_ore", 5)
+	f.output = 0
+	f.output_id = ""
+	f.start(inv, "gold_ore")
+	var state := f.save_state()
+	var f2 := Furnace.new()
+	f2.def = fdef
+	f2.load_state(state)
+	_check(f2.smelting == "gold_ore" and is_equal_approx(f2.minutes_left, 120.0), "굽던 상태 저장·불러오기 (금 주괴 2시간)")
+	f2.free()
+	var refund := f.contents().map(func(st: Dictionary) -> String: return "%s %d" % [st.id, st.count])
+	_check(refund == ["gold_ore 5", "coal 1"], "철거하면 굽던 광석·석탄을 돌려받음 %s" % [refund])
+	grid.remove(f)
+
+	# 도구 3·4단계
+	_check(ItemDB.get_item("hoe_2").name == "구리 괭이" and ItemDB.get_item("pickaxe_3").name == "철 곡괭이" and ItemDB.get_item("axe_4").name == "금 도끼", "도구 이름: 돌(기본)·구리·철·금")
+	var chain_ok := true
+	for t: String in ["hoe", "watering_can", "axe", "pickaxe"]:
+		var t2 := ItemDB.get_item(t + "_2")
+		var t3 := ItemDB.get_item(t + "_3")
+		chain_ok = chain_ok and ToolUpgrade.next_of(t2) == t3 and ToolUpgrade.materials_of(t2).keys() == ["iron_bar"] and int(ToolUpgrade.materials_of(t2).iron_bar) == 5 				and ToolUpgrade.next_of(t3) == ItemDB.get_item(t + "_4") and ToolUpgrade.materials_of(t3).keys() == ["gold_bar"] and int(ToolUpgrade.materials_of(t3).gold_bar) == 5 				and ToolUpgrade.next_of(ItemDB.get_item(t + "_4")) == null and t3.tier == 3 and ItemDB.get_item(t + "_4").tier == 4
+	_check(chain_ok, "강화 경로: 구리 → 철(철 주괴 5) → 금(금 주괴 5), 금이 최고")
+	inv.load_data([])
+	inv.add("hoe_2")
+	inv.add("iron_bar", 5)
+	inv.add("gold_bar", 5)
+	GameState.money = 100000
+	_check(ToolUpgrade.apply(inv, 0) and inv.item_at(0).id == "hoe_3" and inv.count_of("iron_bar") == 0 and GameState.money == 98000, "구리 괭이 → 철 괭이 (2,000 G + 철 주괴 5)")
+	_check(ToolUpgrade.apply(inv, 0) and inv.item_at(0).id == "hoe_4" and inv.count_of("gold_bar") == 0 and GameState.money == 92000, "철 괭이 → 금 괭이 (6,000 G + 금 주괴 5)")
+	# 넓은 범위: 철 괭이 5칸, 금 괭이 앞쪽 3x3
+	var area_free := func(origin: Vector2i, w: int, h: int) -> bool:
+		for y in h:
+			for x in w:
+				var c := origin + Vector2i(x, y)
+				if not farm.is_farmable(c) or world.obstacles.is_blocked(c) or farm.tiles.has(c) or grid.is_occupied(c):
+					return false
+		return true
+	var origin := Vector2i(-1, -1)
+	var cells: Array = farm.farmable_cells.keys()
+	cells.sort()
+	for c: Vector2i in cells:
+		if area_free.call(c, 9, 5):
+			origin = c
+			break
+	_check(origin.x >= 0, "넓은 밭 자리 찾음 %s" % origin)
+	if origin.x >= 0:
+		var hoe3 := ItemDB.get_item("hoe_3")
+		farm.use_item(origin, hoe3, Vector2i.RIGHT)
+		var line := range(5).all(func(i: int) -> bool: return farm.tiles.has(origin + Vector2i(i, 0))) and not farm.tiles.has(origin + Vector2i(5, 0))
+		_check(line, "철 괭이: 바라보는 방향으로 5칸")
+		var sq := origin + Vector2i(1, 2)  # 아래로 갈면 sq 가 가까운 가장자리 가운데 → x 0~2, y 2~4
+		farm.use_item(sq, ItemDB.get_item("hoe_4"), Vector2i.DOWN)
+		var n9 := 0
+		for y in range(2, 5):
+			for x in range(0, 3):
+				if farm.tiles.has(origin + Vector2i(x, y)):
+					n9 += 1
+		_check(n9 == 9 and not farm.tiles.has(origin + Vector2i(3, 2)) and not farm.tiles.has(origin + Vector2i(1, 5)), "금 괭이: 앞쪽 3x3 (9칸)")
+		# 물뿌리개: 철 3칸 줄, 금 3x3, 물이 모자라면 거기까지
+		inv.load_data([])
+		inv.add("watering_can_3")
+		inv.set_slot_value(0, "water", 30)
+		WateringCan.use(world, origin, inv, 0, Vector2i.RIGHT)
+		var wet := range(3).all(func(i: int) -> bool: return farm.get_tile(origin + Vector2i(i, 0)).watered) and not farm.get_tile(origin + Vector2i(3, 0)).watered
+		_check(wet and WateringCan.water_left(inv, 0) == 27, "철 물뿌리개: 3칸에 물 (물 3 씀)")
+		inv.load_data([])
+		inv.add("watering_can_4")
+		inv.set_slot_value(0, "water", 5)
+		_check(WateringCan.use(world, sq, inv, 0, Vector2i.DOWN) and WateringCan.water_left(inv, 0) == 0, "금 물뿌리개: 물이 5뿐이면 5칸만 주고 멈춤")
+		var watered := 0
+		for y in range(2, 5):
+			for x in range(0, 3):
+				if farm.get_tile(origin + Vector2i(x, y)).watered:
+					watered += 1
+		_check(watered == 5 and ItemDB.get_item("watering_can_4").capacity == 45 and ItemDB.get_item("watering_can_3").capacity == 30, "금 물뿌리개 용량 45 · 철 30")
+		for y in 5:
+			for x in 9:
+				farm.tiles.erase(origin + Vector2i(x, y))
+		farm.queue_redraw()
+	# 금 바위: 철 곡괭이부터, 광산 15층부터 · 20층 보물 층
+	var gold := ObstacleDB.get_def("mine_gold")
+	_check(gold != null and gold.tier == 3 and ItemDB.get_item("pickaxe_2").tier < gold.tier and ItemDB.get_item("pickaxe_3").tier >= gold.tier, "금 바위: 철 곡괭이부터")
+	_check(Mine.rock_weights(16).has("mine_gold") and not Mine.rock_weights(14).has("mine_gold") and Mine.rock_weights(20).has("mine_gold") and not Mine.rock_weights(10).has("mine_gold"), "금 바위는 15층부터 + 20층 보물 층")
+	_check(ItemDB.get_item("pickaxe_4").power > ItemDB.get_item("pickaxe_3").power and ItemDB.get_item("pickaxe_3").power > ItemDB.get_item("pickaxe_2").power, "곡괭이 세기 2 → 3 → 5")
+	inv.load_data(saved_inv)
+	GameState.money = saved_money
+
+
 ## 광산 (사용자 결정: 북쪽 숲길 끝 입구 · 아래로 내려가는 층 · 엘리베이터 · 사다리 찾기 · 10층마다 보물 층 · 광석 4종)
 func _test_mine(world: FarmWorld, hud: Node) -> void:
 	var mine := world.mine
@@ -3918,7 +4046,7 @@ func _test_interiors(world: FarmWorld, hud: HUD) -> void:
 	hud._dialog.choose("machine")
 	var mnames := hud._shop._buy_list.get_children().map(func(r: Node) -> String: return r.get_child(1).text)
 	_check(world.area == "machine" and hud._shop._title.text == "기계상점" and "컨베이어" in mnames and not "당근 씨앗" in mnames, "기계상점 [기계 사기] → 컨베이어 %s" % [mnames])
-	_check(mnames.size() == 17 and "창고" in mnames and "중급 가공기" in mnames and "펌프" in mnames, "기계상점에 기계 17종 (컨베이어 + 공장·자동화 16종, %d)" % mnames.size())
+	_check(mnames.size() == 18 and "창고" in mnames and "중급 가공기" in mnames and "펌프" in mnames and "용광로" in mnames, "기계상점에 기계 18종 (컨베이어 + 공장·자동화 16종 + 용광로, %d)" % mnames.size())
 	var build_names := PlaceableDB.all().filter(func(d: PlaceableDef) -> bool: return d.machine_item() == null and not d.data.has("fixture")).map(func(d: PlaceableDef) -> String: return d.id)
 	_check(build_names == ["scarecrow", "shed", "greenhouse", "compost_bin"], "돈으로 바로 짓는 건 허수아비·헛간·온실·퇴비통만 %s" % [build_names])
 	hud._close_panels()

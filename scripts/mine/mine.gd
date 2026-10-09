@@ -97,7 +97,8 @@ static func elevator_stops() -> Array[int]:
 ## 이 층에서 나오는 바위 비율 (from 이 가장 큰 줄)
 static func rock_weights(n: int) -> Dictionary:
 	if is_treasure_floor(n):
-		return data().get("treasure", {}).get("weights", {})
+		var t: Dictionary = data().get("treasure", {})
+		return t.get("weights_%d" % n, t.get("weights", {}))
 	var result: Dictionary = {}
 	for row: Dictionary in data().get("depths", []):
 		if n >= int(row.get("from", 1)):

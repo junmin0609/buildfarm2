@@ -35,8 +35,10 @@ var capacity := 0
 var power := 1
 ## 괭이: 바라보는 방향으로 한 번에 가는 칸 수
 var till_length := 1
-## 물뿌리개: 물 주는 범위 (나중에 넓은 범위 물주기용, 지금은 1)
+## 물뿌리개: 바라보는 방향으로 한 번에 물 주는 칸 수 (철 물뿌리개 3)
 var water_area := 1
+## 괭이·물뿌리개: 앞쪽 N x N 을 한 번에 (금 도구 3, 0 이면 줄 모양). 가까운 가장자리가 클릭한 칸
+var work_square := 0
 ## 대장간 강화 (§43): {"to": 다음 단계 아이템 id, "price": G, "materials": {아이템 id: 개수}}. 없으면 최고 단계
 var upgrade := {}
 
@@ -81,6 +83,7 @@ static func from_dict(item_id: String, d: Dictionary) -> ItemDef:
 	item.power = maxi(1, int(d.get("power", 1)))
 	item.till_length = maxi(1, int(d.get("till_length", 1)))
 	item.water_area = maxi(1, int(d.get("water_area", 1)))
+	item.work_square = maxi(0, int(d.get("work_square", 0)))
 	item.upgrade = d.get("upgrade", {}) if d.get("upgrade", {}) is Dictionary else {}
 	item.grows = d.get("grows", "")
 	item.grow_days = int(d.get("grow_days", 0))
@@ -93,6 +96,25 @@ static func from_dict(item_id: String, d: Dictionary) -> ItemDef:
 	if d.has("soil_color"):
 		item.soil_color = Color(d.soil_color)
 	return item
+
+
+## 괭이·물뿌리개가 cell 을 dir 쪽으로 쓸 때 닿는 칸들 (가까운 칸부터).
+## work_square 면 cell 이 가까운 가장자리 가운데인 N x N, 아니면 dir 쪽 줄 (괭이 till_length, 물뿌리개 water_area)
+func work_cells(cell: Vector2i, dir: Vector2i) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	if dir == Vector2i.ZERO:
+		dir = Vector2i.DOWN
+	if work_square > 0:
+		var side := Vector2i(dir.y, dir.x)  # dir 에 수직
+		var half := work_square / 2
+		for i in work_square:
+			for j in range(-half, work_square - half):
+				cells.append(cell + dir * i + side * j)
+		return cells
+	var length := till_length if tool_type == "hoe" else water_area
+	for i in maxi(1, length):
+		cells.append(cell + dir * i)
+	return cells
 
 
 func is_sellable() -> bool:

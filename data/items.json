@@ -10,10 +10,7 @@
 		"upgrade": {
 			"to": "hoe_2",
 			"price": 400,
-			"materials": {
-				"stone": 15,
-				"wood": 10
-			}
+			"materials": {"copper_bar": 5}
 		},
 		"power": 1
 	},
@@ -29,10 +26,7 @@
 		"upgrade": {
 			"to": "watering_can_2",
 			"price": 400,
-			"materials": {
-				"stone": 15,
-				"wood": 5
-			}
+			"materials": {"copper_bar": 5}
 		}
 	},
 	"axe": {
@@ -46,10 +40,7 @@
 		"upgrade": {
 			"to": "axe_2",
 			"price": 500,
-			"materials": {
-				"stone": 20,
-				"wood": 10
-			}
+			"materials": {"copper_bar": 5}
 		},
 		"power": 1
 	},
@@ -64,10 +55,7 @@
 		"upgrade": {
 			"to": "pickaxe_2",
 			"price": 500,
-			"materials": {
-				"stone": 10,
-				"wood": 20
-			}
+			"materials": {"copper_bar": 5}
 		},
 		"power": 1
 	},
@@ -404,45 +392,45 @@
 		"description": "씨앗을 심기 전에 밭에 뿌려요. 골드 작물이 훨씬 잘 나와요."
 	},
 	"hoe_2": {
-		"name": "강화 괭이",
+		"name": "구리 괭이",
 		"kind": "tool",
 		"tool": "hoe",
 		"tier": 2,
 		"max_stack": 1,
 		"icon": 16,
-		"till_length": 3,
+		"upgrade": {"to": "hoe_3", "price": 2000, "materials": {"iron_bar": 5}}, "till_length": 3,
 		"power": 1,
 		"description": "바라보는 방향으로 3칸을 한 번에 갈아요."
 	},
 	"watering_can_2": {
-		"name": "강화 물뿌리개",
+		"name": "구리 물뿌리개",
 		"kind": "tool",
 		"tool": "watering_can",
 		"tier": 2,
 		"max_stack": 1,
 		"icon": 17,
-		"capacity": 20,
+		"upgrade": {"to": "watering_can_3", "price": 2000, "materials": {"iron_bar": 5}}, "capacity": 20,
 		"water_area": 1,
 		"description": "물이 더 많이 들어가요. 우물에서 채워요."
 	},
 	"axe_2": {
-		"name": "강화 도끼",
+		"name": "구리 도끼",
 		"kind": "tool",
 		"tool": "axe",
 		"tier": 2,
 		"max_stack": 1,
 		"icon": 18,
-		"power": 2,
+		"upgrade": {"to": "axe_3", "price": 2000, "materials": {"iron_bar": 5}}, "power": 2,
 		"description": "더 빨리 베고, 큰 그루터기도 벨 수 있어요."
 	},
 	"pickaxe_2": {
-		"name": "강화 곡괭이",
+		"name": "구리 곡괭이",
 		"kind": "tool",
 		"tool": "pickaxe",
 		"tier": 2,
 		"max_stack": 1,
 		"icon": 19,
-		"power": 2,
+		"upgrade": {"to": "pickaxe_3", "price": 2000, "materials": {"iron_bar": 5}}, "power": 2,
 		"description": "더 빨리 깨고, 큰 바위도 깰 수 있어요."
 	},
 	"wheat_seed": {
@@ -809,20 +797,164 @@
 		"_comment": "광산 1층부터 (사용자 결정: 광석은 그대로 팔면 싸고, 2단계 제련로에서 주괴로 만들어야 값이 붙는다). 값은 임시",
 		"sell_price": 6,
 		"icon": 85,
-		"description": "광산 바위에서 나오는 검은 돌. 나중에 제련로 연료가 돼요."
+		"description": "광산 바위에서 나오는 검은 돌. 용광로 연료예요."
 	},
 	"copper_ore": {
 		"name": "구리 광석",
 		"kind": "material",
 		"sell_price": 10,
 		"icon": 86,
-		"description": "광산 1층부터 나와요. 그대로 팔면 싸지만, 나중에 주괴로 만들 수 있어요."
+		"description": "광산 1층부터 나와요. 용광로에서 구리 주괴로 구워요."
 	},
 	"iron_ore": {
 		"name": "철 광석",
 		"kind": "material",
 		"sell_price": 18,
 		"icon": 87,
-		"description": "광산 10층부터 나와요. 강화 곡괭이가 있어야 캘 수 있어요."
+		"description": "광산 10층부터 나와요. 구리 곡괭이가 있어야 캘 수 있어요. 용광로에서 철 주괴로 구워요."
+	},
+	"hoe_3": {
+		"name": "철 괭이",
+		"kind": "tool",
+		"tool": "hoe",
+		"tier": 3,
+		"max_stack": 1,
+		"icon": 88,
+		"till_length": 5,
+		"power": 1,
+		"_comment": "도구 3·4단계 (사용자 결정: 돌→구리→철→금, 강화 재료는 용광로에서 구운 주괴, 수치는 임시)",
+		"upgrade": {
+			"to": "hoe_4",
+			"price": 6000,
+			"materials": {"gold_bar": 5}
+		},
+		"description": "바라보는 방향으로 5칸을 한 번에 갈아요."
+	},
+	"watering_can_3": {
+		"name": "철 물뿌리개",
+		"kind": "tool",
+		"tool": "watering_can",
+		"tier": 3,
+		"max_stack": 1,
+		"icon": 89,
+		"capacity": 30,
+		"water_area": 3,
+		"upgrade": {
+			"to": "watering_can_4",
+			"price": 6000,
+			"materials": {"gold_bar": 5}
+		},
+		"description": "물이 30번 들어가고, 바라보는 방향으로 3칸에 한 번에 물을 줘요."
+	},
+	"axe_3": {
+		"name": "철 도끼",
+		"kind": "tool",
+		"tool": "axe",
+		"tier": 3,
+		"max_stack": 1,
+		"icon": 90,
+		"power": 3,
+		"upgrade": {
+			"to": "axe_4",
+			"price": 6000,
+			"materials": {"gold_bar": 5}
+		},
+		"description": "구리 도끼보다 더 빨리 베어요."
+	},
+	"pickaxe_3": {
+		"name": "철 곡괭이",
+		"kind": "tool",
+		"tool": "pickaxe",
+		"tier": 3,
+		"max_stack": 1,
+		"icon": 91,
+		"power": 3,
+		"upgrade": {
+			"to": "pickaxe_4",
+			"price": 6000,
+			"materials": {"gold_bar": 5}
+		},
+		"description": "더 빨리 깨고, 광산의 금 바위도 깰 수 있어요."
+	},
+	"hoe_4": {
+		"name": "금 괭이",
+		"kind": "tool",
+		"tool": "hoe",
+		"tier": 4,
+		"max_stack": 1,
+		"icon": 92,
+		"work_square": 3,
+		"power": 1,
+		"description": "앞쪽 3x3 (9칸)을 한 번에 갈아요."
+	},
+	"watering_can_4": {
+		"name": "금 물뿌리개",
+		"kind": "tool",
+		"tool": "watering_can",
+		"tier": 4,
+		"max_stack": 1,
+		"icon": 93,
+		"capacity": 45,
+		"work_square": 3,
+		"description": "물이 45번 들어가고, 앞쪽 3x3 (9칸)에 한 번에 물을 줘요."
+	},
+	"axe_4": {
+		"name": "금 도끼",
+		"kind": "tool",
+		"tool": "axe",
+		"tier": 4,
+		"max_stack": 1,
+		"icon": 94,
+		"power": 5,
+		"description": "가장 빠른 도끼. 큰 그루터기도 금방 베어요."
+	},
+	"pickaxe_4": {
+		"name": "금 곡괭이",
+		"kind": "tool",
+		"tool": "pickaxe",
+		"tier": 4,
+		"max_stack": 1,
+		"icon": 95,
+		"power": 5,
+		"description": "가장 빠른 곡괭이. 무엇이든 금방 깨요."
+	},
+	"gold_ore": {
+		"name": "금 광석",
+		"kind": "material",
+		"sell_price": 30,
+		"icon": 96,
+		"description": "광산 15층부터 나와요. 철 곡괭이가 있어야 캘 수 있어요. 용광로에서 금 주괴로 구워요."
+	},
+	"furnace": {
+		"name": "용광로",
+		"kind": "machine",
+		"shop": "machine",
+		"_comment": "사용자 결정: 1x1, 기계상점, 손으로 넣고 꺼내기. 값·재료는 임시",
+		"buy_price": 1000,
+		"buy_materials": {"stone": 30},
+		"max_stack": 20,
+		"icon": 97,
+		"description": "광석 5개 + 석탄 1개를 넣으면 주괴 1개를 구워요. 광석을 들고 클릭해서 넣어요."
+	},
+	"copper_bar": {
+		"name": "구리 주괴",
+		"kind": "material",
+		"sell_price": 70,
+		"icon": 98,
+		"description": "용광로에서 구리 광석 5개를 구운 것. 구리 도구로 강화하는 데 써요."
+	},
+	"iron_bar": {
+		"name": "철 주괴",
+		"kind": "material",
+		"sell_price": 130,
+		"icon": 99,
+		"description": "용광로에서 철 광석 5개를 구운 것. 철 도구로 강화하는 데 써요."
+	},
+	"gold_bar": {
+		"name": "금 주괴",
+		"kind": "material",
+		"sell_price": 220,
+		"icon": 100,
+		"description": "용광로에서 금 광석 5개를 구운 것. 금 도구로 강화하는 데 써요."
 	}
 }

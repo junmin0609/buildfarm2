@@ -28,7 +28,8 @@ static func is_can(inv: Inventory, index: int) -> bool:
 
 
 ## index 칸의 물뿌리개를 cell 에 쓴다. 무언가 했으면 true.
-static func use(world: FarmWorld, cell: Vector2i, inv: Inventory, index: int) -> bool:
+## 철·금 물뿌리개는 dir 쪽 여러 칸 (ItemDef.work_cells). 물 1 = 한 칸, 물이 떨어지면 거기까지
+static func use(world: FarmWorld, cell: Vector2i, inv: Inventory, index: int, dir := Vector2i.DOWN) -> bool:
 	var source := water_source_at(world, cell)
 	if source != null:
 		var added := refill(inv, index, source)
@@ -40,20 +41,26 @@ static func use(world: FarmWorld, cell: Vector2i, inv: Inventory, index: int) ->
 		else:
 			Events.toast.emit("%s에 물이 없어요." % source.water_source_name())
 		return added > 0
-	var tile := world.farm.get_tile(cell)
-	if tile == null:
-		if MapLayout.char_at(cell) == "~":
+	var item := inv.item_at(index)
+	var cells: Array[Vector2i] = item.work_cells(cell, dir) if item else [cell]
+	var need := cells.filter(func(c: Vector2i) -> bool:
+		var t := world.farm.get_tile(c)
+		return t != null and not t.watered)
+	if need.is_empty():
+		if world.farm.get_tile(cell) == null and MapLayout.char_at(cell) == "~":
 			Events.toast.emit("물뿌리개는 우물이나 물탱크에서 채워요.")
-		return false
-	if tile.watered:
 		return false
 	if water_left(inv, index) <= 0:
 		Events.toast.emit("물이 없어요. 우물이나 물탱크에서 물뿌리개를 채워 주세요.")
 		return false
-	if not world.farm.water(cell):
-		return false
-	inv.set_slot_value(index, "water", water_left(inv, index) - 1)
-	return true
+	var done := 0
+	for c: Vector2i in need:
+		if water_left(inv, index) <= 0:
+			break
+		if world.farm.water(c):
+			inv.set_slot_value(index, "water", water_left(inv, index) - 1)
+			done += 1
+	return done > 0
 
 
 ## index 칸의 물뿌리개를 source 에서 채운다. 실제로 채운 양을 돌려준다.

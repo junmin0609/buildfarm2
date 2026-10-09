@@ -169,13 +169,17 @@ func _use_selected() -> void:
 	# 다 자란 작물은 무엇을 들고 있든 수확한다
 	if _try_harvest(cell):
 		return
+	# 손에 든 것을 받는 시설 (용광로: 광석을 들고 클릭하면 넣고, 아니면 주괴 꺼내기)
+	var obj := _world().build.object_at(cell)
+	if obj and obj.has_method("use_held_item") and obj.use_held_item(GameState.inventory, GameState.selected_slot):
+		return
 	# 장애물이 있으면 개간 (도구가 맞지 않으면 안내만 하고 끝). 광산 바위도 같은 규칙
 	if _world().obstacles.try_clear(cell, item) or _world().mine.rocks.try_clear(cell, item):
 		return
 	if item == null:
 		return
 	if item.tool_type == "watering_can":
-		WateringCan.use(_world(), cell, GameState.inventory, GameState.selected_slot)
+		WateringCan.use(_world(), cell, GameState.inventory, GameState.selected_slot, work_dir(cell))
 		return
 	if _world().farm.use_item(cell, item, work_dir(cell)) and item.kind in [ItemDef.Kind.SEED, ItemDef.Kind.FERTILIZER]:
 		GameState.inventory.remove_at(GameState.selected_slot, 1)

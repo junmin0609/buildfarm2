@@ -243,6 +243,12 @@ func use_item(cell: Vector2i, item: ItemDef, dir := Vector2i.DOWN) -> bool:
 		ItemDef.Kind.TOOL:
 			match item.tool_type:
 				"hoe":
+					if item.work_square > 0:  # 금 괭이: 앞쪽 3x3
+						var any := false
+						for c: Vector2i in item.work_cells(cell, dir):
+							if till(c):
+								any = true
+						return any
 					return till_line(cell, dir, item.till_length)
 				"watering_can":
 					return water(cell)

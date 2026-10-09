@@ -1,5 +1,5 @@
 {
-	"_comment": "광산 (사용자 결정: 광장 북쪽 숲길 끝 입구, 아래로 내려갈수록 좋은 광석, 엘리베이터로 오가기, 시간 + 사다리 찾기, 광석 4종). 1단계: 20층까지. 수치는 모두 임시 밸런스",
+	"_comment": "광산 (사용자 결정: 광장 북쪽 숲길 끝 입구, 아래로 내려갈수록 좋은 광석, 엘리베이터로 오가기, 시간 + 사다리 찾기, 광석 4종 + 금은 15~20층). 1단계: 20층까지. 수치는 모두 임시 밸런스",
 	"bottom": 20,
 	"_elevator": "이 층마다 엘리베이터 정류장. 그 층에 처음 닿으면 열린다",
 	"elevator_every": 5,
@@ -12,13 +12,15 @@
 		{"from": 1, "rocks": {"mine_stone": 60, "mine_coal": 25, "mine_copper": 15}},
 		{"from": 5, "rocks": {"mine_stone": 50, "mine_coal": 25, "mine_copper": 25}},
 		{"from": 10, "rocks": {"mine_stone": 45, "mine_coal": 20, "mine_copper": 17, "mine_iron": 18}},
-		{"from": 15, "rocks": {"mine_stone": 40, "mine_coal": 18, "mine_copper": 14, "mine_iron": 28}}
+		{"from": 15, "rocks": {"mine_stone": 38, "mine_coal": 16, "mine_copper": 12, "mine_iron": 24, "mine_gold": 10}}
 	],
 	"_treasure": "보물 층 (사용자 결정: 10층마다). 광석이 잔뜩 + 상자 하나 (상자는 처음 한 번만)",
 	"treasure": {
 		"floors": [10, 20],
 		"rocks": [40, 48],
 		"weights": {"mine_coal": 30, "mine_copper": 35, "mine_iron": 35},
+		"_weights_20": "20층 보물 층은 금 바위도 (사용자 결정: 금은 15~20층)",
+		"weights_20": {"mine_coal": 20, "mine_copper": 20, "mine_iron": 35, "mine_gold": 25},
 		"chest": {
 			"10": {"money": 800, "items": {"copper_ore": 15, "coal": 10}},
 			"20": {"money": 2000, "items": {"iron_ore": 15, "coal": 15}}
