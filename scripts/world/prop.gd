@@ -15,6 +15,9 @@ extends Node2D
 ## 간판 글자 (아치·팻말). sign_rect 는 그림 왼쪽 위 기준 간판 판 자리
 @export var sign_text := ""
 @export var sign_rect := Rect2()
+## 저녁 불빛 (가로등 등, 무드 개편): 노드 기준 자리. 비어 있으면 없음
+@export var night_lights: PackedVector2Array = []
+@export var light_radius := 40.0
 
 
 func _ready() -> void:
@@ -27,6 +30,8 @@ func _ready() -> void:
 	add_child(sprite)
 	if sign_text != "":
 		add_child(Art.sign_label(sign_text, sign_rect, -foot))
+	for p in night_lights:
+		add_child(NightLight.make(p, light_radius))
 	if not solid:
 		return
 

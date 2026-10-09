@@ -12,3 +12,4 @@ tiles = Vector2i(5, 3)
 ground_shadow = false
 sign_text = "기계상점"
 sign_rect = Rect2(11, 27, 68, 18)
+window_lights = PackedVector2Array(21, 64, 63, 64, 40, 70)

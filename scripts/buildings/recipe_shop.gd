@@ -9,6 +9,7 @@ func _init() -> void:
 	door_x = 32.0
 	sign_text = "레시피"
 	sign_rect = Rect2(6, 25, 52, 18)
+	window_lights = PackedVector2Array([Vector2(13, 61), Vector2(51, 61), Vector2(32, 68)])
 	prompt = "[E] 레시피 상점 (셰프)"
 
 

@@ -10,3 +10,5 @@ foot = Vector2(32, 58)
 solid = false
 sign_text = "숲길"
 sign_rect = Rect2(6, 0, 52, 18)
+night_lights = PackedVector2Array(-22, -36, 25, -36)
+light_radius = 26.0

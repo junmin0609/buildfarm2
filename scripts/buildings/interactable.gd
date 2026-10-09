@@ -18,6 +18,8 @@ const REACH := 14.0
 ## 간판 글자 (무드 개편): 그림의 간판 판 자리(sign_rect, 그림 왼쪽 위 기준)에 도트 폰트로 얹는다. 비어 있으면 없음
 @export var sign_text := ""
 @export var sign_rect := Rect2()
+## 저녁에 켜지는 창문·문 불빛 자리 (그림 왼쪽 위 기준, 무드 개편)
+@export var window_lights: PackedVector2Array = []
 
 ## 그림자 줄: [위로부터 y, 왼쪽에서 들여쓰기, 오른쪽에서 들여쓰기, 진하기]
 const SHADOW_ROWS := [[-1, 2, -1, 0.16], [0, 1, -2, 0.24], [1, 3, 0, 0.16], [2, 6, 3, 0.08]]
@@ -42,6 +44,8 @@ func _ready() -> void:
 	add_child(sprite)
 	if sign_text != "":
 		add_child(Art.sign_label(sign_text, sign_rect, sprite.offset))
+	for p in window_lights:
+		add_child(NightLight.make(sprite.offset + p, 34.0))
 	_add_collision()
 
 

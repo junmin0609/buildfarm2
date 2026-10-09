@@ -200,6 +200,20 @@ func _ready() -> void:
 	await get_tree().create_timer(0.8).timeout
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_plaza_overview.png"))
 	world.player.camera.zoom = zoom_before
+	# 저녁 불빛 (무드 개편): 밤 9시 광장 (가게 거리·분수)
+	var clock_before := GameState.minutes
+	GameState.set_clock(21 * 60)
+	world._on_time_changed(GameState.day, GameState.minutes)
+	for spot: Array in [[Vector2i(70, 19), "night_shops", 0.55], [Vector2i(74, 33), "night_fountain", 0.75]]:
+		world.player.camera.zoom = zoom_before * float(spot[2])
+		world.player.global_position = world.cell_center(spot[0])
+		world.player.camera.reset_smoothing()
+		await get_tree().create_timer(2.0).timeout
+		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_%s.png" % spot[1]))
+	world.player.camera.zoom = zoom_before
+	GameState.set_clock(clock_before)
+	world._on_time_changed(GameState.day, GameState.minutes)
+	await get_tree().create_timer(1.6).timeout
 	world.enter_interior("store")
 	world.player.global_position = (world.interiors["store"] as Interior).npc.interact_point()
 	world.player.facing = Vector2i.UP

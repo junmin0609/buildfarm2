@@ -10,6 +10,7 @@ func _init() -> void:
 	door_x = 32.0
 	sign_text = "대장간"
 	sign_rect = Rect2(6, 25, 52, 18)
+	window_lights = PackedVector2Array([Vector2(32, 68), Vector2(53, 61)])
 	prompt = "[E] 대장간 들어가기"
 
 

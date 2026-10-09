@@ -3560,6 +3560,18 @@ func _test_plaza(world: FarmWorld) -> void:
 	var in_room: Dictionary = world.save_manager._migrate({"version": 2, "sections": {"player": {"position": [165.0 * FarmWorld.TILE, 20.0 * FarmWorld.TILE]}}})
 	_check(Vector2(in_room.sections.player.position[0], in_room.sections.player.position[1]) == world.home_position, "버전 2 저장: 옛 가게 실내 자리에 있었으면 집 앞 (방 자리 바뀜)")
 	_check(Interior.door_cell("store") == Vector2i(5, 8) and Interior.SIZE == Vector2i(12, 9), "실내 12x9, 문은 아래 가운데")
+	# 저녁 불빛 (무드 개편): 낮엔 꺼짐, 밤엔 가로등·가게 창 둘레가 밝아짐
+	var lights := get_tree().get_nodes_in_group(NightLight.GROUP)
+	var m0 := GameState.minutes
+	GameState.set_clock(12 * 60)
+	world._on_time_changed(GameState.day, GameState.minutes)
+	var day_off := lights.all(func(l: NightLight) -> bool: return not l.enabled)
+	GameState.set_clock(21 * 60)
+	world._on_time_changed(GameState.day, GameState.minutes)
+	var night_on := lights.all(func(l: NightLight) -> bool: return l.enabled and l.energy > 0.5)
+	_check(lights.size() >= 30 and day_off and night_on, "저녁 불빛 %d개: 낮엔 꺼지고 밤엔 켜짐" % lights.size())
+	GameState.set_clock(m0)
+	world._on_time_changed(GameState.day, GameState.minutes)
 	var r0 := Interior.view_rect_of("store")
 	_check(not r0.intersects(Interior.view_rect_of("smith")) and not Interior.view_rect_of("smith").intersects(Interior.view_rect_of("machine")), "방끼리 카메라 범위가 겹치지 않음")
 

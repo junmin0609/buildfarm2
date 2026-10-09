@@ -8,3 +8,5 @@ script = ExtResource("1_prop")
 texture = ExtResource("2_tex")
 foot = Vector2(24, 40)
 collision = Rect2(-23, -12, 46, 12)
+night_lights = PackedVector2Array(-16, -24)
+light_radius = 30.0

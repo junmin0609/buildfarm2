@@ -521,6 +521,12 @@ func _on_time_changed(_day: int, minutes: int) -> void:
 	target *= Weather.tint(GameState.weather)  # 흐림·비·눈은 조금 어둡고 푸르게
 	var tween := create_tween()
 	tween.tween_property(_daylight, "color", target, 1.5)
+	get_tree().call_group(NightLight.GROUP, "set_night", night_factor())
+
+
+## 저녁 불빛 세기 (무드 개편): 17시부터 서서히 켜져 19시 30분에 가장 밝다. 0 낮 ~ 1 밤
+func night_factor() -> float:
+	return clampf((GameState.minutes - 17 * 60) / 150.0, 0.0, 1.0)
 
 
 # ---------- 좌표 도우미
