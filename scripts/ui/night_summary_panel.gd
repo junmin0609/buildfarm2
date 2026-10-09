@@ -57,7 +57,13 @@ func open(day: int, night: Dictionary) -> void:
 			var row := ShopPanel.item_row(item, "+%d" % int(items[id]))
 			_lines.add_child(row)
 	var energy := float(night.get("energy", 0.0))
-	_energy.text = "발전기가 만든 전기 +%d" % roundi(energy) if energy >= 1.0 else ""
-	_energy.visible = energy >= 1.0
+	var water := float(night.get("water", 0.0))
+	var notes: Array[String] = []
+	if energy >= 1.0:
+		notes.append("발전기가 만든 전기 +%d" % roundi(energy))
+	if water >= 1.0:
+		notes.append("펌프가 퍼 올린 물 +%d" % roundi(water))
+	_energy.text = "\n".join(notes)
+	_energy.visible = not notes.is_empty()
 	show()
 	reset_size()

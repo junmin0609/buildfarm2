@@ -475,6 +475,44 @@ func _ready() -> void:
 		await get_tree().create_timer(0.4).timeout
 		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_sprinkler_preview.png"))
 		world.build_mode.stop()
+	# 펌프·물탱크 (§14): 연못가 펌프 → 물탱크 → 스프링클러, HUD 물 표시 / 물가가 아닌 곳에 펌프를 놓으려 할 때
+	for obj in world.build.objects().duplicate():
+		obj.take_contents()
+		world.build.remove(obj)
+	for y in range(29, 35):
+		for x in range(4, 16):
+			world.obstacles.remove(Vector2i(x, y))
+			world.farm.remove_crop(Vector2i(x, y))
+			world.farm.untill(Vector2i(x, y))
+	await get_tree().process_frame
+	var wtank := world.build.place(PlaceableDB.get_def("water_tank"), Vector2i(12, 30)) as WaterTank
+	world.build.place(PlaceableDB.get_def("pump"), Vector2i(8, 34))
+	var wgen := world.build.place(PlaceableDB.get_def("small_generator"), Vector2i(14, 30)) as Generator
+	if wgen:
+		GameState.inventory.add("wood", 5)
+		wgen.deposit(GameState.inventory, "wood", 5)
+		wgen.produce(120.0)
+	for c in FarmArea.cells(Vector2i(7, 31), {"shape": "square", "radius": 1}):
+		world.farm.till(c)
+		world.farm.plant(c, ItemDB.get_item("carrot_seed"))
+	world.build.place(PlaceableDB.get_def("sprinkler_2"), Vector2i(7, 31))
+	if wtank:
+		wtank.water = 120.0
+	world.build.start_day()
+	world.player.global_position = world.cell_center(Vector2i(10, 33))
+	world.player.facing = Vector2i.UP
+	world.player.camera.reset_smoothing()
+	Events.power_changed.emit()
+	await get_tree().create_timer(0.6).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_pump_tank.png"))
+	world.build_mode.start_place("pump")
+	world.build_mode._use_mouse = false
+	world.player.global_position = world.cell_center(Vector2i(10, 31))
+	world.player.facing = Vector2i.DOWN
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_pump_bad.png"))
+	world.build_mode.stop()
+
 	# 분배기·합류기·필터 분배기 (§62): 한 줄을 세 갈래로 나눴다가 다시 합침 / 건설 모드 화살표
 	for obj in world.build.objects().duplicate():
 		obj.take_contents()

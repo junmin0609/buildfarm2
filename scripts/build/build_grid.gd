@@ -63,7 +63,20 @@ func check(def: PlaceableDef, origin: Vector2i, ignore: Placeable = null, turns 
 			bad.append(c)
 			if reason == "":
 				reason = why
+	# 펌프처럼 물가에만 짓는 시설 (§14, 사용자 결정: 개울·연못에 맞닿은 칸)
+	if bad.is_empty() and def.data.get("needs_water", false) and not touches_water(def, origin, turns):
+		bad = Placeable.footprint_of(def, origin, turns)
+		reason = "물가(개울·연못) 옆에만 지을 수 있어요."
 	return {"ok": bad.is_empty(), "bad": bad, "reason": reason}
+
+
+## 차지하는 칸 중 하나라도 물 칸('~')과 변이 맞닿는가
+static func touches_water(def: PlaceableDef, origin: Vector2i, turns := 0) -> bool:
+	for c in Placeable.footprint_of(def, origin, turns):
+		for d in Placeable.DIRS:
+			if MapLayout.char_at(c + d) == "~":
+				return true
+	return false
 
 
 ## 지금 이 칸에 무언가 있어서 지을 수 없는가 (시설·장애물·작물). 격자 표시용, 플레이어 위치는 보지 않는다.
@@ -197,6 +210,46 @@ func draw_energy(amount: float) -> float:
 	return got
 
 
+## 지역 물통 (§14, 사용자 결정): 물탱크들의 합. 펌프가 채우고 스프링클러가 아침마다 꺼내 쓴다 (파이프 없음)
+## {"stored": 남은 물, "capacity": 통 크기 합, "sprinklers": 스프링클러 수}
+func water_status() -> Dictionary:
+	var stored := 0.0
+	var capacity := 0.0
+	var sprinklers := 0
+	for obj in _objects:
+		stored += obj.water_stored()
+		capacity += obj.water_capacity()
+		if obj is Sprinkler:
+			sprinklers += 1
+	return {"stored": stored, "capacity": capacity, "sprinklers": sprinklers}
+
+
+## 물탱크들에 차례로 넣는다. 실제로 넣은 양
+func fill_water(amount: float) -> float:
+	var put := 0.0
+	for obj in _objects:
+		if put >= amount:
+			break
+		if obj.water_capacity() > 0.0:
+			put += obj.add_water(amount - put)
+	if put > 0.0:
+		Events.power_changed.emit()  # HUD 물 표시도 전기와 같은 신호로 갱신
+	return put
+
+
+## 물탱크들에서 차례로 꺼낸다. 실제로 꺼낸 양
+func draw_water(amount: float) -> float:
+	var got := 0.0
+	for obj in _objects:
+		if got >= amount:
+			break
+		if obj.water_stored() > 0.0:
+			got += obj.take_water(amount - got)
+	if got > 0.0:
+		Events.power_changed.emit()
+	return got
+
+
 ## 발전기(전기를 담는 시설) 먼저, 나머지 다음 순서 — 같은 시간에 만든 전기를 바로 쓸 수 있게
 func _ordered() -> Array[Placeable]:
 	var first: Array[Placeable] = []
@@ -237,8 +290,15 @@ func end_day(report: Dictionary) -> void:
 
 ## 새 날 아침 (DayCycle 의 wake_up 단계): 시설의 아침 동작 (스프링클러 등)
 func start_day() -> void:
+	sprinkler_missed = 0
 	for obj in _objects:
 		obj.on_day_started(world)
+	if sprinkler_missed > 0:
+		Events.toast.emit("물이 모자라 스프링클러가 %d칸을 못 적셨어요." % sprinkler_missed)
+
+
+## 오늘 아침 물이 모자라 스프링클러가 못 적신 칸 수 (Sprinkler 가 더한다)
+var sprinkler_missed := 0
 
 
 # ---------- 저장용

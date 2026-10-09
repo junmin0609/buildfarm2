@@ -225,6 +225,9 @@ func _ready() -> void:
 	# ---------- 하늘시장 + 비행선 정류장 + 하늘섬 (§84~§90)
 	await _test_sky_market(world, hud)
 
+	# ---------- 펌프 + 물탱크 + 스프링클러 물 (§14)
+	await _test_water(world, hud)
+
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
 
@@ -2866,7 +2869,9 @@ func _test_farm_machines(world: FarmWorld, hud: HUD) -> void:
 		farm.till(c)
 	_check(ring.all(func(c: Vector2i) -> bool: return farm.get_tile(c) != null and not farm.get_tile(c).watered), "5x5 밭 갈기 (마른 상태)")
 
-	# 스프링클러: 매일 아침 범위 안 밭에 물
+	# 스프링클러: 매일 아침 범위 안 밭에 물 (물탱크 물을 씀 — 물은 넉넉히 넣어 둔다)
+	var tank := grid.place(PlaceableDB.get_def("water_tank"), origin + Vector2i(7, 0)) as WaterTank
+	tank.water = tank.capacity()
 	var sp3 := grid.place(PlaceableDB.get_def("sprinkler_3"), center) as Sprinkler
 	_check(sp3 != null, "상급 스프링클러 설치")
 	grid.start_day()
@@ -2875,7 +2880,7 @@ func _test_farm_machines(world: FarmWorld, hud: HUD) -> void:
 	for c in ring:
 		farm.get_tile(c).watered = false
 	var sp1 := grid.place(PlaceableDB.get_def("sprinkler_1"), center) as Sprinkler
-	_check(sp1.water_area(world) == 4 and farm.get_tile(center + Vector2i.UP).watered and not farm.get_tile(center + Vector2i(1, 1)).watered, "하급은 상하좌우 4칸만")
+	_check(int(sp1.water_area(world).watered) == 4 and farm.get_tile(center + Vector2i.UP).watered and not farm.get_tile(center + Vector2i(1, 1)).watered, "하급은 상하좌우 4칸만")
 	for c in ring:
 		farm.get_tile(c).watered = false
 	GameState.set_clock(9 * 60)
@@ -3263,6 +3268,125 @@ func _test_sky_market(world: FarmWorld, hud: HUD) -> void:
 	station.refresh()
 	GameState.day = saved_day
 	inv.load_data(saved_inv)
+	await get_tree().process_frame
+
+
+func _test_water(world: FarmWorld, hud: HUD) -> void:
+	var grid := world.build
+	var farm := world.farm
+	var inv := GameState.inventory
+	var saved_inv := inv.to_data()
+	var saved_day := GameState.day
+	GameState.day = 2
+	var pump_def := PlaceableDB.get_def("pump")
+	var tank_def := PlaceableDB.get_def("water_tank")
+	_check(pump_def != null and pump_def.data.get("needs_water", false) and tank_def != null and tank_def.size == Vector2i(2, 2), "펌프(1x1, 물가 전용)·물탱크(2x2) 정의")
+
+	# 자리: 8x6 빈 밭 땅 (물탱크·발전기·스프링클러 + 밭)
+	var o := Vector2i(-1, -1)
+	var cells: Array = farm.farmable_cells.keys()
+	cells.sort()
+	for c: Vector2i in cells:
+		var ok := true
+		for y in 6:
+			for x in 8:
+				var fc := c + Vector2i(x, y)
+				if not grid.is_buildable_ground(fc) or grid.is_occupied(fc) or farm.tiles.has(fc):
+					ok = false
+		if ok:
+			o = c
+			break
+	_check(o.x >= 0, "물 점검 자리 %s" % o)
+	if o.x < 0:
+		return
+	for y in 6:
+		for x in 8:
+			world.obstacles.remove(o + Vector2i(x, y))
+	await get_tree().process_frame
+	world.player.global_position = world.cell_center(_find_char("s"))
+
+	# 물탱크가 없으면 스프링클러는 못 적심 (사용자 결정: 물탱크 물을 씀)
+	var sp_at := o + Vector2i(5, 3)
+	var plus := FarmArea.cells(sp_at, {"shape": "plus", "radius": 1})
+	for c in plus:
+		farm.till(c)
+	var sp := grid.place(PlaceableDB.get_def("sprinkler_1"), sp_at) as Sprinkler
+	grid.start_day()
+	_check(plus.all(func(c: Vector2i) -> bool: return not farm.get_tile(c).watered) and grid.sprinkler_missed == 4, "물탱크가 없으면 4칸 모두 못 적심 (아침 알림)")
+	await get_tree().process_frame
+	_check(hud._water_label.visible and hud._water_label.text == "물 0 / 0 없음!", "HUD: 스프링클러는 있는데 물이 없으면 빨간 '없음!' (%s)" % hud._water_label.text)
+
+	# 물탱크 → 지역 물통
+	var tank := grid.place(tank_def, o) as WaterTank
+	_check(tank != null and grid.water_status().capacity == 200.0 and grid.water_status().stored == 0.0, "물탱크 1개 → 지역 물통 0 / 200")
+
+	# 펌프: 물가 옆에만 (§14, 사용자 결정)
+	_check(not grid.check(pump_def, o + Vector2i(7, 0)).ok and grid.check(pump_def, o + Vector2i(7, 0)).reason.begins_with("물가"), "물가가 아니면 펌프를 못 지음 (%s)" % grid.check(pump_def, o + Vector2i(7, 0)).reason)
+	var shore := Vector2i(8, 34)
+	world.obstacles.remove(shore)
+	await get_tree().process_frame
+	_check(BuildGrid.touches_water(pump_def, shore) and MapLayout.char_at(shore + Vector2i.DOWN) == "~", "연못가 칸 %s 은 물에 맞닿음" % shore)
+	var pump := grid.place(pump_def, shore) as Pump
+	_check(pump != null, "연못가에 펌프 설치")
+	if pump == null:
+		return
+
+	# 전기가 없으면 못 퍼 올림 → 발전기로 퍼 올림 (퍼 올리는 동안만 전기)
+	_check(pump.pump(60.0) == 0.0 and pump.starved, "전기가 없으면 못 퍼 올림")
+	var gen := grid.place(PlaceableDB.get_def("small_generator"), o + Vector2i(2, 0)) as Generator
+	inv.add("wood", 10)
+	gen.deposit(inv, "wood", 10)
+	gen.produce(300.0)
+	var e0 := gen.energy
+	var got := pump.pump(60.0)
+	_check(absf(got - 60.0) < 0.01 and absf((e0 - gen.energy) - 20.0) < 0.01 and not pump.starved, "1시간에 물 60, 전기 20 (%.1f)" % (e0 - gen.energy))
+	pump.pump(600.0)
+	var e1 := gen.energy
+	_check(absf(tank.water - 200.0) < 0.01 and pump.pump(60.0) == 0.0 and absf(gen.energy - e1) < 0.01 and pump.power_demand() == 0, "물통이 가득 차면 쉬고 전기도 안 씀")
+
+	# 아침: 적신 칸마다 물 1
+	for c in plus:
+		farm.get_tile(c).watered = false
+	grid.start_day()
+	_check(plus.all(func(c: Vector2i) -> bool: return farm.get_tile(c).watered) and absf(tank.water - 196.0) < 0.01 and grid.sprinkler_missed == 0, "아침에 4칸 적시고 물 4 사용 (남은 물 %.0f)" % tank.water)
+	grid.start_day()
+	_check(absf(tank.water - 196.0) < 0.01, "이미 젖은 칸(비 오는 날 등)에는 물을 안 씀")
+	for c in plus:
+		farm.get_tile(c).watered = false
+	tank.water = 2.0
+	grid.start_day()
+	var wet := plus.filter(func(c: Vector2i) -> bool: return farm.get_tile(c).watered).size()
+	_check(wet == 2 and grid.sprinkler_missed == 2 and tank.water < 0.01, "물이 2뿐이면 2칸만 적시고 2칸은 못 적심")
+
+	# 밤에도 퍼 올리고 아침 요약에 나옴
+	var report := {}
+	grid.night_production(report, 60.0)
+	_check(absf(float(report.get("night_production", {}).get("water", 0.0)) - 60.0) < 0.5, "야간 1시간에 물 60 → 야간 요약에 기록")
+	hud._night.open(GameState.day, {"items": {"carrot": 1}, "energy": 120.0, "water": 60.0})
+	_check(hud._night._energy.text.contains("펌프가 퍼 올린 물 +60"), "야간 요약에 '펌프가 퍼 올린 물 +60'")
+	hud._close_panels()
+	await get_tree().process_frame
+	_check(hud._water_label.text.begins_with("물 60 / 200"), "HUD 물 표시 (%s)" % hud._water_label.text)
+
+	# 물탱크 2개 → 물통 400, 저장 / 불러오기
+	var tank2 := grid.place(tank_def, o + Vector2i(0, 2)) as WaterTank
+	_check(tank2 != null and grid.water_status().capacity == 400.0, "물탱크 2개 → 지역 물통 400")
+	var state := tank.save_state()
+	world.save_manager.save_game("manual")
+	tank.water = 0.0
+	world.save_manager.load_game()
+	tank = grid.object_at(o) as WaterTank
+	_check(tank != null and tank.save_state() == state and grid.object_at(shore) is Pump, "물탱크 물·펌프 저장·불러오기")
+
+	# 정리
+	for obj in grid.objects().duplicate():
+		if Rect2i(o, Vector2i(8, 6)).has_point(obj.cell) or obj.cell == shore:
+			obj.take_contents()
+			grid.remove(obj)
+	for c in plus:
+		farm.untill(c)
+	inv.load_data(saved_inv)
+	GameState.day = saved_day
 	await get_tree().process_frame
 
 

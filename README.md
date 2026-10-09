@@ -148,6 +148,15 @@ Godot 4.7로 만든 2D 픽셀 농장 게임의 기본 버전입니다. 16px 도�
 - 값 (임시): 분배기·합류기 200 G + 나무 10 + 돌 5, 필터 분배기 500 G + 나무 10 + 돌 10
 - 구조: `Router`(`scripts/factory/router.gd`)가 `Conveyor`를 상속. 연결 규칙 훅 `accepts_dir / can_take / exit_dirs / all_exit_dirs / on_sent`를 `ConveyorNet`이 씀 (벨트도 같은 훅). 창은 `scripts/ui/router_panel.gd`(`RouterPanel`). 그림 `make_routers` → `splitter_0~3.png` 등 (네 방향)
 
+## 펌프 + 물탱크 (BUILD_FARM_PLAN §14)
+- **펌프** 1x1 (1,500 G + 돌 30 + 나무 20, 임시): **개울·연못에 맞닿은 칸에만** (사용자 결정, `"needs_water"` → `BuildGrid.check`). 지금 맵에서는 연못 북쪽·동쪽 물가 8칸 (5~9, 34) / (10, 35) / (11, 36~37)
+  - 퍼 올리는 동안만 전기 시간당 20, 물 시간당 60 (사용자 결정). 지역 물통이 가득 차거나 물탱크가 없으면 쉬고 전기도 안 씀. 밤에도 일하고 아침 요약에 "펌프가 퍼 올린 물 +N"
+- **물탱크** 2x2 (1,200 G + 나무 60 + 돌 40, 임시): 200 담김. **지역 물통 = 물탱크들의 합** (사용자 결정, 파이프 없음). 철거하면 담긴 물은 사라짐
+- **스프링클러가 물을 씀** (사용자 결정): 아침마다 적신 칸 1칸당 물 1. 모자라면 적실 수 있는 만큼만 적시고 "물이 모자라 스프링클러가 N칸을 못 적셨어요." 알림. 물탱크가 없으면 못 적심. 이미 젖은 칸(비 오는 날)에는 물을 안 씀
+- HUD 시계 아래 "물 112 / 200" (물탱크나 스프링클러가 있을 때만, 비면 빨간 "없음!")
+- 공통 훅: `Placeable.water_capacity / water_stored / add_water / take_water`, `BuildGrid.water_status / fill_water / draw_water / touches_water`
+- 코드: `scripts/farm/pump.gd`(`Pump`), `scripts/farm/water_tank.gd`(`WaterTank`), `scripts/farm/sprinkler.gd`. 그림 `make_pump / make_water_tank`
+
 ## 스프링클러 + 자동 수확기 (BUILD_FARM_PLAN §14, §66)
 - 둘 다 **1칸** 기계를 밭 사이에 놓음 (지나다닐 수 있음, 놓은 칸의 밭은 보통 땅이 됨). 건설 창 "농업"
 - **하급 · 중급 · 상급** 3단계, 범위 = **+ 모양 4칸 / 3x3 8칸 / 5x5 24칸** (사용자 결정, 둘이 같은 규칙). `placeables.json`의 `"area": {"shape": "plus"/"square", "radius"}` → `FarmArea.cells`

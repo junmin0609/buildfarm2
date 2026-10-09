@@ -14,6 +14,7 @@ var _day_label: Label
 var _time_label: Label
 var _money_label: Label
 var _power_label: Label
+var _water_label: Label
 var _prompt: Label
 var _prompt_box: PanelContainer
 var _clock_icon: TextureRect
@@ -552,6 +553,12 @@ func _build_info() -> void:
 	_power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_power_label.hide()
 	box.add_child(_power_label)
+	# 지역 물통 (§14): 물탱크나 스프링클러가 있을 때만 보인다
+	_water_label = Label.new()
+	_water_label.add_theme_font_size_override("font_size", Art.FONT_SIZE_SMALL)
+	_water_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_water_label.hide()
+	box.add_child(_water_label)
 	Events.power_changed.connect(_update_power)
 	Events.game_loaded.connect(_update_power)
 	Events.time_changed.connect(func(_d: int, _m: int) -> void: _update_power())  # 전기 양은 시간에 따라 계속 바뀐다
@@ -569,6 +576,12 @@ func _update_power() -> void:
 	var empty: bool = st.stored < 1.0
 	_power_label.text = "전기 %d / %d%s" % [floori(st.stored), roundi(st.capacity), " 없음!" if empty else ""]
 	_power_label.add_theme_color_override("font_color", Color("c0503a") if empty else TEXT_SOFT)
+	# "물 92 / 200" (지역 물통). 스프링클러는 있는데 물탱크가 없거나 비어 있으면 빨간 "없음!"
+	var ws := world.build.water_status()
+	_water_label.visible = ws.capacity > 0.0 or ws.sprinklers > 0
+	var dry: bool = ws.stored < 1.0
+	_water_label.text = "물 %d / %d%s" % [floori(ws.stored), roundi(ws.capacity), " 없음!" if dry else ""]
+	_water_label.add_theme_color_override("font_color", Color("c0503a") if dry else TEXT_SOFT)
 
 
 func _icon_row(icon: Control, label: Label) -> HBoxContainer:

@@ -60,8 +60,8 @@
 	"sprinkler_1": {
 		"name": "스프링클러 (하급)",
 		"category": "농업",
-		"description": "매일 아침 상하좌우 4칸 밭에 물을 줘요.",
-		"_comment": "§14. 사용자 결정: 하급 + 모양 / 중급 3x3 / 상급 5x5, 놓아두기만 하면 매일 아침 물. 값·재료는 임시 밸런스",
+		"description": "매일 아침 상하좌우 4칸 밭에 물을 줘요. (물탱크 물)",
+		"_comment": "§14. 사용자 결정: 하급 + 모양 / 중급 3x3 / 상급 5x5, 매일 아침 물. 펌프·물탱크와 함께 바뀜(사용자 결정): 적신 칸마다 지역 물통에서 water_per_tile 을 씀, 물탱크가 없으면 멈춤. 값·재료는 임시 밸런스",
 		"size": [1, 1],
 		"texture": "res://assets/art/sprinkler_1.png",
 		"price": 300,
@@ -69,13 +69,14 @@
 		"solid": false,
 		"rotatable": false,
 		"script": "res://scripts/farm/sprinkler.gd",
+		"water_per_tile": 1,
 		"area": {"shape": "plus", "radius": 1}
 	},
 	"sprinkler_2": {
 		"name": "스프링클러 (중급)",
 		"category": "농업",
-		"description": "매일 아침 둘레 3x3 (8칸) 밭에 물을 줘요.",
-		"_comment": "§14. 사용자 결정: 하급 + 모양 / 중급 3x3 / 상급 5x5, 놓아두기만 하면 매일 아침 물. 값·재료는 임시 밸런스",
+		"description": "매일 아침 둘레 3x3 (8칸) 밭에 물을 줘요. (물탱크 물)",
+		"_comment": "§14. 사용자 결정: 하급 + 모양 / 중급 3x3 / 상급 5x5, 매일 아침 물. 펌프·물탱크와 함께 바뀜(사용자 결정): 적신 칸마다 지역 물통에서 water_per_tile 을 씀, 물탱크가 없으면 멈춤. 값·재료는 임시 밸런스",
 		"size": [1, 1],
 		"texture": "res://assets/art/sprinkler_2.png",
 		"price": 900,
@@ -83,13 +84,14 @@
 		"solid": false,
 		"rotatable": false,
 		"script": "res://scripts/farm/sprinkler.gd",
+		"water_per_tile": 1,
 		"area": {"shape": "square", "radius": 1}
 	},
 	"sprinkler_3": {
 		"name": "스프링클러 (상급)",
 		"category": "농업",
-		"description": "매일 아침 둘레 5x5 (24칸) 밭에 물을 줘요.",
-		"_comment": "§14. 사용자 결정: 하급 + 모양 / 중급 3x3 / 상급 5x5, 놓아두기만 하면 매일 아침 물. 값·재료는 임시 밸런스",
+		"description": "매일 아침 둘레 5x5 (24칸) 밭에 물을 줘요. (물탱크 물)",
+		"_comment": "§14. 사용자 결정: 하급 + 모양 / 중급 3x3 / 상급 5x5, 매일 아침 물. 펌프·물탱크와 함께 바뀜(사용자 결정): 적신 칸마다 지역 물통에서 water_per_tile 을 씀, 물탱크가 없으면 멈춤. 값·재료는 임시 밸런스",
 		"size": [1, 1],
 		"texture": "res://assets/art/sprinkler_3.png",
 		"price": 2200,
@@ -97,6 +99,7 @@
 		"solid": false,
 		"rotatable": false,
 		"script": "res://scripts/farm/sprinkler.gd",
+		"water_per_tile": 1,
 		"area": {"shape": "square", "radius": 2}
 	},
 	"harvester_1": {
@@ -163,6 +166,40 @@
 			"minutes": 10,
 			"power": 30,
 			"max_output": 30
+		}
+	},
+	"pump": {
+		"name": "펌프",
+		"category": "농업",
+		"description": "연못·개울 옆에 지어 물을 퍼 올려 물탱크에 채워요. 퍼 올리는 동안 전기를 써요.",
+		"_comment": "§14. 사용자 결정: 물가(개울·연못)에 맞닿은 칸에만(needs_water), 퍼 올리는 동안만 전기, 퍼 올린 물은 지역 물통(물탱크들의 합)으로. water_per_hour = 시간당 퍼 올리는 물, power = 그동안 시간당 전기. 값·수치는 임시 밸런스",
+		"size": [1, 1],
+		"texture": "res://assets/art/pump.png",
+		"price": 1500,
+		"materials": {"stone": 30, "wood": 20},
+		"solid": true,
+		"rotatable": false,
+		"needs_water": true,
+		"script": "res://scripts/farm/pump.gd",
+		"pump": {
+			"water_per_hour": 60,
+			"power": 20
+		}
+	},
+	"water_tank": {
+		"name": "물탱크",
+		"category": "농업",
+		"description": "펌프가 퍼 올린 물을 담아 둬요. 스프링클러가 아침마다 이 물을 써요.",
+		"_comment": "§14. 사용자 결정: 지역 물통 = 물탱크들의 합 (파이프 없음). capacity = 이 탱크에 담기는 물. 값·수치는 임시 밸런스",
+		"size": [2, 2],
+		"texture": "res://assets/art/water_tank.png",
+		"price": 1200,
+		"materials": {"wood": 60, "stone": 40},
+		"solid": true,
+		"rotatable": false,
+		"script": "res://scripts/farm/water_tank.gd",
+		"water_tank": {
+			"capacity": 200
 		}
 	},
 	"warehouse": {

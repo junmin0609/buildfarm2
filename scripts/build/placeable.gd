@@ -22,6 +22,8 @@ extends Node2D
 ##     energy_capacity / energy_stored / take_energy   전기를 담아 두는 시설(발전기)의 통 크기·남은 양·꺼내기
 ##     power_output / power_demand                     지금 만드는 전기 / 지금 쓰는 전기 (시간당, 표시용)
 ##   on_night_production      하루 마감의 night_production 단계 (§97 야간 5시간 생산). 잘게 나눠 여러 번 불린다
+##   물 (§14, 사용자 결정: 물탱크들을 합친 지역 물통을 스프링클러가 나눠 씀, 파이프 없음)
+##     water_capacity / water_stored / add_water / take_water   물을 담아 두는 시설(물탱크)의 통 크기·남은 양·넣기·꺼내기
 ##   extra_cost               설치 뒤 더 들인 돈·재료 (창고 증축 등). 철거하면 건설비와 함께 돌려준다 (§64)
 ##   save_state / load_state  내부 상태 저장 (to_data 의 "state"). 옮겨도 노드 그대로라 상태가 유지된다 (§63)
 ##   컨베이어 (§55, 사용자 결정: 시설마다 정해진 입구·출구 칸)
@@ -234,6 +236,24 @@ func power_demand() -> int:
 
 func on_night_production(_world: FarmWorld, _report: Dictionary, _minutes: float) -> void:
 	pass
+
+
+func water_capacity() -> float:
+	return 0.0
+
+
+func water_stored() -> float:
+	return 0.0
+
+
+## amount 만큼 넣는다. 실제로 넣은 양
+func add_water(_amount: float) -> float:
+	return 0.0
+
+
+## amount 만큼 꺼낸다. 실제로 꺼낸 양
+func take_water(_amount: float) -> float:
+	return 0.0
 
 
 ## 주변(변이 맞닿은) 칸에 있는 다른 시설들 (겹치지 않게). 창고에서 재료를 가져오는 전기 가공기 등이 쓴다

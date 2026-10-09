@@ -1069,6 +1069,43 @@ def make_harvesters():
         c.save(f"harvester_{tier}.png")
 
 
+# ---------------------------------------------------------------- 펌프·물탱크 (§14)
+#   펌프 (1x1칸, 16x26): 돌 받침 + 쇠 몸통 + 손잡이 바퀴 + 물가로 내려가는 관
+#   물탱크 (2x2칸, 32x48): 나무 다리 위 나무통 + 쇠띠 + 물 높이 창
+
+def make_pump():
+    st = [hexc("9a8b7d"), hexc("b5a696"), hexc("cdbfae")]
+    m, md, ml = hexc("8fa3b8"), hexc("6f8296"), hexc("c6d3df")
+    c = Canvas(T, 26)
+    c.ellipse(8, 24.5, 6, 1.3, SOFT_SHADOW)
+    rrect(c, 2, 19, 12, 6, 1.5, st[1]); c.rect(3, 19, 10, 1, st[2])
+    rrect(c, 4, 8, 8, 12, 2, m); c.rect(5, 9, 2, 10, ml); c.rect(10, 9, 1, 10, md)
+    c.rect(11, 12, 4, 2, md); c.rect(13, 12, 2, 8, md)           # 관 (물가로)
+    c.set(14, 20, SKY_BLUE); c.set(13, 21, SKY_BLUE)              # 물방울
+    c.ellipse(8, 6, 3.5, 3.5, P["wood"][1]); c.ellipse(8, 6, 1.6, 1.6, P["wood"][3])   # 손잡이 바퀴
+    c.rect(7, 2, 2, 2, P["wood"][0])
+    c.outline(INK)
+    c.save("pump.png")
+
+
+def make_water_tank():
+    w = P["wood"]
+    c = Canvas(32, 48)
+    c.ellipse(16, 46.5, 14, 1.6, SOFT_SHADOW)
+    for x in (4, 26):                                             # 다리
+        c.rect(x, 30, 3, 16, w[0]); c.rect(x, 30, 1, 16, w[1])
+    c.rect(6, 38, 21, 2, w[1])                                    # 가로대
+    rrect(c, 2, 6, 28, 26, 4, w[2])                               # 통
+    for x in range(5, 30, 4):
+        c.rect(x, 8, 1, 22, w[1])
+    for y in (10, 25):                                            # 쇠띠
+        c.rect(2, y, 28, 2, hexc("8fa3b8")); c.rect(2, y, 28, 1, hexc("c6d3df"))
+    c.ellipse(16, 6, 13, 3, w[3]); c.ellipse(16, 6, 10, 2, SKY_BLUE)   # 위에서 보이는 물
+    rrect(c, 20, 13, 6, 10, 1, hexc("2f78a8")); c.rect(21, 14, 4, 4, SKY_BLUE_L)  # 물 높이 창
+    c.outline(INK)
+    c.save("water_tank.png")
+
+
 # ---------------------------------------------------------------- 분배기·합류기·필터 분배기 (1x1칸, §62)
 #   회전 0 = 앞이 아래. 뒤(위)에서 들어온다. 네 방향 그림을 돌려서 저장 (_0~_3, 게임의 turns 와 같은 순서)
 #   필터 분배기 출구 색: 흐름 기준 왼쪽 = 하늘색, 오른쪽 = 분홍 (회전 0 에서 왼쪽 출구는 화면 오른쪽)
@@ -2524,6 +2561,8 @@ if __name__ == "__main__":
     make_compost_bin()
     make_conveyor()
     make_routers()
+    make_pump()
+    make_water_tank()
     make_sprinklers()
     make_harvesters()
     make_warehouse()
