@@ -8,9 +8,31 @@ var _near_home_at_start := -1
 
 
 const TEST_SAVE := "user://smoke_test_save.json"
+## 점검이 이 시간(실제 초) 안에 끝나지 않으면 중간에 멈춘 것으로 보고 FAIL로 끝낸다. 평소 약 50초.
+const WATCHDOG_SEC := 300.0
+
+var _errors := ErrorCounter.new()
+
+
+## 점검 중 엔진이 낸 오류(스크립트 실행 오류·컴파일 오류·push_error)를 모은다.
+## 점검 함수 안에서 실행 오류가 나면 그 함수의 남은 _check가 조용히 건너뛰어지므로, _failures만으로는 잡을 수 없다.
+## 경고(push_warning)는 세지 않는다 — 손상된 저장 파일 점검이 일부러 낸다.
+class ErrorCounter extends Logger:
+	var errors: Array[String] = []
+	var _lock := Mutex.new()
+
+	func _log_error(_function: String, file: String, line: int, code: String, rationale: String, _editor_notify: bool, error_type: int, _script_backtrace: Array[ScriptBacktrace]) -> void:
+		if error_type == ERROR_TYPE_WARNING:
+			return
+		_lock.lock()
+		errors.append("%s:%d %s" % [file, line, rationale if rationale else code])
+		_lock.unlock()
 
 
 func _ready() -> void:
+	OS.add_logger(_errors)
+	# 점검 도중 실행 오류로 _ready 자체가 멈추면 끝 줄에 닿지 못해 영원히 기다리게 된다 → 시간 제한
+	get_tree().create_timer(WATCHDOG_SEC, true, false, true).timeout.connect(_on_watchdog)
 	# 점검은 새 게임으로 시작하고, 플레이어의 진짜 저장 파일은 건드리지 않는다
 	SaveManager.load_on_start = false
 	SaveManager.slot_path = TEST_SAVE
@@ -195,8 +217,23 @@ func _ready() -> void:
 	await _test_title()
 
 	_remove_test_save()
-	print("SMOKE TEST %s (%d 실패)" % ["PASS" if _failures == 0 else "FAIL", _failures])
+	_finish()
+
+
+## 엔진 오류를 실패에 더하고 결과를 찍은 뒤 끝낸다.
+func _finish() -> void:
+	OS.remove_logger(_errors)
+	for e in _errors.errors:
+		print("  FAIL 엔진 오류: " + e)
+	_failures += _errors.errors.size()
+	print("SMOKE TEST %s (%d 실패, 엔진 오류 %d)" % ["PASS" if _failures == 0 else "FAIL", _failures, _errors.errors.size()])
 	get_tree().quit(1 if _failures else 0)
+
+
+func _on_watchdog() -> void:
+	print("  FAIL 점검이 %d초 안에 끝나지 않음 (중간에 멈춤)" % int(WATCHDOG_SEC))
+	_failures += 1
+	_finish()
 
 
 func _test_build(world: FarmWorld, hud: HUD) -> void:
