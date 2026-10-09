@@ -235,6 +235,7 @@ func _ready() -> void:
 	await _test_interiors(world, hud)
 	_test_plaza(world)
 	await _test_fixtures(world)
+	_test_tank_refill(world)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -3440,6 +3441,34 @@ func _test_tool_cooldown(world: FarmWorld) -> void:
 	await _wait_real(600)
 	_check(player.tool_uses - uses == held, "떼면 멈춤")
 	inv.load_data(saved_inv)
+
+
+## 물탱크로 물뿌리개 채우기 (사용자 요청): [E] · 물뿌리개로 클릭 모두, 지역 물통에서 꺼낸다
+func _test_tank_refill(world: FarmWorld) -> void:
+	var grid := world.build
+	var inv := GameState.inventory
+	var def := PlaceableDB.get_def("water_tank")
+	var spot := _free_origin(world, def, Vector2i(-1, -1))
+	for y in 3:
+		for x in 2:
+			world.obstacles.remove(spot + Vector2i(x, y))
+	var tank := grid.place(def, spot) as WaterTank
+	_check(tank != null and tank.is_in_group(WateringCan.WATER_SOURCES) and tank.is_in_group("interactables"), "물탱크는 물 공급원 + [E]")
+	var can_index := -1
+	for i in inv.size():
+		if inv.get_slot(i) != null and inv.get_slot(i)["id"] == "watering_can":
+			can_index = i
+	inv.set_slot_value(can_index, "water", 0)
+	var cap := WateringCan.capacity_of(inv, can_index)
+	tank.water = 5.0
+	tank.interact(world.player)
+	_check(WateringCan.water_left(inv, can_index) == 5 and is_equal_approx(tank.water, 0.0), "물이 5뿐이면 5만 채움")
+	tank.water = 100.0
+	_check(WateringCan.use(world, spot, inv, can_index) and WateringCan.water_left(inv, can_index) == cap and is_equal_approx(tank.water, 100.0 - (cap - 5)), "물뿌리개로 물탱크 클릭 → 가득 (%d)" % cap)
+	inv.set_slot_value(can_index, "water", 0)
+	tank.water = 0.0
+	_check(not WateringCan.use(world, spot, inv, can_index) and WateringCan.water_left(inv, can_index) == 0, "빈 물탱크로는 못 채움")
+	grid.remove(tank)
 
 
 ## 집·출하함·우물 옮기기 (사용자 결정: 건설 모드에서 농장 땅 어디로든, 철거는 안 됨)

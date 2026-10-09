@@ -5,6 +5,8 @@ extends Node2D
 
 const TILE := Art.TILE
 const CAMERA_ZOOM := 4.0
+## 기본 줌보다 넓게 보기 (사용자 요청: 약 1.7배). 도트가 고르게 보이도록 실제 줌은 가장 가까운 정수 배율로 맞춘다
+const VIEW_SCALE := 1.7
 
 @onready var ground: TileMapLayer = $Ground
 @onready var edges: TileMapLayer = $Edges
@@ -465,7 +467,7 @@ func _fit_camera_zoom() -> void:
 	var s := float(get_window().size.x) / view.x   # canvas_items 늘이기 배율
 	if s <= 0.0:
 		s = 1.0
-	var pixel := maxf(1.0, roundf(CAMERA_ZOOM * s))   # 도트 한 칸이 화면에서 차지할 실제 픽셀 수 (정수)
+	var pixel := maxf(1.0, roundf(CAMERA_ZOOM * s / VIEW_SCALE))   # 도트 한 칸이 화면에서 차지할 실제 픽셀 수 (정수)
 	player.camera.zoom = Vector2.ONE * (pixel / s)
 
 

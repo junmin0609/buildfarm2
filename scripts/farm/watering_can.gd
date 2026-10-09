@@ -33,19 +33,22 @@ static func use(world: FarmWorld, cell: Vector2i, inv: Inventory, index: int) ->
 	if source != null:
 		var added := refill(inv, index, source)
 		if added > 0:
-			Events.toast.emit("물을 가득 채웠어요. (%d/%d)" % [water_left(inv, index), capacity_of(inv, index)])
-		else:
+			var full := water_left(inv, index) >= capacity_of(inv, index)
+			Events.toast.emit("%s (%d/%d)" % ["물을 가득 채웠어요." if full else "%s에 물이 모자라 조금만 채웠어요." % source.water_source_name(), water_left(inv, index), capacity_of(inv, index)])
+		elif water_left(inv, index) >= capacity_of(inv, index):
 			Events.toast.emit("물뿌리개가 이미 가득 찼어요.")
+		else:
+			Events.toast.emit("%s에 물이 없어요." % source.water_source_name())
 		return added > 0
 	var tile := world.farm.get_tile(cell)
 	if tile == null:
 		if MapLayout.char_at(cell) == "~":
-			Events.toast.emit("물뿌리개는 우물에서 채워요.")
+			Events.toast.emit("물뿌리개는 우물이나 물탱크에서 채워요.")
 		return false
 	if tile.watered:
 		return false
 	if water_left(inv, index) <= 0:
-		Events.toast.emit("물이 없어요. 우물에서 물뿌리개를 채워 주세요.")
+		Events.toast.emit("물이 없어요. 우물이나 물탱크에서 물뿌리개를 채워 주세요.")
 		return false
 	if not world.farm.water(cell):
 		return false
@@ -75,12 +78,20 @@ static func refill_all(inv: Inventory, source: Node) -> Dictionary:
 		if is_can(inv, i):
 			cans += 1
 			added += refill(inv, i, source)
+	var all_full := true
+	for i in inv.size():
+		if is_can(inv, i) and water_left(inv, i) < capacity_of(inv, i):
+			all_full = false
 	if cans == 0:
 		Events.toast.emit("물뿌리개가 없어요.")
-	elif added == 0:
+	elif added == 0 and all_full:
 		Events.toast.emit("물뿌리개가 이미 가득 찼어요.")
-	else:
+	elif added == 0:
+		Events.toast.emit("%s에 물이 없어요." % source.water_source_name())
+	elif all_full:
 		Events.toast.emit("%s에서 물을 길어 물뿌리개를 가득 채웠어요." % source.water_source_name())
+	else:
+		Events.toast.emit("%s에 물이 모자라 물뿌리개를 조금만 채웠어요." % source.water_source_name())
 	return {"cans": cans, "added": added}
 
 
