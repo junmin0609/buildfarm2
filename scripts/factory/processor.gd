@@ -68,6 +68,11 @@ func is_automatic() -> bool:
 	return bool(config().get("automatic", false))
 
 
+## 빠르기 (§70 중급: 2배). 레시피 시간을 이 값으로 나눈다
+func speed() -> float:
+	return maxf(0.1, float(config().get("speed", 1.0)))
+
+
 func max_runs() -> int:
 	return maxi(1, int(config().get("max_runs", 99)))
 
@@ -93,8 +98,18 @@ func power_demand() -> int:
 	return power_use() if progress < float(recipe().minutes) else 0
 
 
+## 지금 레시피 (이 가공기 빠르기로 걸리는 시간을 맞춘 사본)
 func recipe() -> Dictionary:
-	return RecipeDB.get_recipe(recipe_id)
+	return recipe_for(recipe_id)
+
+
+func recipe_for(id: String) -> Dictionary:
+	var r := RecipeDB.get_recipe(id)
+	if r.is_empty() or is_equal_approx(speed(), 1.0):
+		return r
+	r = r.duplicate()
+	r.minutes = float(r.minutes) / speed()
+	return r
 
 
 ## 이 가공기에서 쓸 수 있는 레시피인가 (배웠고, 등급이 맞음). 못 쓰면 이유, 쓸 수 있으면 ""
@@ -145,7 +160,7 @@ static func runs_possible(inv: Inventory, r: Dictionary, limit: int) -> int:
 		return 0
 	var n := limit
 	for item_id: String in r.inputs:
-		n = mini(n, int(inv.count_of(item_id) / float(int(r.inputs[item_id]))))
+		n = mini(n, int(inv.count_of(item_id, RecipeDB.need_quality(r, item_id)) / float(int(r.inputs[item_id]))))
 	return maxi(0, n)
 
 
@@ -168,7 +183,7 @@ func start(inv: Inventory, id: String, runs: int, use_high_first := false) -> in
 		var counts := {}
 		for item_id: String in r.inputs:
 			var need := int(r.inputs[item_id])
-			for q in _quality_order(ItemDB.get_item(item_id), use_high_first):
+			for q in _quality_order(ItemDB.get_item(item_id), use_high_first, RecipeDB.need_quality(r, item_id)):
 				var take := mini(need, inv.count_of(item_id, q))
 				if take <= 0:
 					continue
@@ -188,9 +203,12 @@ func start(inv: Inventory, id: String, runs: int, use_high_first := false) -> in
 	return n
 
 
-static func _quality_order(item: ItemDef, high_quality_first: bool) -> Array[String]:
+## 재료를 꺼낼 품질 순서. only 가 있으면 그 품질만 (§73-9 고급잼: 골드 과일만)
+static func _quality_order(item: ItemDef, high_quality_first: bool, only: Variant = null) -> Array[String]:
 	if item == null or not item.has_quality:
 		return [Quality.NONE]
+	if only != null:
+		return [str(only)]
 	var order := Quality.ids().duplicate()
 	if high_quality_first:
 		order.reverse()
@@ -352,8 +370,8 @@ func region_power() -> Dictionary:
 	return _world.build.power_status() if _world else {"stored": 0.0, "capacity": 0.0, "output": 0, "demand": 0}
 
 
-func available_in_warehouses(item_id: String) -> int:
-	return _available(item_id)
+func available_in_warehouses(item_id: String, quality: Variant = null) -> int:
+	return _available(item_id, quality)
 
 
 ## 맞닿은 창고들 + 컨베이어로 받아 둔 재료 칸에 있는 아이템 개수 (quality null = 모든 품질)
@@ -389,9 +407,15 @@ func accept_item(item_id: String, quality: String) -> bool:
 	if not is_automatic() or recipe_id == "" or recipe_problem(recipe_id) != "":
 		return false
 	var r := recipe()
-	if not r.inputs.has(item_id) or _input_count(item_id) >= int(r.inputs[item_id]) * input_runs():
+	if not r.inputs.has(item_id):
 		return false
-	_add(input, item_id, Quality.normalize(ItemDB.get_item(item_id), quality), 1)
+	var q := Quality.normalize(ItemDB.get_item(item_id), quality)
+	var need_q: Variant = RecipeDB.need_quality(r, item_id)
+	if need_q != null and q != need_q:
+		return false  # 품질이 정해진 재료 (골드만)
+	if _input_count(item_id, need_q) >= int(r.inputs[item_id]) * input_runs():
+		return false
+	_add(input, item_id, q, 1)
 	_changed()
 	return true
 
@@ -412,13 +436,13 @@ func provide_item() -> Dictionary:
 ## 받아 둔 재료 칸 → 맞닿은 창고 순서로 1회분 재료를 가져와 회차를 시작한다. 하나라도 모자라면 아무것도 가져오지 않고 false.
 func _pull_run(r: Dictionary) -> bool:
 	for item_id: String in r.inputs:
-		if _available(item_id) < int(r.inputs[item_id]):
+		if _available(item_id, RecipeDB.need_quality(r, item_id)) < int(r.inputs[item_id]):
 			return false
 	var stacks: Array[Dictionary] = []
 	var counts := {}
 	for item_id: String in r.inputs:
 		var need := int(r.inputs[item_id])
-		for q in _quality_order(ItemDB.get_item(item_id), high_first):
+		for q in _quality_order(ItemDB.get_item(item_id), high_first, RecipeDB.need_quality(r, item_id)):
 			var from_input := _take_input(item_id, q, need)
 			if from_input > 0:
 				_add(stacks, item_id, q, from_input)

@@ -239,6 +239,7 @@ func _ready() -> void:
 	_test_plaza(world)
 	await _test_fixtures(world)
 	_test_tank_refill(world)
+	_test_mid_processor(world)
 	await _test_townsfolk(world, hud)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
@@ -1471,7 +1472,7 @@ func _test_seasonal_crops(world: FarmWorld, hud: HUD) -> void:
 				ids.append(it.grows)
 		ids.sort()
 		return ids
-	_check(shop_seeds.call(1) == ["carrot", "potato", "strawberry", "wheat"], "봄 상점 씨앗 %s" % [shop_seeds.call(1)])
+	_check(shop_seeds.call(1) == ["cabbage", "carrot", "potato", "strawberry", "wheat"], "봄 상점 씨앗 (양배추 포함) %s" % [shop_seeds.call(1)])
 	_check(shop_seeds.call(29) == ["blueberry", "corn", "tomato", "watermelon", "wheat"], "여름 상점 씨앗 %s" % [shop_seeds.call(29)])
 	_check(shop_seeds.call(57) == ["corn", "eggplant", "pumpkin", "radish", "sweet_potato"], "가을 상점 씨앗 %s" % [shop_seeds.call(57)])
 	_check(shop_seeds.call(85) == ["broccoli", "spinach", "sugar_beet"] and ItemDB.shop_items().any(func(it: ItemDef) -> bool: return it.kind == ItemDef.Kind.FERTILIZER and Calendar.in_season_for_shop(it, 85)), "겨울 상점은 겨울 작물 씨앗만 %s (비료는 판매)" % [shop_seeds.call(85)])
@@ -2161,7 +2162,7 @@ func _test_processor(world: FarmWorld, hud: HUD) -> void:
 	# 레시피 데이터 (§73): 지금 있는 작물로 만들 수 있는 20개, 기초 6개만 처음부터 앎
 	var recipes := RecipeDB.all()
 	var known := recipes.filter(func(r: Dictionary) -> bool: return RecipeDB.is_known(r.id)).map(func(r: Dictionary) -> String: return r.id)
-	_check(recipes.size() == 20, "레시피 20개 (%d)" % recipes.size())
+	_check(recipes.size() == 24, "레시피 24개 (1급 20 + 2급 4, %d)" % recipes.size())
 	_check(known == ["flour", "dough", "bread", "sugar", "tomato_puree", "potato_snack"], "처음 아는 레시피: 기초 6개 %s" % [known])
 	var flour := ItemDB.get_item("flour")
 	_check(flour != null and flour.kind == ItemDef.Kind.PROCESSED and flour.has_quality and ShippingBin.accepts(flour), "가공품: 품질 있음, 출하함에 팔 수 있음")
@@ -2203,7 +2204,7 @@ func _test_processor(world: FarmWorld, hud: HUD) -> void:
 	player._interact()
 	var panel := hud._processor
 	_check(panel.visible and get_tree().paused and GameState.is_time_paused(), "가공기 창 열면 게임·시간 멈춤")
-	_check(panel._list.get_child_count() == 20 and panel.selected == "flour", "창에 레시피 20개, 첫 레시피 선택")
+	_check(panel._list.get_child_count() == 24 and panel.selected == "flour", "창에 레시피 24개, 첫 레시피 선택")
 	hud._close_panels()
 
 	# 모르는 레시피는 못 씀 → 배우면 영구 (저장됨)
@@ -2767,9 +2768,9 @@ func _test_recipe_shop(world: FarmWorld, hud: HUD) -> void:
 	var money0 := GameState.money
 	var player := world.player
 
-	# 데이터: 처음부터 아는 6개를 뺀 14개를 팔고, 값이 있음
+	# 데이터: 처음부터 아는 6개를 뺀 18개(1급 14 + 2급 4)를 팔고, 값이 있음
 	var shop := RecipeDB.shop_recipes()
-	_check(shop.size() == 14 and shop.all(func(r: Dictionary) -> bool: return int(r.price) > 0 and not r.unlocked), "레시피 상점 품목 14개, 모두 값이 있음 (recipes.json price)")
+	_check(shop.size() == 18 and shop.all(func(r: Dictionary) -> bool: return int(r.price) > 0 and not r.unlocked), "레시피 상점 품목 18개, 모두 값이 있음 (recipes.json price)")
 	_check(int(RecipeDB.get_recipe("strawberry_jam").price) == 2100 and int(RecipeDB.get_recipe("flour").price) == 0, "딸기잼 2100 G (임시 값), 처음부터 아는 레시피는 0")
 
 	# 광장 건물 [E] → 창 (게임·시간 멈춤)
@@ -2816,7 +2817,7 @@ func _test_recipe_shop(world: FarmWorld, hud: HUD) -> void:
 	player._interact()
 	var rows := hud._recipes._list.get_children()
 	var first_name := (rows[0].get_child(1).get_child(0) as Label).text
-	_check(rows.size() == 14 and first_name == "블루베리잼", "창: 14줄, 맨 위는 배울 수 있는 블루베리잼 (%s)" % first_name)
+	_check(rows.size() == 18 and first_name == "블루베리잼", "창: 18줄, 맨 위는 배울 수 있는 블루베리잼 (%s)" % first_name)
 	hud._recipes._buy("blueberry_jam")
 	_check(RecipeDB.is_known("blueberry_jam") and GameState.money == 3050, "창에서 [배우기] (1950 G)")
 	hud._close_panels()
@@ -3509,6 +3510,73 @@ func _test_townsfolk(world: FarmWorld, hud: HUD) -> void:
 	await get_tree().process_frame
 
 
+## 중급 가공기 + 2급 레시피 (사용자 결정: 새 기계 · 새 레시피만 2급 · 봄 양배추 · 상급은 나중에)
+func _test_mid_processor(world: FarmWorld) -> void:
+	var grid := world.build
+	var inv := GameState.inventory
+	var saved_inv := inv.to_data()
+	var mid_def := PlaceableDB.get_def("mid_processor")
+	var ep_def := PlaceableDB.get_def("electric_processor")
+	var item := ItemDB.get_item("mid_processor")
+	_check(mid_def != null and mid_def.size == Vector2i(3, 3) and mid_def.machine_item() == item and item.shop == "machine" and item.buy_price == 6000, "중급 가공기 정의 (3x3, 기계상점 6000 G + 재료)")
+	# 양배추 (봄) + 2급 레시피 4개
+	var cab := ItemDB.get_item("cabbage_seed")
+	_check(cab != null and cab.grows == "cabbage" and cab.seasons == ["spring"] and Calendar.crop_allowed(cab, "spring") and not Calendar.crop_allowed(cab, "summer"), "양배추 씨앗: 봄 작물")
+	var tier2 := RecipeDB.all().filter(func(r: Dictionary) -> bool: return int(r.tier) == 2).map(func(r: Dictionary) -> String: return r.id)
+	_check(tier2 == ["pickled_cabbage", "vegetable_pickle_set", "premium_jam_strawberry", "premium_jam_blueberry"], "2급 레시피 4개 %s" % [tier2])
+	_check(RecipeDB.all().filter(func(r: Dictionary) -> bool: return int(r.tier) == 1).size() == 20, "기존 1급 레시피는 그대로 20개")
+	_check(RecipeDB.need_quality(RecipeDB.get_recipe("premium_jam_strawberry"), "strawberry") == "gold" and RecipeDB.inputs_text(RecipeDB.get_recipe("premium_jam_strawberry")).contains("골드"), "고급잼: 딸기는 골드만 (%s)" % RecipeDB.inputs_text(RecipeDB.get_recipe("premium_jam_strawberry")))
+	# 자리: 창고(4x4) | 중급 가공기(3x3) — 맞닿게
+	var origin := Vector2i(-1, -1)
+	var cells: Array = world.farm.farmable_cells.keys()
+	cells.sort()
+	for c: Vector2i in cells:
+		var ok := true
+		for y in 5:
+			for x in 12:
+				var fc := c + Vector2i(x, y)
+				if not grid.is_buildable_ground(fc) or grid.is_occupied(fc) or world.farm.tiles.has(fc):
+					ok = false
+		if ok:
+			origin = c
+			break
+	_check(origin.x >= 0, "중급 가공기 자리 찾음 %s" % origin)
+	if origin.x < 0:
+		return
+	for y in 5:
+		for x in 12:
+			world.obstacles.remove(origin + Vector2i(x, y))
+	var wh := grid.place(PlaceableDB.get_def("warehouse"), origin) as Warehouse
+	var mid := grid.place(mid_def, origin + Vector2i(4, 0)) as Processor
+	var ep := grid.place(ep_def, origin + Vector2i(8, 0)) as Processor
+	_check(mid != null and mid.tier() == 2 and is_equal_approx(mid.speed(), 2.0) and mid.input_runs() == 4 and mid.max_output() == 60 and mid.warehouses().size() == 1, "중급: 2급 · 2배 빠름 · 재료 4회분 · 보관 60 · 맞닿은 창고")
+	_check(is_equal_approx(float(mid.recipe_for("flour").minutes), 30.0) and is_equal_approx(float(ep.recipe_for("flour").minutes), 60.0), "밀가루 60분 → 중급은 30분")
+	for id: String in tier2:
+		GameState.unlocks["recipe:" + id] = true
+	_check(ep.recipe_problem("pickled_cabbage") == "더 좋은 가공기가 필요해요." and mid.recipe_problem("pickled_cabbage") == "" and mid.recipe_problem("flour") == "", "2급 레시피는 중급에서만 (1급도 중급에서 됨)")
+	# 골드 딸기만 받는 재료
+	_check(mid.set_recipe("premium_jam_strawberry"), "중급에 고급잼 레시피 정하기")
+	_check(not mid.accept_item("strawberry", "silver") and mid.accept_item("strawberry", "gold") and mid.accept_item("fruit_syrup", "bronze"), "벨트 입구: 실버 딸기는 안 받고 골드만 받음")
+	wh.storage.add("strawberry", 5, "silver")
+	wh.storage.add("fruit_syrup", 3, "silver")
+	_check(mid._available("strawberry", "gold") == 1 and mid._pull_run(mid.recipe()), "창고 실버 딸기는 안 쓰고 받아 둔 골드 딸기로 1회분 시작")
+	_check(wh.storage.count_of("strawberry", "silver") == 5 and mid._available("strawberry", "gold") == 0 and not mid._pull_run(mid.recipe()), "골드가 없으면 다음 회분은 시작 못 함 (실버 5개 그대로)")
+	inv.load_data([])
+	inv.add("strawberry", 3, "silver")
+	inv.add("fruit_syrup", 4, "silver")
+	var r := RecipeDB.get_recipe("premium_jam_strawberry")
+	_check(Processor.runs_possible(inv, r, 9) == 0, "가방: 실버 딸기뿐이면 0회")
+	inv.add("strawberry", 1, "gold")
+	_check(Processor.runs_possible(inv, r, 9) == 1, "골드 딸기 1개 → 1회")
+	# 정리
+	for id: String in tier2:
+		GameState.unlocks.erase("recipe:" + id)
+	for o: Placeable in [mid, ep, wh]:
+		o.take_contents()
+		grid.remove(o)
+	inv.load_data(saved_inv)
+
+
 ## 물탱크로 물뿌리개 채우기 (사용자 요청): [E] · 물뿌리개로 클릭 모두, 지역 물통에서 꺼낸다
 func _test_tank_refill(world: FarmWorld) -> void:
 	var grid := world.build
@@ -3741,7 +3809,7 @@ func _test_interiors(world: FarmWorld, hud: HUD) -> void:
 	hud._dialog.choose("machine")
 	var mnames := hud._shop._buy_list.get_children().map(func(r: Node) -> String: return r.get_child(1).text)
 	_check(world.area == "machine" and hud._shop._title.text == "기계상점" and "컨베이어" in mnames and not "당근 씨앗" in mnames, "기계상점 [기계 사기] → 컨베이어 %s" % [mnames])
-	_check(mnames.size() == 16 and "창고" in mnames and "소형 발전기" in mnames and "펌프" in mnames, "기계상점에 기계 16종 (컨베이어 + 공장·자동화 15종, %d)" % mnames.size())
+	_check(mnames.size() == 17 and "창고" in mnames and "중급 가공기" in mnames and "펌프" in mnames, "기계상점에 기계 17종 (컨베이어 + 공장·자동화 16종, %d)" % mnames.size())
 	var build_names := PlaceableDB.all().filter(func(d: PlaceableDef) -> bool: return d.machine_item() == null and not d.data.has("fixture")).map(func(d: PlaceableDef) -> String: return d.id)
 	_check(build_names == ["scarecrow", "shed", "greenhouse", "compost_bin"], "돈으로 바로 짓는 건 허수아비·헛간·온실·퇴비통만 %s" % [build_names])
 	hud._close_panels()

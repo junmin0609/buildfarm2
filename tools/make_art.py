@@ -1431,6 +1431,31 @@ def make_generator():
 # ---------------------------------------------------------------- 전기 가공기 (3x3칸, 그림 48x60)
 #   남색 철제 기계 + 위 깔때기(투입구) + 가운데 창 + 옆 배출구 + 번개 표시
 
+def make_mid_processor():
+    """중급 가공기 (3x3, 48x60): 전기 가공기와 같은 꼴, 구리·청록 몸통 + 톱니 둘 + 2급 표시 (§70)"""
+    body, body_d, body_l = hexc("3f8a7a"), hexc("2f6a5e"), hexc("6fbfa8")
+    metal, metal_d = hexc("cf8a52"), hexc("a8653a")
+    c = Canvas(48, 60)
+    c.ellipse(24, 58.5, 23, 1.8, SOFT_SHADOW)
+    rrect(c, 1, 52, 46, 6, 1, metal_d); c.rect(2, 52, 44, 1, metal)
+    rrect(c, 3, 22, 42, 31, 2.5, body); c.rect(4, 22, 40, 2, body_l); c.rect(4, 50, 40, 2, body_d)
+    for y in range(6, 23):
+        c.rect(12 + (y - 6) // 3, y, 24 - 2 * ((y - 6) // 3), 1, metal if y % 4 else metal_d)
+    rrect(c, 9, 3, 30, 5, 1.5, metal); c.rect(10, 3, 28, 1, hexc("f2bb84"))
+    rrect(c, 9, 28, 20, 14, 2, metal_d); rrect(c, 11, 30, 16, 10, 2, hexc("a8dcef"))
+    c.ellipse(19, 38, 6, 2.2, hexc("c6d86a")); c.set(13, 31, hexc("e4f6fc")); c.set(14, 31, hexc("e4f6fc"))
+    for gx, gy, r in ((37, 31, 4), (40, 38, 2.6)):                                   # 톱니 둘 (빠르게 돈다)
+        for a in range(8):
+            ang = a * math.pi / 4
+            c.set(int(gx + math.cos(ang) * (r + 1)), int(gy + math.sin(ang) * (r + 1)), hexc("f2c443"))
+        c.ellipse(gx, gy, r, r, hexc("f2c443")); c.ellipse(gx, gy, r * 0.4, r * 0.4, body_d)
+    rrect(c, 31, 42, 12, 6, 1, hexc("fbf3e1"))                                          # 2급 표시 (점 둘)
+    c.rect(34, 44, 2, 2, hexc("2f6a5e")); c.rect(38, 44, 2, 2, hexc("2f6a5e"))
+    rrect(c, 13, 45, 14, 6, 1, body_d); c.rect(14, 46, 12, 1, hexc("1f4a40"))
+    c.outline(INK)
+    c.save("mid_processor.png")
+
+
 def make_electric_processor():
     body, body_d, body_l = hexc("6f8fb5"), hexc("4f6d92"), hexc("9db8d6")
     metal, metal_d = hexc("b8b0a4"), hexc("8f877c")
@@ -2689,6 +2714,8 @@ CROPS = {
     "spinach": [hexc("2f5a2e"), hexc("3b7038"), hexc("4a8a44"), hexc("62a55a"), hexc("8cc47e")],
     "broccoli": [hexc("35603f"), hexc("447a4f"), hexc("5a9463"), hexc("78ad7c"), hexc("a2cca2")],
     "sugar_beet": [hexc("3d6b35"), hexc("4f8a3f"), hexc("64a64a"), hexc("7fc05a"), hexc("a8dc78")],
+    # 봄 양배추 (§36, 사용자 결정: 양배추 절임 재료). 줄 번호 15
+    "cabbage": [hexc("3d6b35"), hexc("4f8a3f"), hexc("6aa84e"), hexc("8cc463"), hexc("b4dc88")],
 }
 
 # 작물별 그림 정보 (나중에 그림을 바꿀 때 여기와 produce() 만 고치면 된다)
@@ -2709,6 +2736,7 @@ CROP_ART = {
     "spinach": {"field_y": 10, "seed": "3f8a3a"},
     "broccoli": {"field_y": 7, "seed": "5aa04a"},
     "sugar_beet": {"field_y": 12, "seed": "d65a7a"},
+    "cabbage": {"field_y": 10, "seed": "8fc46a"},
 }
 
 
@@ -2848,6 +2876,14 @@ def produce_more(c, kind, cx, cy, big):
             c.rect(int(cx + dx), int(cy - ry * 0.6), 1, int(ry * 1.2) + 1, dark)
         c.ellipse(cx - rx * 0.55, cy - ry * 0.4, rx * 0.18, ry * 0.25, light)
         c.rect(int(cx), int(cy - ry - 1), 2, 2, stem)
+    elif kind == "cabbage":
+        outer, mid, inner, vein = hexc("6aa84e"), hexc("9ccf6e"), hexc("d6efb0"), hexc("4f8a3f")
+        rx, ry = (6.0, 5.0) if big else (3.6, 2.8)
+        c.ellipse(cx, cy, rx, ry, outer)
+        c.ellipse(cx, cy - ry * 0.15, rx * 0.72, ry * 0.72, mid)
+        c.ellipse(cx, cy - ry * 0.25, rx * 0.4, ry * 0.42, inner)
+        c.rect(int(cx), int(cy - ry * 0.5), 1, int(ry), vein)
+        c.set(int(cx - rx * 0.6), int(cy), vein); c.set(int(cx + rx * 0.6), int(cy), vein)
     elif kind == "radish":
         white, shade, top = hexc("f4f1e6"), hexc("d9d3c0"), hexc("c9e3a0")
         if big:
@@ -3161,6 +3197,16 @@ def product_icon(c, item):
         product_plate(c, "e8a04a", "c27a2e", "a4484e")
     elif item == "pumpkin_pie":
         product_plate(c, "f29a3a", "c98f5e", "fbe39a")
+    elif item == "pickled_cabbage":
+        product_jar(c, "c6d86a", "9aae44", lid="c9a03a")
+        c.rect(6, 9, 4, 1, hexc("eaf3c0"))
+    elif item == "vegetable_pickle_set":
+        rrect(c, 1, 10, 14, 5, 1, P["wood"][2]); c.rect(2, 10, 12, 1, P["wood"][3])          # 나무 상자
+        for x, fill in ((2, "c6d86a"), (6, "8a5aa8"), (10, "f4f1e6")):
+            rrect(c, x, 4, 4, 7, 1.5, hexc("e4f1f2")); rrect(c, x + 1, 6, 2, 4, 1, hexc(fill)); c.rect(x, 3, 4, 2, hexc("c9a03a"))
+    elif item == "premium_jam":
+        product_jar(c, "c2304a", "8e1f35", lid="f2c443")
+        c.set(13, 2, hexc("fff3c0")); c.set(14, 1, hexc("fff3c0")); c.set(12, 1, hexc("fff3c0"))   # 반짝임
     c.outline(INK)
 
 
@@ -3169,7 +3215,11 @@ MACHINE_ICONS = [("sprinkler_1", "sprinkler_1"), ("sprinkler_2", "sprinkler_2"),
                  ("harvester_1", "harvester_1"), ("harvester_2", "harvester_2"), ("harvester_3", "harvester_3"),
                  ("pump", "pump"), ("water_tank", "water_tank"), ("warehouse", "warehouse"),
                  ("splitter", "splitter_0"), ("merger", "merger_0"), ("filter_splitter", "filter_splitter_0"),
-                 ("manual_processor", "processor"), ("electric_processor", "electric_processor"), ("small_generator", "generator")]
+                 ("manual_processor", "processor"), ("electric_processor", "electric_processor"), ("small_generator", "generator"),
+                 ("mid_processor", "mid_processor")]  # 중급 가공기 (아이콘 79번)
+# 그다음 새 아이템 (아이콘 80번부터): 봄 양배추 · 2급 가공품. 앞 번호를 밀지 않게 맨 뒤에 붙인다
+NEW_ICONS = ["cabbage_seed", "cabbage", "pickled_cabbage", "vegetable_pickle_set", "premium_jam"]
+NEW_PRODUCTS = ["pickled_cabbage", "vegetable_pickle_set", "premium_jam"]
 
 
 def load_png(name):
@@ -3219,6 +3269,7 @@ def make_items():
     order += PRODUCTS  # 가공품 (아이콘 44번부터)
     order += ["conveyor"]  # 컨베이어 (아이콘 63번)
     order += [item for item, _ in MACHINE_ICONS]  # 기계 (아이콘 64번부터)
+    order += NEW_ICONS  # 양배추·2급 가공품 (아이콘 80번부터)
     machine_art = dict(MACHINE_ICONS)
     atlas = Canvas(len(order) * T, T)
     for col, item in enumerate(order):
@@ -3242,7 +3293,7 @@ def make_items():
             fertilizer_bag(c, item)
         elif item.endswith("_seed"):
             seed_packet(c, hexc(CROP_ART[item[:-5]]["seed"]))
-        elif item in PRODUCTS:
+        elif item in PRODUCTS or item in NEW_PRODUCTS:
             product_icon(c, item)
         else:
             pal = CROPS[item]
@@ -3375,6 +3426,7 @@ if __name__ == "__main__":
     make_processor()
     make_generator()
     make_electric_processor()
+    make_mid_processor()
     make_well()
     make_shipping_bin()
     make_blacksmith()

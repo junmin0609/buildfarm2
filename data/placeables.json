@@ -331,6 +331,50 @@
 			"max_output": 30
 		}
 	},
+	"mid_processor": {
+		"name": "중급 가공기",
+		"category": "가공",
+		"description": "전기 가공기보다 2배 빠르고 2급 레시피도 만들어요. 맞닿은 창고와 알아서 주고받아요. 전력이 필요해요.",
+		"_comment": "§70 중급 (사용자 결정: 기계상점에서 새 기계로, 새 레시피만 2급). speed = 레시피 시간 ÷ speed. 값·전력·한도는 임시 밸런스",
+		"size": [
+			3,
+			3
+		],
+		"texture": "res://assets/art/mid_processor.png",
+		"price": 0,
+		"materials": {
+			"mid_processor": 1
+		},
+		"solid": true,
+		"rotatable": true,
+		"script": "res://scripts/factory/processor.gd",
+		"ports": [
+			{
+				"type": "in",
+				"cell": [
+					0,
+					1
+				],
+				"side": "left"
+			},
+			{
+				"type": "out",
+				"cell": [
+					2,
+					1
+				],
+				"side": "right"
+			}
+		],
+		"processor": {
+			"tier": 2,
+			"automatic": true,
+			"speed": 2.0,
+			"input_runs": 4,
+			"power": 70,
+			"max_output": 60
+		}
+	},
 	"small_generator": {
 		"name": "소형 발전기",
 		"category": "전력",

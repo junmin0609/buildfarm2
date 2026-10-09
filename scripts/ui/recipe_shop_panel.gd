@@ -102,7 +102,7 @@ func _row(r: Dictionary) -> HBoxContainer:
 	detail.add_theme_font_size_override("font_size", Art.FONT_SIZE_SMALL)
 	detail.add_theme_color_override("font_color", Color("9a7457"))
 	if revealed or known:
-		detail.text = "%s · %s · 판매가 %d G" % [RecipeDB.inputs_text(r), RecipeDB.time_text(r.minutes), out_item.sell_price * int(r.count)]
+		detail.text = "%s · %s · 판매가 %d G%s" % [RecipeDB.inputs_text(r), RecipeDB.time_text(r.minutes), out_item.sell_price * int(r.count), " · %d급 (중급 가공기)" % int(r.tier) if int(r.tier) >= 2 else ""]
 	else:
 		detail.text = "필요한 재료: %s  (모두 얻으면 배울 수 있어요)" % _hidden_inputs(r)
 	info.add_child(detail)

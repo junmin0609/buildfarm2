@@ -741,5 +741,66 @@
 	"corn_flour": {"name": "옥수수 가루", "kind": "processed", "has_quality": true, "sell_price": 165, "description": "옥수수를 곱게 간 가루.", "icon": 59},
 	"corn_bread": {"name": "옥수수빵", "kind": "processed", "has_quality": true, "sell_price": 760, "description": "고소한 옥수수빵.", "icon": 60},
 	"pumpkin_puree": {"name": "호박 퓌레", "kind": "processed", "has_quality": true, "sell_price": 210, "description": "부드러운 호박 퓌레.", "icon": 61},
-	"pumpkin_pie": {"name": "호박 파이", "kind": "processed", "has_quality": true, "sell_price": 1400, "description": "가을 향이 가득한 호박 파이.", "icon": 62}
+	"pumpkin_pie": {"name": "호박 파이", "kind": "processed", "has_quality": true, "sell_price": 1400, "description": "가을 향이 가득한 호박 파이.", "icon": 62},
+	"cabbage_seed": {
+		"name": "양배추 씨앗",
+		"kind": "seed",
+		"grows": "cabbage",
+		"grow_days": 5,
+		"regrow_days": 0,
+		"yield_min": 1,
+		"yield_max": 1,
+		"seasons": [
+			"spring"
+		],
+		"buy_price": 50,
+		"description": "5일이면 자라는 봄 양배추예요. 절여서 팔면 좋아요.",
+		"icon": 80,
+		"crop_row": 15
+	},
+	"cabbage": {
+		"name": "양배추",
+		"kind": "crop",
+		"sell_price": 75,
+		"description": "속이 꽉 찬 봄 양배추.",
+		"icon": 81
+	},
+	"pickled_cabbage": {
+		"name": "양배추 절임",
+		"kind": "processed",
+		"has_quality": true,
+		"sell_price": 220,
+		"description": "새콤하게 절인 양배추. 중급 가공기로 만들어요.",
+		"icon": 82
+	},
+	"vegetable_pickle_set": {
+		"name": "채소 절임 세트",
+		"kind": "processed",
+		"has_quality": true,
+		"sell_price": 520,
+		"description": "양배추·가지·무 절임을 한 상자에. 중급 가공기로 만들어요.",
+		"icon": 83
+	},
+	"premium_jam": {
+		"name": "고급잼",
+		"kind": "processed",
+		"has_quality": true,
+		"sell_price": 1900,
+		"description": "골드 과일로만 만드는 귀한 잼. 중급 가공기로 만들어요.",
+		"icon": 84
+	},
+	"mid_processor": {
+		"name": "중급 가공기",
+		"kind": "machine",
+		"shop": "machine",
+		"_comment": "§70 중급 (사용자 결정: 기계상점에서 새 기계로). 값·재료는 임시 밸런스",
+		"buy_price": 6000,
+		"buy_materials": {
+			"wood": 80,
+			"stone": 120
+		},
+		"max_stack": 20,
+		"icon": 79,
+		"description": "전기 가공기보다 2배 빠르고 2급 레시피도 만들어요. 맞닿은 창고와 알아서 주고받아요. 전력이 필요해요."
+	}
 }

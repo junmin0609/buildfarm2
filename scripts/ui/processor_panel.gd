@@ -46,6 +46,9 @@ func _ready() -> void:
 	header.add_child(close)
 	box.add_child(header)
 	_hint = _small("", Color("9a7457"))
+	# 긴 설명이 창을 화면 밖까지 넓히지 않게 줄바꿈 (왼쪽 470 + 사이 20 + 오른쪽 380)
+	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hint.custom_minimum_size = Vector2(870, 0)
 	box.add_child(_hint)
 
 	var columns := HBoxContainer.new()
@@ -68,6 +71,7 @@ func _ready() -> void:
 	# 고른 레시피
 	var right := VBoxContainer.new()
 	right.custom_minimum_size = Vector2(380, 0)
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.add_theme_constant_override("separation", 8)
 	_detail = VBoxContainer.new()
 	_detail.add_theme_constant_override("separation", 4)
@@ -108,6 +112,7 @@ func _ready() -> void:
 
 	right.add_child(HSeparator.new())
 	_status = _small("", Color("6b8a3a"))
+	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	right.add_child(_status)
 	_bar = ProgressBar.new()
@@ -236,7 +241,10 @@ func _fill_list() -> void:
 		var item := ItemDB.get_item(r.output)
 		var known := RecipeDB.is_known(r.id)
 		var label := item.name + (" ×%d" % r.count if r.count > 1 else "")
-		var info := "%s · %s" % [RecipeDB.inputs_text(r), RecipeDB.time_text(r.minutes)] if known else "잠김 · 광장 레시피 상점에서 배워요"
+		var too_high := known and int(r.tier) > processor.tier()
+		var info := "%s · %s" % [RecipeDB.inputs_text(r), RecipeDB.time_text(r.minutes / processor.speed())] if known else "잠김 · 광장 레시피 상점에서 배워요"
+		if too_high:
+			info = "%d급 레시피 · 중급 가공기가 필요해요" % int(r.tier)
 		var row := ShopPanel.item_row(item, info)
 		(row.get_child(1) as Label).text = label
 		for child in row.get_children():
@@ -244,7 +252,7 @@ func _fill_list() -> void:
 				child.add_theme_font_size_override("font_size", Art.FONT_SIZE_SMALL)
 		(row.get_child(2) as Label).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		(row.get_child(1) as Label).size_flags_horizontal = Control.SIZE_FILL
-		if known:
+		if known and not too_high:
 			var current: bool = r.id == (processor.recipe_id if processor.is_automatic() else selected)
 			var pick := _button(("정해짐" if processor.is_automatic() else "선택됨") if current else "고르기", _select.bind(r.id))
 			pick.disabled = current
@@ -263,14 +271,22 @@ func _fill_detail() -> void:
 		_detail.add_child(_small("쓸 수 있는 레시피가 없어요.", Color("9a7457")))
 		return
 	var item := ItemDB.get_item(r.output)
-	var head := ShopPanel.item_row(item, "1회에 %d개 · %s" % [r.count, RecipeDB.time_text(r.minutes)])
+	var head := ShopPanel.item_row(item, "1회에 %d개 · %s" % [r.count, RecipeDB.time_text(r.minutes / processor.speed())])
+	var head_info := head.get_child(2) as Label
+	head_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	head_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head_info.custom_minimum_size = Vector2(160, 0)
+	head_info.add_theme_font_size_override("font_size", Art.FONT_SIZE_SMALL)
 	_detail.add_child(head)
 	_detail.add_child(_small("재료 (1회분)", Color("c98a2e")))
 	for item_id: String in r.inputs:
 		var need := int(r.inputs[item_id])
 		var auto := processor.is_automatic()
-		var have := processor.available_in_warehouses(item_id) if auto else GameState.inventory.count_of(item_id)
-		var line := _small("· %s %d개  (%s %d개)" % [ItemDB.get_item(item_id).name, need, "창고·입구" if auto else "가방", have], Color("5b3a29") if have >= need else Color("c0503a"))
+		var need_q: Variant = RecipeDB.need_quality(r, item_id)
+		var have := processor.available_in_warehouses(item_id, need_q) if auto else GameState.inventory.count_of(item_id, need_q)
+		var qname := " (%s만)" % Quality.name_of(need_q) if need_q != null else ""
+		var line := _small("· %s%s %d개  (%s %d개)" % [ItemDB.get_item(item_id).name, qname, need, "창고·입구" if auto else "가방", have], Color("5b3a29") if have >= need else Color("c0503a"))
+		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_detail.add_child(line)
 
 

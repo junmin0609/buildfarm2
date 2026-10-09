@@ -1,5 +1,5 @@
 {
-	"_comment": "가공 레시피 (BUILD_FARM_PLAN §72, §73). inputs = 1회분 재료, output·count = 1회분 결과물, minutes = 게임 시계 기준 걸리는 시간, tier = 필요한 가공기 등급 (§70), unlocked = 처음부터 아는 레시피 (나머지는 광장 레시피 상점에서 price G 에 배운다 §71. 재료를 모두 한 번씩 얻어야 상점에 나온다). 시간·가격은 임시 밸런스. §73의 9번(골드 과일 고급잼)·19~20번(양배추 없음)·23~26번(특수 작물 없음)은 아직 없음",
+	"_comment": "가공 레시피 (BUILD_FARM_PLAN §72, §73). inputs = 1회분 재료, output·count = 1회분 결과물, minutes = 게임 시계 기준 걸리는 시간, tier = 필요한 가공기 등급 (§70), unlocked = 처음부터 아는 레시피 (나머지는 광장 레시피 상점에서 price G 에 배운다 §71. 재료를 모두 한 번씩 얻어야 상점에 나온다). 시간·가격은 임시 밸런스. §73의 9번 고급잼(골드 과일만, quality)·19 양배추 절임·20 채소 절임 세트는 2급(중급 가공기). 23~26번(특수 작물)은 아직 없음",
 	"flour": {"inputs": {"wheat": 2}, "output": "flour", "count": 1, "minutes": 60, "tier": 1, "unlocked": true},
 	"dough": {"inputs": {"flour": 2}, "output": "dough", "count": 1, "minutes": 60, "tier": 1, "unlocked": true},
 	"bread": {"inputs": {"dough": 1}, "output": "bread", "count": 1, "minutes": 120, "tier": 1, "unlocked": true},
@@ -19,5 +19,9 @@
 	"corn_flour": {"inputs": {"corn": 2}, "output": "corn_flour", "count": 1, "minutes": 60, "tier": 1, "unlocked": false, "price": 500},
 	"corn_bread": {"inputs": {"corn_flour": 2, "dough": 1}, "output": "corn_bread", "count": 1, "minutes": 180, "tier": 1, "unlocked": false, "price": 2300},
 	"pumpkin_puree": {"inputs": {"pumpkin": 1}, "output": "pumpkin_puree", "count": 2, "minutes": 90, "tier": 1, "unlocked": false, "price": 1250},
-	"pumpkin_pie": {"inputs": {"pumpkin_puree": 2, "dough": 1, "sugar": 1}, "output": "pumpkin_pie", "count": 1, "minutes": 240, "tier": 1, "unlocked": false, "price": 4200}
+	"pumpkin_pie": {"inputs": {"pumpkin_puree": 2, "dough": 1, "sugar": 1}, "output": "pumpkin_pie", "count": 1, "minutes": 240, "tier": 1, "unlocked": false, "price": 4200},
+	"pickled_cabbage": {"inputs": {"cabbage": 2}, "output": "pickled_cabbage", "count": 1, "minutes": 120, "tier": 2, "unlocked": false, "price": 650},
+	"vegetable_pickle_set": {"inputs": {"pickled_cabbage": 1, "eggplant": 1, "radish": 1}, "output": "vegetable_pickle_set", "count": 1, "minutes": 180, "tier": 2, "unlocked": false, "price": 1550},
+	"premium_jam_strawberry": {"inputs": {"fruit_syrup": 2, "strawberry": 1}, "quality": {"strawberry": "gold"}, "output": "premium_jam", "count": 1, "minutes": 240, "tier": 2, "unlocked": false, "price": 5700},
+	"premium_jam_blueberry": {"inputs": {"fruit_syrup": 2, "blueberry": 1}, "quality": {"blueberry": "gold"}, "output": "premium_jam", "count": 1, "minutes": 240, "tier": 2, "unlocked": false, "price": 5700}
 }

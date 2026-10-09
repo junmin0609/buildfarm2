@@ -10,6 +10,7 @@ extends RefCounted
 ##   tier     필요한 가공기 등급 (§70: 1 하급 / 2 중급 / 3 상급)
 ##   unlocked 처음부터 아는 레시피인가. 나머지는 배워야 쓴다 (§71, 한 번 배우면 영구)
 ##   price    레시피 상점(셰프, §71)에서 배우는 값 (처음부터 아는 레시피는 0)
+##   quality  품질이 정해진 재료 {아이템 id: "gold"} (§73-9 고급잼: 골드 과일만). 없으면 아무 품질이나
 ## 배운 레시피는 GameState.unlocks["recipe:<id>"] 에 저장된다.
 ##
 ## 레시피 상점 (사용자 결정: 주재료를 처음 얻으면 진열)
@@ -49,8 +50,23 @@ static func _ensure_loaded() -> void:
 			"tier": maxi(1, int(raw.get("tier", 1))),
 			"unlocked": bool(raw.get("unlocked", false)),
 			"price": maxi(0, int(raw.get("price", 0))),
+			"input_quality": _parse_quality(raw.get("quality", {}), inputs),
 		}
 		_order.append(id)
+
+
+static func _parse_quality(raw: Variant, inputs: Dictionary) -> Dictionary:
+	var out := {}
+	if raw is Dictionary:
+		for item_id: String in raw:
+			if inputs.has(item_id) and str(raw[item_id]) in Quality.ids():
+				out[item_id] = str(raw[item_id])
+	return out
+
+
+## 이 재료에 정해진 품질 (없으면 null = 아무 품질이나)
+static func need_quality(recipe: Dictionary, item_id: String) -> Variant:
+	return recipe.get("input_quality", {}).get(item_id, null)
 
 
 static func get_recipe(id: String) -> Dictionary:
@@ -133,7 +149,8 @@ static func buy(id: String) -> bool:
 static func inputs_text(recipe: Dictionary) -> String:
 	var parts: Array[String] = []
 	for item_id: String in recipe.inputs:
-		parts.append("%s %d" % [ItemDB.get_item(item_id).name, recipe.inputs[item_id]])
+		var q: Variant = need_quality(recipe, item_id)
+		parts.append("%s%s %d" % [ItemDB.get_item(item_id).name, " (%s만)" % Quality.name_of(q) if q != null else "", recipe.inputs[item_id]])
 	return " + ".join(parts)
 
 

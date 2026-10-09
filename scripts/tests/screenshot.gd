@@ -664,6 +664,52 @@ func _ready() -> void:
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_night_summary.png"))
 	hud._close_panels()
 
+	# 중급 가공기 (§70, 사용자 결정): 창고 | 중급 가공기 + 발전기, 채소 절임 세트 만드는 중 → 창
+	var mid_def := PlaceableDB.get_def("mid_processor")
+	var mid_at := Vector2i(-1, -1)
+	var mcells: Array = world.farm.farmable_cells.keys()
+	mcells.sort()
+	for c: Vector2i in mcells:
+		var ok := c.x > 14
+		for y in 6:
+			for x in 9:
+				var fc: Vector2i = c + Vector2i(x, y)
+				if not world.build.is_buildable_ground(fc) or world.build.is_occupied(fc) or world.farm.tiles.has(fc):
+					ok = false
+		if ok:
+			mid_at = c
+			break
+	if mid_at.x >= 0:
+		for y in 6:
+			for x in 9:
+				world.obstacles.remove(mid_at + Vector2i(x, y))
+		await get_tree().process_frame
+		var mwh := world.build.place(PlaceableDB.get_def("warehouse"), mid_at) as Warehouse
+		var mid := world.build.place(mid_def, mid_at + Vector2i(4, 0)) as Processor
+		var mgen := world.build.place(PlaceableDB.get_def("small_generator"), mid_at + Vector2i(7, 0)) as Generator
+		if mid and mwh:
+			for id: String in ["pickled_cabbage", "vegetable_pickle_set", "premium_jam_strawberry", "premium_jam_blueberry"]:
+				RecipeDB.learn(id)
+			if mgen:
+				GameState.inventory.add("wood", 10)
+				mgen.deposit(GameState.inventory, "wood", 10)
+				mgen.produce(120.0)
+			mwh.storage.add("pickled_cabbage", 6, "silver")
+			mwh.storage.add("eggplant", 6, "gold")
+			mwh.storage.add("radish", 6, "silver")
+			mid.set_recipe("vegetable_pickle_set")
+			mid.set_enabled(true)
+			mid.advance(40.0)
+			world.player.global_position = mid.interact_point() + Vector2(0, 4)
+			world.player.facing = Vector2i.UP
+			world.player.camera.reset_smoothing()
+			await get_tree().create_timer(0.8).timeout
+			get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_mid_processor.png"))
+			hud.open_processor(mid)
+			await get_tree().create_timer(0.5).timeout
+			get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_mid_processor_panel.png"))
+			hud._close_panels()
+
 	# 맵 전체 내려다보기
 	get_tree().paused = false
 	main.get_node("HUD").visible = false
