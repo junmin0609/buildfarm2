@@ -131,18 +131,21 @@
 	"fiber": {
 		"name": "식물 섬유",
 		"kind": "material",
+		"sell_price": 5,
 		"description": "잡초에서 얻은 섬유. 퇴비·비료 재료가 될 거예요.",
 		"icon": 10
 	},
 	"wood": {
 		"name": "나무",
 		"kind": "material",
+		"sell_price": 8,
 		"description": "나뭇가지와 그루터기에서 얻은 목재. 시설과 건물 재료예요.",
 		"icon": 11
 	},
 	"stone": {
 		"name": "돌",
 		"kind": "material",
+		"sell_price": 10,
 		"description": "돌을 깨서 얻은 석재. 시설과 건물 재료예요.",
 		"icon": 12
 	},
@@ -741,19 +744,19 @@
 		"grow_days": 5,
 		"regrow_days": 0,
 		"yield_min": 1,
-		"yield_max": 1,
+		"yield_max": 3,
 		"seasons": [
 			"spring"
 		],
-		"buy_price": 50,
-		"description": "5일이면 자라는 봄 양배추예요. 절여서 팔면 좋아요.",
+		"buy_price": 26,
+		"description": "5일이면 자라요. 한 번에 1~3개를 거둬요.",
 		"icon": 80,
 		"crop_row": 15
 	},
 	"cabbage": {
 		"name": "양배추",
 		"kind": "crop",
-		"sell_price": 75,
+		"sell_price": 40,
 		"description": "속이 꽉 찬 봄 양배추.",
 		"icon": 81
 	},
@@ -806,14 +809,14 @@
 	"copper_ore": {
 		"name": "구리 광석",
 		"kind": "material",
-		"sell_price": 45,
+		"sell_price": 25,
 		"icon": 86,
 		"description": "광산 1층부터 나와요. 용광로에서 구리 주괴로 구워요."
 	},
 	"iron_ore": {
 		"name": "철 광석",
 		"kind": "material",
-		"sell_price": 85,
+		"sell_price": 50,
 		"icon": 87,
 		"description": "광산 10층부터 나와요. 용광로에서 철 주괴로 구워요."
 	},
@@ -925,7 +928,7 @@
 	"gold_ore": {
 		"name": "금 광석",
 		"kind": "material",
-		"sell_price": 150,
+		"sell_price": 90,
 		"icon": 96,
 		"description": "광산 15층부터 나와요. 용광로에서 금 주괴로 구워요."
 	},
@@ -943,22 +946,44 @@
 	"copper_bar": {
 		"name": "구리 주괴",
 		"kind": "material",
-		"sell_price": 165,
+		"sell_price": 100,
 		"icon": 98,
 		"description": "용광로에서 구리 광석 3개를 구운 것. 구리 도구로 강화하는 데 써요."
 	},
 	"iron_bar": {
 		"name": "철 주괴",
 		"kind": "material",
-		"sell_price": 315,
+		"sell_price": 195,
 		"icon": 99,
 		"description": "용광로에서 철 광석 3개를 구운 것. 철 도구로 강화하는 데 써요."
 	},
 	"gold_bar": {
 		"name": "금 주괴",
 		"kind": "material",
-		"sell_price": 570,
+		"sell_price": 350,
 		"icon": 100,
 		"description": "용광로에서 금 광석 3개를 구운 것. 금 도구로 강화하는 데 써요."
+	},
+	"lettuce_seed": {
+		"name": "양상추 씨앗",
+		"kind": "seed",
+		"_comment": "양상추 (사용자 결정: 양배추 cabbage 와 별개의 새 작물). 밭 그림은 지금 양배추 줄(crop_row 15)을 빌려 씀",
+		"grows": "lettuce",
+		"grow_days": 5,
+		"regrow_days": 0,
+		"yield_min": 1,
+		"yield_max": 3,
+		"seasons": ["spring"],
+		"buy_price": 24,
+		"description": "5일이면 자라요. 한 번에 1~3개를 거둬요.",
+		"icon": 101,
+		"crop_row": 15
+	},
+	"lettuce": {
+		"name": "양상추",
+		"kind": "crop",
+		"sell_price": 38,
+		"description": "아삭한 봄 양상추.",
+		"icon": 102
 	}
 }

@@ -533,21 +533,33 @@ func _test_crops_and_quality(world: FarmWorld, hud: HUD) -> void:
 		var sd := ItemDB.get_item(id + "_seed")
 		if sd == null or [sd.buy_price, ItemDB.get_item(id).sell_price, sd.grow_days, sd.regrow_days, sd.yield_min, sd.yield_max] != [int(e.seed), int(e.sell), int(e.grow_days), int(e.regrow_days), int(e["yield"][0]), int(e["yield"][1])]:
 			crop_bad.append(id)
-	_check(econ_crops.size() == 15 and crop_bad.is_empty(), "작물 15종 = 경제 기준 v1.0 (씨앗·판매가·성장일·재수확·수확량) %s" % [crop_bad])
+	_check(econ_crops.size() == 17 and crop_bad.is_empty(), "작물 17종 = 경제 기준 v1.0 (씨앗·판매가·성장일·재수확·수확량) %s" % [crop_bad])
+	# 양배추·양상추 (사용자 결정: cabbage 는 양배추 그대로, 양상추는 새 id lettuce)
+	var lettuce := ItemDB.get_item("lettuce_seed")
+	_check(ItemDB.get_item("cabbage").name == "양배추" and lettuce != null and lettuce.grows == "lettuce" and ItemDB.get_item("lettuce").name == "양상추" and lettuce.seasons == ["spring"] 		and RecipeDB.get_recipe("pickled_cabbage").inputs.has("cabbage") and not RecipeDB.get_recipe("pickled_cabbage").inputs.has("lettuce"), "양배추(cabbage)·양상추(lettuce) 별개 작물, 양배추 절임은 양배추")
 	_check(not cs.regrows() and ss.regrows() and ss.regrow_days == int(econ_crops.strawberry.regrow_days), "당근은 한 번, 딸기는 다시 열림")
 
 	# 품질 가격 = 기준가 × 품질 배율 (경제 기준 1.0 / 1.3 / 1.7) + 판매 방식 배율 (광장 80% · 출하함 100%, 사용자 결정)
 	var mult: Dictionary = _econ().quality.multipliers
 	_check(Quality.ids().all(func(q: String) -> bool: return is_equal_approx(Quality.multiplier(q), float(mult[q]))), "품질 배율 = 경제 기준 %s" % [mult])
+	# 품질 가격은 배율을 곱한 뒤 소수점 버림 (사용자 결정): 감자 골드 28 × 1.7 = 47.6 → 47, 딱 떨어지는 값은 그대로 (30 × 1.3 = 39)
+	var fake := ItemDef.from_dict("t", {"kind": "crop", "sell_price": 30})
+	_check(Pricing.quality_price(ItemDB.get_item("potato"), "gold") == 47 and Pricing.price_from(30, fake, "silver") == 39 and Pricing.price_from(10, fake, "silver") == 13, "품질 가격 소수점 버림 (감자 골드 47, 30×1.3 = 39)")
 	for id: String in ["carrot", "potato", "strawberry"]:
 		var it := ItemDB.get_item(id)
-		var want := Quality.ids().map(func(q: String) -> int: return roundi(it.sell_price * float(mult[q])))
+		var want := Quality.ids().map(func(q: String) -> int: return floori(it.sell_price * float(mult[q]) + 0.0001))
 		var prices := Quality.ids().map(func(q: String) -> int: return Pricing.quality_price(it, q))
 		_check(prices == want, "%s 브론즈·실버·골드 %s (실제 %s)" % [it.name, want, prices])
 	var carrot := ItemDB.get_item("carrot")
 	_check(Pricing.unit_price(carrot, "bronze", Pricing.PLAZA) == roundi(Pricing.quality_price(carrot, "bronze") * 0.8) and Pricing.unit_price(carrot, "gold", Pricing.PLAZA) == roundi(Pricing.quality_price(carrot, "gold") * 0.8), "광장 즉시 판매 = 품질가의 80%")
 	_check(Pricing.unit_price(carrot, "silver", Pricing.SHIPPING_BIN) == Pricing.quality_price(carrot, "silver"), "출하함 = 품질가의 100%")
-	_check(Pricing.unit_price(ItemDB.get_item("wood"), "", Pricing.PLAZA) == 0, "판매가 없는 아이템은 0")
+	_check(Pricing.unit_price(ItemDB.get_item("hoe"), "", Pricing.PLAZA) == 0, "판매가 없는 아이템(도구)은 0")
+	# 목재·돌·섬유 판매 (사용자 결정): 출하함 100% · 광장 80%
+	var raw_ok := true
+	for id: String in ["wood", "stone", "fiber"]:
+		var it := ItemDB.get_item(id)
+		raw_ok = raw_ok and it.sell_price == int(_econ().materials[id]) and Pricing.unit_price(it, "", Pricing.SHIPPING_BIN) == it.sell_price and Pricing.unit_price(it, "", Pricing.PLAZA) == roundi(it.sell_price * 0.8)
+	_check(raw_ok, "목재 8 · 돌 10 · 섬유 5 G 판매 (광장 80%)")
 
 	# 품질별 스택
 	inv.load_data([])
@@ -1470,7 +1482,7 @@ func _test_seasonal_crops(world: FarmWorld, hud: HUD) -> void:
 	var q_ok := true
 	for id: String in ["tomato", "blueberry", "watermelon", "pumpkin"]:
 		var it := ItemDB.get_item(id)
-		q_ok = q_ok and Quality.ids().map(func(q: String) -> int: return Pricing.quality_price(it, q)) == Quality.ids().map(func(q: String) -> int: return roundi(it.sell_price * float(mult[q])))
+		q_ok = q_ok and Quality.ids().map(func(q: String) -> int: return Pricing.quality_price(it, q)) == Quality.ids().map(func(q: String) -> int: return floori(it.sell_price * float(mult[q]) + 0.0001))
 	_check(q_ok, "품질 가격 = 기준가 × 품질 배율 (토마토·블루베리·수박·호박)")
 	_check(ItemDB.get_item("golden_pumpkin") == null and ItemDB.get_item("golden_pumpkin_seed") == null, "황금호박 같은 특수작물은 아직 없음")
 	var rows := {}
@@ -1489,7 +1501,7 @@ func _test_seasonal_crops(world: FarmWorld, hud: HUD) -> void:
 				ids.append(it.grows)
 		ids.sort()
 		return ids
-	_check(shop_seeds.call(1) == ["cabbage", "carrot", "potato", "strawberry", "wheat"], "봄 상점 씨앗 (양배추 포함) %s" % [shop_seeds.call(1)])
+	_check(shop_seeds.call(1) == ["cabbage", "carrot", "lettuce", "potato", "strawberry", "wheat"], "봄 상점 씨앗 (양배추·양상추 포함) %s" % [shop_seeds.call(1)])
 	_check(shop_seeds.call(29) == ["blueberry", "corn", "tomato", "watermelon", "wheat"], "여름 상점 씨앗 %s" % [shop_seeds.call(29)])
 	_check(shop_seeds.call(57) == ["corn", "eggplant", "pumpkin", "radish", "sweet_potato"], "가을 상점 씨앗 %s" % [shop_seeds.call(57)])
 	_check(shop_seeds.call(85) == ["broccoli", "spinach", "sugar_beet"] and ItemDB.shop_items().any(func(it: ItemDef) -> bool: return it.kind == ItemDef.Kind.FERTILIZER and Calendar.in_season_for_shop(it, 85)), "겨울 상점은 겨울 작물 씨앗만 %s (비료는 판매)" % [shop_seeds.call(85)])
@@ -1611,7 +1623,8 @@ func _test_drag_and_tooltip(hud: HUD) -> void:
 	var hoe2_lines := ItemTooltip.lines(ItemDB.get_item("hoe_2")).map(func(l: Array) -> String: return l[0])
 	_check("등급 2" in hoe2_lines and "꾹 누르기: 3칸 (1초마다)" in hoe2_lines, "구리 도구 툴팁: 등급·꾹 누르기 범위")
 	var crop_lines := ItemTooltip.lines(ItemDB.get_item("potato"), "gold").map(func(l: Array) -> String: return l[0])
-	_check("기준가 48 G" in crop_lines and "출하함 48 G · 광장 38 G" in crop_lines, "작물 툴팁: 품질 기준가·판매 방식별 가격")
+	var pg := Pricing.quality_price(ItemDB.get_item("potato"), "gold")
+	_check("기준가 %d G" % pg in crop_lines and "출하함 %d G · 광장 %d G" % [pg, Pricing.unit_price(ItemDB.get_item("potato"), "gold", Pricing.PLAZA)] in crop_lines, "작물 툴팁: 품질 기준가·판매 방식별 가격 (골드 감자 %d G)" % pg)
 	var fert_lines := ItemTooltip.lines(ItemDB.get_item("premium_fertilizer")).map(func(l: Array) -> String: return l[0])
 	var pc: Dictionary = _econ().quality.harvest_chances.premium
 	_check("수확 품질: 브론즈 %d%% · 실버 %d%% · 골드 %d%%" % [int(pc.bronze), int(pc.silver), int(pc.gold)] in fert_lines, "비료 툴팁: 품질 확률")
@@ -3744,7 +3757,18 @@ func _test_mine(world: FarmWorld, hud: Node) -> void:
 	# 입구: 북쪽 숲길 맨 위 (길 칸 앞)
 	var front := world.world_to_cell(world.mine_entrance.interact_point())
 	_check(MapLayout.char_at(front) == "p" and front.y <= 4 and front.x >= 84 and front.x <= 86, "광산 입구: 북쪽 숲길 끝 %s" % front)
-	_check(ItemDB.get_item("coal") != null and ItemDB.get_item("copper_ore") != null and ItemDB.get_item("iron_ore") != null and ItemDB.get_item("iron_ore").sell_price == int(_econ().materials.iron_ore) and ItemDB.get_item("iron_bar").sell_price > 3 * ItemDB.get_item("iron_ore").sell_price, "광석 3종 (주괴가 광석 3개보다 비쌈)")
+	_check(ItemDB.get_item("coal") != null and ItemDB.get_item("copper_ore") != null and ItemDB.get_item("iron_ore") != null and ItemDB.get_item("iron_ore").sell_price == int(_econ().materials.iron_ore), "광석 3종 = 경제 기준")
+	# 제련 검산 (사용자 결정): 석탄값까지 넣어도 적자가 아니고, 이익률이 상한(checks.smelt_margin_max)을 넘지 않음
+	var smelt_ok := true
+	var smelt_txt := []
+	var fcfg: Dictionary = PlaceableDB.get_def("furnace").data.furnace.recipes
+	for ore: String in fcfg:
+		var r: Dictionary = fcfg[ore]
+		var cost := int(r.ore) * ItemDB.get_item(ore).sell_price + int(r.coal) * ItemDB.get_item("coal").sell_price
+		var bar := ItemDB.get_item(str(r.output)).sell_price
+		smelt_ok = smelt_ok and bar > cost and (bar - cost) / float(cost) <= float(_econ().checks.smelt_margin_max)
+		smelt_txt.append("%s %+d" % [ItemDB.get_item(str(r.output)).name, bar - cost])
+	_check(smelt_ok, "제련: 적자 없음, 이익률 상한 안 (%s)" % ", ".join(smelt_txt))
 	_check(not Mine.rock_weights(1).has("mine_iron") and Mine.rock_weights(12).has("mine_iron") and Mine.rock_weights(10).has("mine_iron") and Mine.bottom() == 20, "깊이별 바위: 철은 10층부터, 1단계 바닥 20층")
 	_check(not Mine.view_rect().intersects(SkyIsland.view_rect()) and not Mine.view_rect().intersects(Interior.view_rect_of("machine")) and not Mine.view_rect().intersects(Rect2(Vector2.ZERO, Vector2(MapLayout.size() * FarmWorld.TILE))), "광산 자리가 농장·하늘섬·가게와 겹치지 않음")
 	# 들어가기 → 입구층
@@ -3860,12 +3884,14 @@ func _test_mid_processor(world: FarmWorld) -> void:
 		for y in 5:
 			for x in 12:
 				var fc := c + Vector2i(x, y)
-				if not grid.is_buildable_ground(fc) or grid.is_occupied(fc) or world.farm.tiles.has(fc):
+				if not grid.is_buildable_ground(fc) or grid.is_occupied(fc) or grid.is_reserved(fc) or world.farm.tiles.has(fc):
 					ok = false
 		if ok:
 			origin = c
 			break
 	_check(origin.x >= 0, "중급 가공기 자리 찾음 %s" % origin)
+	# 플레이어가 그 자리에 서 있으면 설치가 막히므로 잠깐 비켜 둔다 (앞 점검들이 어디서 끝났는지와 상관없이)
+	world.player.global_position = world.cell_center(origin + Vector2i(6, 7))
 	if origin.x < 0:
 		return
 	for y in 5:

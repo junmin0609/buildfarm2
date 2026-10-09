@@ -3230,6 +3230,8 @@ MACHINE_ICONS = [("sprinkler_1", "sprinkler_1"), ("sprinkler_2", "sprinkler_2"),
                  ("mid_processor", "mid_processor")]  # 중급 가공기 (아이콘 79번)
 # 용광로 (97번) 와 주괴 3종 (98번부터): 금 광석 다음에 붙인다
 FURNACE_ICONS = ["furnace", "copper_bar", "iron_bar", "gold_bar"]
+# 양상추 (101번부터, 사용자 결정: 양배추와 별개). 사용자 그림이 없을 때만 양배추 모양으로 대신 그린다
+LETTUCE_ICONS = ["lettuce_seed", "lettuce"]
 # 그다음 새 아이템 (아이콘 80번부터): 봄 양배추 · 2급 가공품. 앞 번호를 밀지 않게 맨 뒤에 붙인다
 NEW_ICONS = ["cabbage_seed", "cabbage", "pickled_cabbage", "vegetable_pickle_set", "premium_jam"]
 NEW_PRODUCTS = ["pickled_cabbage", "vegetable_pickle_set", "premium_jam"]
@@ -3468,6 +3470,7 @@ def make_items():
     order += ORE_ICONS  # 광석 (아이콘 85번부터)
     order += TOOL_ICONS_34 + ["gold_ore"]  # 철·금 도구 (88번부터), 금 광석 (96번)
     order += FURNACE_ICONS  # 용광로 (97번), 주괴 (98번부터)
+    order += LETTUCE_ICONS  # 양상추 씨앗·양상추 (101번부터)
     machine_art = dict(MACHINE_ICONS)
     atlas = Canvas(len(order) * T, T)
     for col, item in enumerate(order):
@@ -3486,6 +3489,11 @@ def make_items():
             c.template(AXE, ICON_PAL)
         elif item == "pickaxe":
             c.template(PICKAXE, ICON_PAL)
+        elif item == "lettuce_seed":
+            seed_packet(c, hexc(CROP_ART["cabbage"]["seed"]))
+        elif item == "lettuce":
+            produce(c, "cabbage", 8, 8.5, big=True)
+            c.outline(INK)
         elif item == "furnace":
             shrink_icon(c, load_png("furnace.png"))
         elif item in BAR_COLORS:

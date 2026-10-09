@@ -39,6 +39,6 @@ static func unit_price(item: ItemDef, quality: String, channel: String) -> int:
 	return roundi(quality_price(item, quality) * channel_multiplier(channel))
 
 
-## 기준가를 따로 받아 품질을 반영한다 (하늘시장의 그날 가격 등)
+## 기준가를 따로 받아 품질을 반영한다 (하늘시장의 그날 가격 등). 소수점은 버림 (사용자 결정, 경제 기준 v1.0)
 static func price_from(base: int, item: ItemDef, quality: String) -> int:
-	return roundi(base * Quality.multiplier(Quality.normalize(item, quality)))
+	return floori(base * Quality.multiplier(Quality.normalize(item, quality)) + 0.0001)

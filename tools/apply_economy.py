@@ -108,6 +108,21 @@ class JsonText:
         self.changes.append(("/".join(path), old, value))
         return True
 
+    def set_or_add(self, path, value, after):
+        """키가 없으면 같은 객체의 after 키 줄 바로 다음에 새 줄로 넣는다 (예: 팔 수 없던 아이템에 sell_price)"""
+        lo, hi = self._object_span(path[:-1])
+        try:
+            self._key_value(path[-1], lo, hi)
+        except KeyError:
+            a, b = self._key_value(after, lo, hi)
+            line_start = self.s.rfind("\n", 0, a) + 1
+            indent = re.match(r"[ \t]*", self.s[line_start:]).group(0)
+            text = ",\n%s\"%s\": %s" % (indent, path[-1], json.dumps(value, ensure_ascii=False))
+            self.s = self.s[:b] + text + self.s[b:]
+            self.changes.append(("/".join(path), None, value))
+            return True
+        return self.set(path, value)
+
     def save(self):
         json.loads(self.s)
         io.open(self.path, "w", encoding="utf-8", newline="").write(self.s.replace("\n", self.nl))
@@ -160,9 +175,9 @@ def apply(econ, dry_run):
         items.set([seed, "yield_max"], c["yield"][1])
         items.set([seed, "description"], seed_description(items, seed))
 
-    # 광석 · 주괴 · 석탄
+    # 재료 · 광석 · 주괴 · 석탄 (목재·돌·섬유처럼 팔 수 없던 것은 sell_price 줄을 새로 넣는다)
     for mid, price in econ["materials"].items():
-        items.set([mid, "sell_price"], price)
+        items.set_or_add([mid, "sell_price"], price, after="kind")
 
     # 용광로 (석탄 연료 유지)
     f = econ["furnace"]
@@ -205,24 +220,63 @@ def apply(econ, dry_run):
     print(f"{'바뀔' if dry_run else '바꾼'} 값 {total}개")
 
 
-def report(econ):
-    """문서 10-8: 작물 1칸 28일 기대 이익 (매일 물, 바로 다시 심기, 품질 보너스 없음) · 제련 이익"""
-    print("작물 1칸 · 28일 기대 순이익 (수확량 평균 × 판매가 − 씨앗)")
-    for crop, c in sorted(econ["crops"].items(), key=lambda kv: kv[1]["sell"]):
+def mine_check(econ):
+    """광산 한 층을 다 깼을 때 평균 수입 (바위 수 평균 × 층별 바위 비율 × 드롭 평균 × 판매가)"""
+    mine = json.loads(io.open(DATA / "mine.json", encoding="utf-8").read())
+    obs = json.loads(io.open(DATA / "obstacles.json", encoding="utf-8").read())["types"]
+    price = dict(econ["materials"])
+
+    def rock_value(t):
+        return sum((d["min"] + d["max"]) / 2 * price.get(d["item"], 0) for d in obs[t]["drops"])
+
+    rocks = sum(mine["rocks"]) / 2
+    rows = []
+    for row in mine["depths"]:
+        w = row["rocks"]
+        per_rock = sum(w[k] / sum(w.values()) * rock_value(k) for k in w)
+        rows.append((row["from"], per_rock, per_rock * rocks))
+    return rows
+
+
+def crop_profits(econ):
+    out = {}
+    for crop, c in econ["crops"].items():
         avg = sum(c["yield"]) / 2
         g, r = c["grow_days"], c["regrow_days"]
         if r > 0:
             harvests = (28 - g) // r + 1
-            profit = harvests * avg * c["sell"] - c["seed"]
+            out[crop] = (harvests, harvests * avg * c["sell"] - c["seed"])
         else:
             harvests = 28 // g
-            profit = harvests * (avg * c["sell"] - c["seed"])
+            out[crop] = (harvests, harvests * (avg * c["sell"] - c["seed"]))
+    return out
+
+
+def report(econ):
+    """문서 10-8: 작물 1칸 28일 기대 이익 (매일 물, 바로 다시 심기, 품질 보너스 없음) · 제련 이익"""
+    print("작물 1칸 · 28일 기대 순이익 (수확량 평균 × 판매가 − 씨앗)")
+    profits = crop_profits(econ)
+    for crop, (harvests, profit) in sorted(profits.items(), key=lambda kv: kv[1][1]):
         print(f"  {crop:13} 수확 {harvests:2}번  {profit:6.0f} G")
-    m, f = econ["materials"], econ["furnace"]
-    print(f"제련 (광석 {f['ore_per_bar']} + 석탄 {f['coal_per_bar']} → 주괴 1)")
+    m, f, chk = econ["materials"], econ["furnace"], econ["checks"]
+    problems = []
+    print(f"제련 (광석 {f['ore_per_bar']} + 석탄 {f['coal_per_bar']} → 주괴 1, 이익률 상한 {chk['smelt_margin_max']:.0%})")
     for ore, bar in (("copper_ore", "copper_bar"), ("iron_ore", "iron_bar"), ("gold_ore", "gold_bar")):
         cost = f["ore_per_bar"] * m[ore] + f["coal_per_bar"] * m["coal"]
-        print(f"  {bar:11} 판매 {m[bar]:4} G − 재료 {cost:4} G = {m[bar] - cost:+4} G  ({f['minutes'][ore]}분)")
+        margin = (m[bar] - cost) / cost
+        mark = "적자" if m[bar] <= cost else ("과함" if margin > chk["smelt_margin_max"] else "ok")
+        if mark != "ok":
+            problems.append(f"{bar} 제련 {mark}")
+        print(f"  {bar:11} 판매 {m[bar]:4} G − 재료 {cost:4} G = {m[bar] - cost:+4} G  이익률 {margin:4.0%}  ({f['minutes'][ore]}분)  {mark}")
+    best = max(p for _, p in profits.values())
+    limit = chk["mine_floor_vs_crop_max"] * best
+    print(f"광산 한 층을 다 깼을 때 평균 수입 (기준: 가장 좋은 작물 한 칸 한 계절 {best:.0f} G × {chk['mine_floor_vs_crop_max']} = {limit:.0f} G)")
+    for start, per_rock, per_floor in mine_check(econ):
+        mark = "주의" if per_floor > limit else "ok"
+        if mark != "ok":
+            problems.append(f"광산 {start}층부터 한 층 {per_floor:.0f} G")
+        print(f"  {start:2}층부터  바위 하나 {per_rock:5.1f} G  한 층 {per_floor:5.0f} G  {mark}")
+    print("검산: " + ("문제 없음" if not problems else " · ".join(problems)))
 
 
 if __name__ == "__main__":

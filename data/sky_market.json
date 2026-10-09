@@ -1,7 +1,7 @@
 {
 	"_comment": "하늘시장 (BUILD_FARM_PLAN §84~§89). 그날 가격 = 기준가(items.json sell_price) × 분류 흐름 × 아이템 흔들림 (+ 이벤트), 품질 배율은 그다음. 하루에 한 번 정해지고 그날은 고정, 다음 날 예보 없음 (§85). 분류마다 흔들림(volatility)이 다르다: 일반 작물은 안정, 가공품은 더, 특수 작물은 크게 (§86). 수치는 모두 임시 밸런스",
 	"categories": {
-		"vegetable": {"name": "채소", "volatility": 0.15, "items": ["carrot", "potato", "tomato", "eggplant", "radish", "cabbage", "pumpkin", "sweet_potato", "spinach", "broccoli"]},
+		"vegetable": {"name": "채소", "volatility": 0.15, "items": ["carrot", "potato", "tomato", "eggplant", "radish", "cabbage", "lettuce", "pumpkin", "sweet_potato", "spinach", "broccoli"]},
 		"fruit": {"name": "과일", "volatility": 0.18, "items": ["strawberry", "blueberry", "watermelon"]},
 		"grain": {"name": "곡물", "volatility": 0.12, "items": ["wheat", "corn", "sugar_beet"]},
 		"processed": {"name": "가공품", "volatility": 0.3, "kind": "processed"},
