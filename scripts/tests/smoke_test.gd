@@ -233,6 +233,7 @@ func _ready() -> void:
 
 	# ---------- 가게 실내 + NPC 대화 (사용자 요청)
 	await _test_interiors(world, hud)
+	_test_plaza(world)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -2767,7 +2768,7 @@ func _test_recipe_shop(world: FarmWorld, hud: HUD) -> void:
 
 	# 광장 건물 [E] → 창 (게임·시간 멈춤)
 	var shops := world.buildings.filter(func(b: Interactable) -> bool: return b is RecipeShop)
-	_check(shops.size() == 1 and MapLayout.char_at(Vector2i(40, 27)) == "C", "광장에 레시피 상점 (3x2)")
+	_check(shops.size() == 1 and MapLayout.char_at(Vector2i(54, 12)) == "C", "광장에 레시피 상점 (3x2)")
 	if shops.is_empty():
 		return
 	player.global_position = shops[0].interact_point()
@@ -3201,7 +3202,7 @@ func _test_sky_market(world: FarmWorld, hud: HUD) -> void:
 
 	# 비행선 정류장: 복구 전 (§89)
 	var stations := world.buildings.filter(func(b: Interactable) -> bool: return b is SkyStation)
-	_check(stations.size() == 1 and MapLayout.char_at(Vector2i(55, 27)) == "A" and stations[0].prompt.contains("오래된"), "광장에 오래된 비행선 정류장")
+	_check(stations.size() == 1 and MapLayout.char_at(Vector2i(94, 47)) == "A" and stations[0].prompt.contains("오래된"), "광장에 오래된 비행선 정류장")
 	if stations.is_empty():
 		return
 	var station: SkyStation = stations[0]
@@ -3440,13 +3441,33 @@ func _test_tool_cooldown(world: FarmWorld) -> void:
 	inv.load_data(saved_inv)
 
 
+## 넓힌 메인 광장 (사용자 요청: 가로·세로 모두 더 크게)
+func _test_plaza(world: FarmWorld) -> void:
+	_check(MapLayout.size() == Vector2i(112, 64), "맵 112x64 (%s)" % MapLayout.size())
+	var walk := 0
+	for y in MapLayout.size().y:
+		for x in range(41, MapLayout.size().x):
+			if not MapLayout.char_at(Vector2i(x, y)) in ["T", "~", "#", "x", "M", "C", "K", "J", "A", "Y", "B", "R"]:
+				walk += 1
+	_check(walk >= 2400, "광장 걸을 수 있는 칸 %d (예전 771)" % walk)
+	_check(MapLayout.char_at(Vector2i(73, 32)) == "F" and MapLayout.char_at(Vector2i(73, 18)) == "p", "분수 광장 + 큰길")
+	var right_edge := float(MapLayout.size().x * FarmWorld.TILE)
+	_check(SkyIsland.island_rect().position.x > right_edge and Vector2(Interior.origin_of("store") * FarmWorld.TILE).x > SkyIsland.island_rect().end.x, "하늘섬·가게 실내는 넓힌 맵 밖")
+	# 예전(버전 1) 저장: 광장에 서 있었으면 집 앞으로, 농장이면 그대로
+	var old := {"version": 1, "sections": {"player": {"position": [50.0 * FarmWorld.TILE, 20.0 * FarmWorld.TILE]}}}
+	var moved: Dictionary = world.save_manager._migrate(old)
+	var farm_pos := [10.0 * FarmWorld.TILE, 20.0 * FarmWorld.TILE]
+	var kept: Dictionary = world.save_manager._migrate({"version": 1, "sections": {"player": {"position": farm_pos.duplicate()}}})
+	_check(moved.version == SaveManager.VERSION and Vector2(moved.sections.player.position[0], moved.sections.player.position[1]) == world.home_position and kept.sections.player.position == farm_pos, "예전 저장: 광장에 있었으면 집 앞, 농장이면 그대로")
+
+
 func _test_interiors(world: FarmWorld, hud: HUD) -> void:
 	var player := world.player
 	var cam := player.camera
 	var inv := GameState.inventory
 	var saved_inv := inv.to_data()
 	var store: ShopBuilding = world.buildings.filter(func(b: Interactable) -> bool: return b is ShopBuilding and b.room_id == "store")[0]
-	_check(MapLayout.char_at(Vector2i(41, 11)) == "M" and store.size_tiles == Vector2i(4, 3) and MapLayout.char_at(Vector2i(57, 14)) == "J", "잡화점 4x3 (41, 11) · 기계상점 (57, 14)")
+	_check(MapLayout.char_at(Vector2i(46, 11)) == "M" and store.size_tiles == Vector2i(4, 3) and MapLayout.char_at(Vector2i(86, 12)) == "J" and MapLayout.char_at(Vector2i(79, 12)) == "K", "상점가 잡화점 4x3 (46, 11) · 공방 거리 대장간 (79, 12) · 기계상점 (86, 12)")
 
 	# 문 [E] → 실내 (걸을 때는 시간이 흐름)
 	GameState.set_clock(9 * 60)

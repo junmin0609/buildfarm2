@@ -11,7 +11,7 @@ extends Node2D
 
 const TILE := Art.TILE
 ## 섬 왼쪽 위 칸 (농장 맵 오른쪽 바깥)
-const ORIGIN := Vector2i(80, 6)
+const ORIGIN := Vector2i(130, 6)
 ## 화면(약 20x11칸)보다 작게 해서 둘레로 하늘이 보이게 (떠 있는 섬)
 const SIZE := Vector2i(14, 9)
 ## 카메라가 볼 하늘 여백 (칸)

@@ -147,11 +147,24 @@ func _ready() -> void:
 	hud._close_panels()
 
 	# 가게 실내 (사용자 요청): 광장의 잡화점·기계상점 → 잡화점 안 + 대화 창 → 대장간 안 → 기계상점 안
-	world.player.global_position = world.cell_center(Vector2i(46, 15))
+	world.player.global_position = world.cell_center(Vector2i(48, 16))
 	world.player.facing = Vector2i.UP
 	world.player.camera.reset_smoothing()
 	await get_tree().create_timer(0.6).timeout
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_plaza_shops.png"))
+	# 넓힌 광장: 분수 광장·공방 거리·정류장 마당, 그리고 줌을 당긴 전체 모습
+	for spot: Array in [[Vector2i(73, 30), "fountain"], [Vector2i(83, 17), "workshop"], [Vector2i(95, 52), "station"]]:
+		world.player.global_position = world.cell_center(spot[0])
+		world.player.camera.reset_smoothing()
+		await get_tree().create_timer(0.6).timeout
+		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_plaza_%s.png" % spot[1]))
+	var zoom_before := world.player.camera.zoom
+	world.player.camera.zoom = zoom_before * 0.3
+	world.player.global_position = world.cell_center(Vector2i(74, 32))
+	world.player.camera.reset_smoothing()
+	await get_tree().create_timer(0.8).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_plaza_overview.png"))
+	world.player.camera.zoom = zoom_before
 	world.enter_interior("store")
 	world.player.global_position = (world.interiors["store"] as Interior).npc.interact_point()
 	world.player.facing = Vector2i.UP

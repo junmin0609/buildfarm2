@@ -15,7 +15,7 @@ const MARGIN := Vector2i(6, 4)
 
 const ROOMS := {
 	"store": {
-		"origin": Vector2i(120, 4),
+		"origin": Vector2i(160, 4),
 		"name": "잡화점",
 		"rows": ["WWWWWWWWWW", "WSSS..SSSW", "W..CCCC..W", "W........W", "W........W", "W........W", "WWWWDDWWWW"],
 		"npc": {"cell": Vector2i(5, 1), "name": "잡화점 주인 하나", "texture": "res://assets/art/npc_store.png",
@@ -24,7 +24,7 @@ const ROOMS := {
 		"wall": Color("c9a27e"), "accent": Color("7fb069"),
 	},
 	"smith": {
-		"origin": Vector2i(120, 16),
+		"origin": Vector2i(160, 16),
 		"name": "대장간",
 		"rows": ["WWWWWWWWWW", "WSS....SSW", "W..CCCC..W", "W........W", "WF.......W", "W........W", "WWWWDDWWWW"],
 		"npc": {"cell": Vector2i(5, 1), "name": "대장장이 철수", "texture": "res://assets/art/npc_smith.png",
@@ -33,7 +33,7 @@ const ROOMS := {
 		"wall": Color("a99782"), "accent": Color("f29b50"),
 	},
 	"machine": {
-		"origin": Vector2i(120, 28),
+		"origin": Vector2i(160, 28),
 		"name": "기계상점",
 		"rows": ["WWWWWWWWWW", "WSSS..SSSW", "W..CCCC..W", "W........W", "W........W", "W........W", "WWWWDDWWWW"],
 		"npc": {"cell": Vector2i(5, 1), "name": "기계상점 미나", "texture": "res://assets/art/npc_machine.png",

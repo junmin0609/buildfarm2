@@ -13,7 +13,8 @@ extends Node
 ## 파일 형식 (JSON): {"version": 1, "kind": "auto"/"manual", "saved_at": "...", "sections": {이름: 데이터}}
 ## 쓸 때는 임시 파일에 먼저 쓰고 바꿔치기한다. 이전 저장은 .bak 으로 하나 남긴다.
 
-const VERSION := 1
+## 2: 메인 광장을 넓힘 (맵 64x44 → 112x64, 하늘섬·가게 실내 자리도 옮김)
+const VERSION := 2
 
 ## 세이브 파일 위치 (점검·화면 확인 스크립트는 다른 파일을 쓰도록 바꾼다)
 static var slot_path := "user://save_slot_1.json"
@@ -137,6 +138,11 @@ func read_save() -> Dictionary:
 
 ## 예전 버전 저장을 지금 형식으로 바꾼다. 형식이 바뀔 때 VERSION 을 올리고 여기에 변환을 추가한다.
 func _migrate(data: Dictionary) -> Dictionary:
+	if int(data.version) < 2:
+		# 광장·하늘섬·가게 실내에 서 있던 저장은 그 자리가 바뀌었으므로 집 앞에서 시작한다 (농장 x < 38 은 그대로)
+		var player: Variant = data.sections.get("player")
+		if player is Dictionary and player.get("position") is Array and player.position.size() == 2 and float(player.position[0]) >= 38 * FarmWorld.TILE:
+			player.position = [world.home_position.x, world.home_position.y]
 	data.version = VERSION
 	return data
 
