@@ -19,6 +19,7 @@ extends RefCounted
 ##   W  우물 (2x2칸, 물뿌리개를 채우는 곳)   O  출하함 (2x1칸, 하루가 끝나면 넣어 둔 것을 판다)
 ##   K  대장간 (3x2칸, 도구 강화)
 ##   C  레시피 상점 (3x2칸, 셰프 §71)
+##   A  오래된 비행선 정류장 (4x3칸, §89. 복구하면 하늘섬으로 가는 비행선)
 ##   @  플레이어 시작 위치
 
 const ROWS := [
@@ -49,7 +50,7 @@ const ROWS := [
 	"TT..ggggggggggggggggggggggggg..YTT~~~~TTY..phppppppppppppp....TT",
 	"TT...ggggggggggggggggggggggggg.TTT~~~~TT.....pppppppppppp.....TT",
 	"TT...ggggggggggggggggggggggggg.TTT~~~TTT.......L.s..h.p..x...BTT",
-	"TTY..gggggggggggggggggggggggg.YTT~~~~TTTCxx.....ss.....xxxxx.TTT",
+	"TTY..gggggggggggggggggggggggg.YTT~~~~TTTCxx.....ss.....Axxxx.TTT",
 	"TT...gggggggggggggggggggggggg.TTT~~~~TTxxxxx....ss.....xxxxx.TTT",
 	"TT...ggggggggggggggggggggggg..TTT~~~TTTxxxxx....s......xxxxx.TTT",
 	"TTB.ggggggggggggggggggggggg...TT~~~~TTT.xxx.....s........x...TTT",
@@ -102,6 +103,7 @@ const BUILDINGS := {
 	"O": "res://scenes/buildings/shipping_bin.tscn",
 	"K": "res://scenes/buildings/blacksmith.tscn",
 	"C": "res://scenes/buildings/recipe_shop.tscn",
+	"A": "res://scenes/buildings/sky_station.tscn",
 }
 
 

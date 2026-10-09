@@ -1587,6 +1587,118 @@ def make_recipe_shop():
     c.save("recipe_shop.png")
 
 
+# ---------------------------------------------------------------- 하늘시장 (§84~§90)
+#   광장 비행선 정류장 (4x3칸, 64x60): 부서진 모습 / 복구한 모습 (계류탑 + 깃발 + 작은 비행선)
+#   하늘섬 가판대 (3x2칸, 48x40): 하늘색 줄무늬 천막 / 하늘섬 비행선 (4x3칸, 64x72): 풍선 + 나무 곤돌라
+
+SKY_BLUE, SKY_BLUE_D, SKY_BLUE_L = hexc("7cc4e6"), hexc("5aa3cc"), hexc("c2ecfa")
+
+
+def balloon(c, cx, cy, rx, ry):
+    c.ellipse(cx, cy, rx, ry, SKY_BLUE)
+    for k in range(-2, 3):
+        x = int(cx + k * rx / 2.6)
+        for y in range(int(cy - ry) + 1, int(cy + ry)):
+            if c.get(x, y)[3]:
+                c.set(x, y, SKY_BLUE_D if k % 2 else hexc("fff8ea"))
+    c.ellipse(cx - rx / 3, cy - ry / 2.2, rx / 4, ry / 5, SKY_BLUE_L)
+
+
+def gondola(c, x, y, w, h):
+    wd = P["wood"]
+    rrect(c, x, y, w, h, 2, wd[1])
+    c.rect(x + 1, y + 1, w - 2, 1, wd[3])
+    for xx in range(x + 3, x + w - 2, 4):
+        c.rect(xx, y + 2, 1, h - 3, wd[0])
+
+
+def make_sky_station():
+    wd = P["wood"]
+    st = [hexc("9a8b7d"), hexc("b5a696"), hexc("cdbfae")]
+    for restored in (False, True):
+        c = Canvas(64, 60)
+        c.ellipse(32, 58.5, 30, 1.6, SOFT_SHADOW)
+        # 돌 바닥 받침
+        rrect(c, 2, 46, 60, 13, 2, st[1])
+        for x in range(4, 60, 8):
+            c.rect(x, 47, 1, 11, st[0])
+        c.rect(3, 46, 58, 1, st[2])
+        # 계류탑 (나무 기둥 + 꼭대기 고리)
+        c.rect(46, 10, 4, 37, wd[1]); c.rect(46, 10, 1, 37, wd[2])
+        for y in range(16, 46, 7):
+            c.rect(44, y, 8, 1, wd[0])
+        c.ellipse(48, 9, 4, 3, wd[0]); c.ellipse(48, 9, 2, 1.4, CLEAR)
+        # 계단
+        for k in range(4):
+            c.rect(10 + k * 3, 42 - k * 3, 14 - k * 3, 3, wd[2 if k % 2 else 1])
+        if restored:
+            # 깃발 + 매어 둔 작은 비행선
+            c.rect(48, 2, 1, 8, wd[0]); c.rect(49, 2, 7, 4, hexc("e0715f")); c.rect(49, 5, 7, 1, hexc("b85d44"))
+            balloon(c, 22, 14, 15, 10)
+            for x in (12, 32):
+                c.rect(x, 22, 1, 8, wd[0])
+            gondola(c, 10, 29, 24, 9)
+            c.rect(34, 13, 12, 1, hexc("d9c9a8"))   # 밧줄
+        else:
+            # 부서진 판자·쓰러진 깃대·찢어진 천 조각
+            c.rect(30, 38, 14, 3, wd[0]); c.rect(33, 35, 3, 4, wd[1])
+            for x, y in ((14, 30), (22, 33), (36, 28)):
+                c.rect(x, y, 6, 2, wd[2]); c.set(x + 6, y + 1, wd[0])
+            c.rect(52, 30, 8, 2, wd[1])
+            c.rect(16, 24, 9, 4, hexc("c9d3dc")); c.set(18, 25, hexc("94a3b2")); c.set(22, 26, hexc("94a3b2"))
+        c.outline(INK)
+        c.save("sky_station.png" if restored else "sky_station_broken.png")
+
+
+def make_sky_stall():
+    wd = P["wood"]
+    c = Canvas(48, 40)
+    c.ellipse(24, 38.5, 22, 1.5, SOFT_SHADOW)
+    rrect(c, 4, 22, 40, 17, 1.5, wd[2])
+    c.rect(4, 22, 40, 2, wd[3])
+    for x in range(8, 44, 9):
+        c.rect(x, 25, 1, 13, wd[1])
+    # 판매대 위 상자 (작물·병)
+    for x, col in ((8, "e0715f"), (14, "f2c443"), (30, "7fb069"), (36, "5a64b8")):
+        rrect(c, x, 18, 5, 5, 1, hexc(col))
+    # 기둥 + 하늘색 줄무늬 천막
+    for x in (4, 42):
+        c.rect(x, 8, 2, 15, wd[1])
+    for x in range(0, 48):
+        col = SKY_BLUE if (x // 4) % 2 == 0 else hexc("fff8ea")
+        c.rect(x, 4, 1, 6, col)
+        if x % 4 != 3:
+            c.set(x, 10, col)
+    c.rect(0, 4, 48, 1, SKY_BLUE_D)
+    # 별 간판
+    rrect(c, 18, 0, 12, 5, 1.5, hexc("f2c443"))
+    c.set(24, 2, hexc("fff3c0"))
+    c.outline(INK)
+    c.save("sky_stall.png")
+
+
+def make_airship():
+    wd = P["wood"]
+    c = Canvas(64, 72)
+    c.ellipse(32, 70.5, 28, 1.6, SOFT_SHADOW)
+    # 나무 선착장
+    rrect(c, 4, 58, 56, 13, 2, wd[1])
+    for x in range(6, 58, 6):
+        c.rect(x, 59, 1, 11, wd[0])
+    c.rect(5, 58, 54, 1, wd[3])
+    # 풍선 + 곤돌라
+    balloon(c, 32, 18, 26, 17)
+    for x in (16, 48):
+        c.rect(x, 32, 1, 13, wd[0])
+    gondola(c, 12, 44, 40, 12)
+    rrect(c, 26, 46, 12, 6, 1, hexc("ffd27a"))  # 창
+    c.rect(31, 46, 1, 6, wd[1])
+    # 프로펠러
+    c.rect(52, 47, 2, 6, wd[0]); c.ellipse(57, 50, 2, 5, hexc("e6dccd"))
+    c.outline(INK)
+    c.save("airship.png")
+
+
 # ---------------------------------------------------------------- 개간 장애물 (data/obstacles.json 의 그림)
 # 모두 한 칸을 차지하고, 그림 아래쪽 가운데가 칸 바닥에 놓인다.
 
@@ -2422,6 +2534,9 @@ if __name__ == "__main__":
     make_shipping_bin()
     make_blacksmith()
     make_recipe_shop()
+    make_sky_station()
+    make_sky_stall()
+    make_airship()
     make_obstacles()
     make_player()
     make_crops()

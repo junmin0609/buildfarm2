@@ -146,6 +146,39 @@ func _ready() -> void:
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_smith_panel.png"))
 	hud._close_panels()
 
+	# 하늘시장 (§84~§90): 부서진 정류장·복구 창 → 복구한 정류장 → 하늘섬 → 가판대 창
+	var station: SkyStation = world.buildings.filter(func(b: Interactable) -> bool: return b is SkyStation)[0]
+	world.player.global_position = station.interact_point() + Vector2(0, 10)
+	world.player.facing = Vector2i.UP
+	world.player.camera.reset_smoothing()
+	await get_tree().create_timer(0.6).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_sky_station_broken.png"))
+	GameState.inventory.add("flour", 4)
+	hud.open_sky_station()
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_sky_station_panel.png"))
+	hud._close_panels()
+	GameState.unlocks[SkyMarket.UNLOCK] = true
+	Events.sky_station_restored.emit()
+	await get_tree().create_timer(0.3).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_sky_station.png"))
+	SkyMarket.rng.seed = 3
+	GameState.sky_market = SkyMarket.roll(GameState.day)
+	GameState.sky_market.event = "sky_food_festival"
+	world.travel("sky")
+	await get_tree().create_timer(1.2).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_sky_island.png"))
+	for entry in [["strawberry", 6, "gold"], ["tomato", 4, "silver"], ["bread", 2, ""], ["flour", 3, ""]]:
+		GameState.inventory.add(entry[0], entry[1], entry[2])
+	hud.open_sky_market()
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_sky_market.png"))
+	hud._close_panels()
+	world.travel("home")
+	GameState.unlocks.erase(SkyMarket.UNLOCK)
+	Events.sky_station_restored.emit()
+	GameState.set_clock(10 * 60)
+
 	# 레시피 상점 (셰프 §71): 광장 위치·창 (딸기·설탕·블루베리를 얻어 본 상태, 딸기잼은 배움)
 	var chef: Interactable = world.buildings.filter(func(b: Interactable) -> bool: return b is RecipeShop)[0]
 	world.player.global_position = chef.interact_point() + Vector2(0, 6)

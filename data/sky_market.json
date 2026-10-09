@@ -1,0 +1,28 @@
+{
+	"_comment": "하늘시장 (BUILD_FARM_PLAN §84~§89). 그날 가격 = 기준가(items.json sell_price) × 분류 흐름 × 아이템 흔들림 (+ 이벤트), 품질 배율은 그다음. 하루에 한 번 정해지고 그날은 고정, 다음 날 예보 없음 (§85). 분류마다 흔들림(volatility)이 다르다: 일반 작물은 안정, 가공품은 더, 특수 작물은 크게 (§86). 수치는 모두 임시 밸런스",
+	"categories": {
+		"vegetable": {"name": "채소", "volatility": 0.15, "items": ["carrot", "potato", "tomato", "eggplant", "radish", "pumpkin", "sweet_potato", "spinach", "broccoli"]},
+		"fruit": {"name": "과일", "volatility": 0.18, "items": ["strawberry", "blueberry", "watermelon"]},
+		"grain": {"name": "곡물", "volatility": 0.12, "items": ["wheat", "corn", "sugar_beet"]},
+		"processed": {"name": "가공품", "volatility": 0.3, "kind": "processed"},
+		"special": {"name": "특수 작물", "volatility": 0.6, "items": []}
+	},
+	"_item_spread": "아이템마다 분류 흐름에 더해 volatility × item_spread 만큼 따로 흔들린다",
+	"item_spread": 0.5,
+	"min_multiplier": 0.5,
+	"max_multiplier": 2.0,
+	"_events": "하루에 event_chance 확률로 이벤트 하나 (§88, 너무 자주 나오지 않게). effects = 분류별 추가 배율",
+	"event_chance": 0.12,
+	"events": {
+		"sky_food_festival": {"name": "하늘 음식 축제", "text": "과일·채소를 찾는 손님이 많아요", "effects": {"fruit": 1.3, "vegetable": 1.2}},
+		"grain_boom": {"name": "곡물 풍년", "text": "곡물이 넘쳐나서 값이 내렸어요", "effects": {"grain": 0.75}},
+		"luxury_trend": {"name": "고급 음식 유행", "text": "가공품이 잘 팔려요", "effects": {"processed": 1.35}}
+	},
+	"_station": "§89 오래된 비행선 정류장 복구 (사용자 결정: 복구 뒤 하늘시장 열림). 기획서의 '금속'은 아직 없어서 지금 있는 재료로. 값은 임시",
+	"station": {
+		"price": 8000,
+		"materials": {"wood": 150, "stone": 150, "flour": 10, "tomato_puree": 5}
+	},
+	"_travel": "광장 정류장 ↔ 하늘섬 비행 시간 (게임 시계 분, 편도)",
+	"travel_minutes": 60
+}

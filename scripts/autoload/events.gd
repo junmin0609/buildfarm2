@@ -27,6 +27,14 @@ signal hotbar_selection_changed(index: int)
 signal blacksmith_requested
 ## 광장 레시피 상점(셰프, §71) [E]
 signal recipe_shop_requested
+## 하늘시장 (§84~§90): 광장 비행선 정류장 복구 창 / 하늘섬 가판대 창 / 비행 ("sky" 하늘섬으로, "home" 광장으로)
+signal sky_station_requested
+signal sky_market_requested
+signal travel_requested(to: String)
+## 비행 끝: 화면을 잠깐 어둡게 했다 밝힌다
+signal travelled(to: String)
+## 정류장 복구 완료 (정류장 그림·안내가 바뀐다)
+signal sky_station_restored
 ## 출하함 창 열기 요청 (bin: ShippingBin) / 출하함 내용이 바뀜
 signal shipping_bin_requested(bin: Node)
 signal shipping_bin_changed

@@ -123,6 +123,21 @@ Godot 4.7로 만든 2D 픽셀 농장 게임의 기본 버전입니다. 16px 도�
 - 코드: `scripts/factory/conveyor.gd`(`Conveyor`, 칸 하나), `scripts/factory/conveyor_net.gd`(`ConveyorNet`, 지역 전체를 앞 벨트부터 한꺼번에 움직임, `BuildGrid.conveyors`), 끌어서 깔기는 `BuildMode.belt_path / place_belts`
 - 그림: `assets/art/conveyor.png` (줄: 직선/왼쪽 꺾임/오른쪽 꺾임, 칸: 무늬 4장, 회전 0 = 아래로 흐름)
 
+## 하늘시장 + 비행선 정류장 + 하늘섬 (BUILD_FARM_PLAN §84~§90)
+- **열기** (사용자 결정: 정류장 복구 뒤): 광장 남동쪽 **오래된 비행선 정류장** (4x3, 지도 글자 `A`) [E] → 복구 창. 돈 + 재료를 한 번에 납품 (임시: 8,000 G + 나무 150 + 돌 150 + 밀가루 10 + 토마토 퓌레 5. 기획서의 금속은 아직 없음) → `GameState.unlocks["sky_station"]`
+- **가기** (사용자 결정: 비행선 + 작은 하늘섬 맵): 복구한 정류장 [E] → 비행선 → **하늘섬** (편도 게임 시계 1시간, 그동안 시설은 그대로 일함). 섬 선착장 [E] → 광장 정류장으로. 하루가 얼마 안 남으면 뜨지 않음
+  - 하늘섬은 농장 맵 오른쪽 바깥(칸 80, 6부터 14x9)에 따로 그림. 비행하면 플레이어를 옮기고 카메라 범위만 바꿈 (`FarmWorld.travel`, `SkyIsland`). 밭·건설·장애물 없음, 둘레는 보이지 않는 벽
+  - 섬에서 하루가 끝나면 집 앞에서 깨어남. 섬에서 저장하면 섬에서 이어서
+- **팔기** (§90): 섬의 하늘시장 가판대 [E] → 가방에 든 작물·가공품을 오늘 값으로 1개/모두 팔기. 판매 요약에 "하늘시장"
+- **시세** (`data/sky_market.json`, `SkyMarket`):
+  - 하루 처음 볼 때 한 번 정해지고 그날 고정, 저장됨 (`GameState.sky_market`). 다음 날 예보 없음 (§85)
+  - 그날 값 = 기준가 × 분류 흐름 × 아이템 흔들림 (× 이벤트), 그다음 품질 배율. 배율 0.5~2.0
+  - 분류(§87): 채소·과일·곡물·가공품·특수 작물. 흔들림(§86): 곡물 ±12% · 채소 ±15% · 과일 ±18% · 가공품 ±30% · 특수 ±60%
+  - 이벤트(§88, 하루 12%): 하늘 음식 축제(과일 ×1.3, 채소 ×1.2) / 곡물 풍년(곡물 ×0.75) / 고급 음식 유행(가공품 ×1.35)
+  - 창에 오늘의 소식·분류별 흐름(▲▼)·품목별 기준가 대비 표시
+- 아직 없음: 원격 시세 단말기(§91), 원격 출하함(§92), 자동 판매(§93)
+- 코드: `scripts/economy/sky_market.gd`, `scripts/world/sky_island.gd`, `scripts/buildings/sky_station.gd`, `scripts/buildings/sky_island_buildings.gd`, `scripts/ui/sky_market_panel.gd`, `scripts/ui/sky_station_panel.gd`. 그림 `make_sky_station / make_sky_stall / make_airship`
+
 ## 분배기 · 합류기 · 필터 분배기 (BUILD_FARM_PLAN §62)
 - 셋 다 **1칸**, 컨베이어처럼 물건 1개를 잠깐 들고 있다가 넘김. 전기 없음. R 로 방향. 건설 창 "물류"
 - 왼쪽·오른쪽은 **물건이 흐르는 방향 기준** (앞을 보고 선 사람의 왼손·오른손)

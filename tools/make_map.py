@@ -136,6 +136,9 @@ put(57, 12, "K")
 # 레시피 상점 (셰프 §71, 3x2, 40~42 / 27~28). 광장 남서쪽 시설 터 위쪽, 나머지는 다음 시설 터로 남긴다
 put(40, 27, "C")
 
+# 오래된 비행선 정류장 (§89, 4x3, 55~58 / 27~29). 광장 남동쪽 시설 터. 복구하면 하늘섬으로 가는 비행선
+put(55, 27, "A")
+
 # ================================================================ 4.5 구역 경계: 개울 양쪽 숲띠 + 넓은 개울
 
 stroke(RIVER, "T", radius=4.3, over=".")       # 농장·광장 사이 빈 땅을 숲으로 메운다
@@ -222,7 +225,7 @@ put(OX, OY, "O")
 
 rows = ["".join(r) for r in g]
 assert all(len(r) == W for r in rows)
-for ch in "HMSWOKC@":
+for ch in "HMSWOKCA@":
     assert sum(r.count(ch) for r in rows) == 1, ch
 
 layout = ROOT / "scripts" / "world" / "map_layout.gd"

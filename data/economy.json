@@ -1,7 +1,8 @@
 {
-	"_comment": "판매 방식별 가격 배율 (기준가 = items.json 의 sell_price). 품질 배율은 quality.json. 하늘시장은 배율이 아니라 날마다 바뀌는 가격을 쓸 예정이라 여기에는 없다.",
+	"_comment": "판매 방식별 가격 배율 (기준가 = items.json 의 sell_price). 품질 배율은 quality.json. 하늘시장은 배율 대신 날마다 바뀌는 가격(data/sky_market.json)을 쓰고, 여기에는 판매 요약에 보일 이름만 둔다.",
 	"sell_channels": {
 		"plaza": {"name": "광장 즉시 판매", "multiplier": 0.8},
-		"shipping_bin": {"name": "농장 출하함", "multiplier": 1.0}
+		"shipping_bin": {"name": "농장 출하함", "multiplier": 1.0},
+		"sky_market": {"name": "하늘시장", "multiplier": 1.0}
 	}
 }

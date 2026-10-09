@@ -34,6 +34,8 @@ var today_sales := {}
 ##   "recipe:<id>"  배운 레시피 (§71)
 ##   "found:<id>"   한 번이라도 얻은 아이템 (가방에 들어왔거나 창고·가공기에서 생겼을 때). 레시피 상점은 재료를 모두 얻어 본 레시피만 판다
 var unlocks := {}
+## 하늘시장 오늘 시세 (§85, SkyMarket.today 가 하루 처음 볼 때 정한다). 저장해서 불러와도 그날 가격이 바뀌지 않게
+var sky_market := {}
 
 ## 하루 길이·시계 설정 (data/time.json)
 var day_length := 900.0
@@ -69,6 +71,7 @@ func new_game() -> void:
 	_pause_reasons.clear()
 	_input_locks.clear()
 	unlocks.clear()
+	sky_market = {}
 	today_sales.clear()
 	set_weather(Weather.first_day())
 	var rng := RandomNumberGenerator.new()
@@ -269,6 +272,7 @@ func to_data() -> Dictionary:
 		"selected_slot": selected_slot,
 		"inventory": inventory.to_data(),
 		"unlocks": unlocks.duplicate(true),
+		"sky_market": sky_market.duplicate(true),
 		"today_sales": today_sales.duplicate(),
 		"weather": weather,
 		"daily_special": daily_special,
@@ -289,6 +293,10 @@ func load_data(data: Variant) -> bool:
 	var unlock_data: Variant = data.get("unlocks", {})
 	unlocks = unlock_data.duplicate(true) if unlock_data is Dictionary else {}
 	_discover_bag()  # 이 기록이 생기기 전 저장이면 지금 가방에 든 것부터 얻은 것으로 친다
+	var sky: Variant = data.get("sky_market", {})
+	sky_market = sky.duplicate(true) if sky is Dictionary and sky.get("items") is Dictionary and sky.get("categories") is Dictionary else {}
+	if sky_market.has("day"):
+		sky_market["day"] = int(sky_market.day)  # JSON 을 거치면 숫자가 소수가 된다
 	today_sales.clear()
 	var sales_data: Variant = data.get("today_sales", {})
 	if sales_data is Dictionary:

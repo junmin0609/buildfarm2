@@ -51,7 +51,7 @@ func _ready() -> void:
 	var inv := GameState.inventory
 
 	_check(farm.farmable_cells.size() >= 100, "밭 칸 (실제 %d)" % farm.farmable_cells.size())
-	_check(world.buildings.size() == 7, "건물 7개 배치 (집·씨앗 상점·작물 판매처·우물·출하함·대장간·레시피 상점)")
+	_check(world.buildings.size() == 8, "건물 8개 배치 (집·씨앗 상점·작물 판매처·우물·출하함·대장간·레시피 상점·비행선 정류장)")
 	_check(world.fences.get_used_cells().is_empty(), "농장에 울타리 없음")
 	_check(world.objects.get_children().filter(func(n: Node) -> bool: return n is Prop).size() > 100, "나무·바위 소품 배치")
 	var home_cell := world.world_to_cell(world.cell_center(_find_char("@")))
@@ -221,6 +221,9 @@ func _ready() -> void:
 
 	# ---------- 분배기 · 합류기 · 필터 분배기 (§62)
 	await _test_routers(world, hud)
+
+	# ---------- 하늘시장 + 비행선 정류장 + 하늘섬 (§84~§90)
+	await _test_sky_market(world, hud)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -2895,6 +2898,10 @@ func _test_farm_machines(world: FarmWorld, hud: HUD) -> void:
 	_check(hv.output.is_empty() and hv.starved and hv.status_text().begins_with("전기가 없어서") and farm.get_tile(center + Vector2i.UP).is_mature(), "전기가 없으면 거두지 않고 작물은 밭에 그대로")
 
 	# 발전기 + 연료 → 거두는 동안에만 전기
+	# (하루를 넘기는 동안 작은 장애물이 다시 자랐을 수 있다 §103 — 발전기 자리를 다시 치운다)
+	for c in Placeable.footprint_of(PlaceableDB.get_def("small_generator"), origin):
+		world.obstacles.remove(c)
+	await get_tree().process_frame
 	var gen := grid.place(PlaceableDB.get_def("small_generator"), origin) as Generator
 	inv.add("wood", 5)
 	gen.deposit(inv, "wood", 5)
@@ -3120,6 +3127,142 @@ func _test_routers(world: FarmWorld, hud: HUD) -> void:
 		if Rect2i(o, Vector2i(10, 13)).has_point(obj.cell):
 			obj.take_contents()
 			grid.remove(obj)
+	await get_tree().process_frame
+
+
+func _test_sky_market(world: FarmWorld, hud: HUD) -> void:
+	var inv := GameState.inventory
+	var saved_inv := inv.to_data()
+	var saved_day := GameState.day
+	var player := world.player
+	var cam := player.camera
+	GameState.unlocks.erase(SkyMarket.UNLOCK)
+
+	# 분류 (§86, §87)
+	var cat := func(id: String) -> String: return SkyMarket.category_of(ItemDB.get_item(id))
+	_check([cat.call("carrot"), cat.call("strawberry"), cat.call("wheat"), cat.call("flour"), cat.call("hoe"), cat.call("wood")] == ["vegetable", "fruit", "grain", "processed", "", ""], "분류: 채소·과일·곡물·가공품, 도구·재료는 안 팔림")
+	_check(Pricing.channel_name(SkyMarket.CHANNEL) == "하늘시장", "판매 요약 이름: 하늘시장")
+
+	# 시세: 하루 한 번 정해지고 그날은 고정 (§85)
+	SkyMarket.rng.seed = 7
+	GameState.sky_market = {}
+	var t1 := SkyMarket.today().duplicate(true)
+	_check(int(t1.day) == GameState.day and t1.items.has("carrot") and t1.items.has("flour") and SkyMarket.today() == t1, "오늘 시세는 한 번 정해지면 그날 고정")
+	var carrot := ItemDB.get_item("carrot")
+	var expect := Pricing.price_from(roundi(carrot.sell_price * float(t1.items.carrot)), carrot, "silver")
+	_check(SkyMarket.unit_price(carrot, "silver") == expect and expect > 0, "당근 실버 오늘 값 %d G (기준가 × 오늘 배율 → 품질 배율)" % expect)
+	GameState.day += 1
+	_check(int(SkyMarket.today().day) == GameState.day, "다음 날이 되면 새 시세")
+	GameState.day -= 1
+	GameState.sky_market = t1.duplicate(true)
+
+	# 흔들림: 가공품이 곡물보다 크게 움직이고, 이벤트가 가끔 (§86, §88)
+	var spread := func(c: String, rolls: Array) -> float:
+		var lo := 99.0
+		var hi := 0.0
+		for r: Dictionary in rolls:
+			lo = minf(lo, float(r.categories[c]))
+			hi = maxf(hi, float(r.categories[c]))
+		return hi - lo
+	var rolls := []
+	var events := 0
+	var event_ok := true
+	for i in 300:
+		var r := SkyMarket.roll(i + 1)
+		rolls.append(r)
+		if str(r.event) != "":
+			events += 1
+		if str(r.event) == "grain_boom":
+			event_ok = event_ok and float(r.categories.grain) <= 1.12 * 0.75 + 0.01
+		for id: String in r.items:
+			event_ok = event_ok and float(r.items[id]) >= 0.5 and float(r.items[id]) <= 2.0
+	_check(spread.call("processed", rolls) > spread.call("grain", rolls) * 1.5, "가공품 흔들림 %.2f > 곡물 %.2f" % [spread.call("processed", rolls), spread.call("grain", rolls)])
+	_check(events >= 15 and events <= 60 and event_ok, "300일 중 이벤트 %d번 (12%%쯤), 곡물 풍년엔 곡물값 내림, 배율 0.5~2.0" % events)
+
+	# 비행선 정류장: 복구 전 (§89)
+	var stations := world.buildings.filter(func(b: Interactable) -> bool: return b is SkyStation)
+	_check(stations.size() == 1 and MapLayout.char_at(Vector2i(55, 27)) == "A" and stations[0].prompt.contains("오래된"), "광장에 오래된 비행선 정류장")
+	if stations.is_empty():
+		return
+	var station: SkyStation = stations[0]
+	_check(not world.travel("sky") and not SkyMarket.is_open(), "복구 전에는 비행선이 없음")
+	player.global_position = station.interact_point()
+	await get_tree().physics_frame
+	player._interact()
+	_check(hud._sky_station.visible and get_tree().paused and hud._sky_station._restore.disabled, "[E] → 복구 창 (재료가 없으면 복구 못 함)")
+	var cost := SkyMarket.station_cost()
+	inv.load_data([])
+	GameState.money = int(cost.price) + 500
+	for id: String in cost.materials:
+		inv.add(id, int(cost.materials[id]))
+	hud._sky_station.refresh()
+	_check(not hud._sky_station._restore.disabled, "돈·재료가 모이면 [복구하기]")
+	hud._sky_station.restore()
+	_check(SkyMarket.is_open() and GameState.money == 500 and inv.count_of("wood") == 0 and not hud._sky_station.visible and station.prompt.contains("비행선 타기"), "복구 → 하늘시장 열림, 돈·재료 사용, 정류장 안내 바뀜")
+	hud._close_panels()
+
+	# 비행: 편도 1시간, 하늘섬 카메라 범위 (§90)
+	GameState.set_clock(9 * 60)
+	var before_min := GameState.minutes
+	player.global_position = station.interact_point()
+	await get_tree().physics_frame
+	player._interact()
+	_check(world.is_on_sky_island() and cam.limit_left == int(SkyIsland.view_rect().position.x) and cam.limit_right == int(SkyIsland.view_rect().end.x), "정류장 [E] → 하늘섬 도착, 카메라는 섬 범위")
+	_check(GameState.minutes - before_min >= 50 and GameState.minutes - before_min <= 70, "비행에 게임 시간 약 1시간 (%d분)" % (GameState.minutes - before_min))
+	for i in 60:
+		player.velocity = Vector2(-240, 0)
+		player.move_and_slide()
+	_check(SkyIsland.island_rect().has_point(player.global_position), "섬 밖으로 걸어 나갈 수 없음")
+
+	# 가판대: 오늘 값으로 팔기
+	var market := world.sky_island.market
+	inv.load_data([])
+	inv.add("carrot", 5, "silver")
+	inv.add("flour", 2)
+	inv.add("hoe", 1)
+	player.global_position = market.interact_point()
+	await get_tree().physics_frame
+	player._interact()
+	var panel := hud._sky_market
+	_check(panel.visible and get_tree().paused and panel._list.get_child_count() == 2, "가판대 [E] → 하늘시장 창 (팔 수 있는 줄 2개: 당근·밀가루)")
+	var money := GameState.money
+	var unit := SkyMarket.unit_price(carrot, "silver")
+	var earned := SkyMarketPanel.sell("carrot", "silver", 5)
+	_check(earned == unit * 5 and GameState.money == money + earned and inv.count_of("carrot") == 0 and int(GameState.today_sales.get(SkyMarket.CHANNEL, 0)) >= earned, "당근 5개 판매 +%d G (판매 요약에 하늘시장)" % earned)
+	_check(SkyMarketPanel.sell("hoe", "", 1) == 0 and inv.count_of("hoe") == 1, "도구는 안 팔림")
+	hud._close_panels()
+
+	# 저장 / 불러오기: 섬에서 저장하면 섬에서 이어서, 그날 시세 그대로
+	var prices := GameState.sky_market.duplicate(true)
+	world.save_manager.save_game("manual")
+	GameState.sky_market = {}
+	world.save_manager.load_game()
+	_check(world.is_on_sky_island() and cam.limit_left == int(SkyIsland.view_rect().position.x), "섬에서 저장·불러오기: 섬에서 이어서 (섬 카메라)")
+	var same_prices := int(GameState.sky_market.get("day", -1)) == int(prices.day) and str(GameState.sky_market.get("event")) == str(prices.event)
+	for id: String in prices.items:
+		var it := ItemDB.get_item(id)
+		same_prices = same_prices and Pricing.price_from(roundi(it.sell_price * float(prices.items[id])), it, "gold") == SkyMarket.unit_price(it, "gold")
+	_check(same_prices, "불러와도 그날 시세 그대로 (모든 품목 값 같음)")
+
+	# 돌아가기
+	player.global_position = world.sky_island.dock.interact_point()
+	await get_tree().physics_frame
+	player._interact()
+	_check(not world.is_on_sky_island() and cam.limit_left == 0 and player.global_position.distance_to(station.interact_point()) < 24.0, "선착장 [E] → 광장 정류장으로, 카메라는 농장 범위")
+
+	# 늦으면 비행선이 안 뜸 / 섬에서 하루가 끝나면 집에서 깨어남
+	GameState.set_clock(GameState.day_end - 30)
+	_check(not world.travel("sky") and not world.is_on_sky_island(), "늦은 밤에는 비행선이 뜨지 않음")
+	GameState.set_clock(10 * 60)
+	world.travel("sky")
+	GameState.sleep()
+	hud._close_panels()
+	_check(not world.is_on_sky_island() and player.global_position == world.home_position and cam.limit_left == 0, "섬에서 하루가 끝나면 집 앞에서 깨어남")
+
+	GameState.unlocks.erase(SkyMarket.UNLOCK)
+	station.refresh()
+	GameState.day = saved_day
+	inv.load_data(saved_inv)
 	await get_tree().process_frame
 
 

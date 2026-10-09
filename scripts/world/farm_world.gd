@@ -26,6 +26,8 @@ var shipping_bin: ShippingBin
 var day_cycle: DayCycle
 ## 저장 / 불러오기 (scripts/save/save_manager.gd)
 var save_manager: SaveManager
+## 하늘섬 (§84, §90). 농장 맵 오른쪽 바깥에 따로 그려 두고 비행선으로 오간다
+var sky_island: SkyIsland
 
 
 func _ready() -> void:
@@ -55,6 +57,14 @@ func _ready() -> void:
 	day_cycle.name = "DayCycle"
 	day_cycle.world = self
 	add_child(day_cycle)
+	sky_island = SkyIsland.new()
+	add_child(sky_island)
+	move_child(sky_island, objects.get_index())
+	sky_island.build(self)
+	Events.travel_requested.connect(travel)
+	# 하루가 끝나 집에서 깨어나거나 저장을 불러오면, 플레이어가 있는 곳(농장/하늘섬)에 카메라 범위를 맞춘다
+	Events.day_ended.connect(func(_r: Dictionary) -> void: _apply_camera_area())
+	Events.game_loaded.connect(_apply_camera_area)
 	# 맵·장애물을 새 게임 상태로 다 만든 뒤에 붙인다 (저장이 있으면 여기서 불러온다)
 	save_manager = SaveManager.new()
 	save_manager.name = "SaveManager"
@@ -317,16 +327,57 @@ func _fence_tile(ch: String) -> Variant:
 
 
 func _setup_camera() -> void:
-	var cam := player.camera
-	var map_px := Vector2(MapLayout.size() * TILE)
 	_fit_camera_zoom()
 	if not get_viewport().size_changed.is_connected(_fit_camera_zoom):
 		get_viewport().size_changed.connect(_fit_camera_zoom)
-	cam.limit_left = 0
-	cam.limit_top = 0
-	cam.limit_right = int(map_px.x)
-	cam.limit_bottom = int(map_px.y)
+	_set_camera_limits(Rect2(Vector2.ZERO, Vector2(MapLayout.size() * TILE)))
+
+
+func _set_camera_limits(r: Rect2) -> void:
+	var cam := player.camera
+	cam.limit_left = int(r.position.x)
+	cam.limit_top = int(r.position.y)
+	cam.limit_right = int(r.end.x)
+	cam.limit_bottom = int(r.end.y)
 	cam.reset_smoothing()
+
+
+# ---------- 하늘섬 오가기 (§90, 사용자 결정: 비행선 + 작은 하늘섬 맵)
+
+func is_on_sky_island() -> bool:
+	return SkyIsland.contains(player.global_position)
+
+
+## 플레이어가 있는 곳에 맞춰 카메라가 볼 범위를 정한다 (농장 맵 / 하늘섬 + 하늘)
+func _apply_camera_area() -> void:
+	_set_camera_limits(SkyIsland.view_rect() if is_on_sky_island() else Rect2(Vector2.ZERO, Vector2(MapLayout.size() * TILE)))
+
+
+## 비행선을 탄다. to: "sky" 하늘섬으로 / "home" 광장 정류장으로. 편도 게임 시계 travel_minutes 가 흐른다
+## (그동안 시설은 그대로 일한다). 오늘 남은 시간이 모자라면 뜨지 않는다. 비행했으면 true
+func travel(to: String) -> bool:
+	if to == "sky" and not SkyMarket.is_open():
+		return false
+	var seconds := SkyMarket.travel_minutes() * GameState.day_length / float(GameState.day_end - GameState.day_start)
+	if GameState.seconds_left() <= seconds + GameState.warning_seconds:
+		Events.toast.emit("오늘은 늦어서 비행선이 뜨지 않아요.")
+		return false
+	GameState.advance_time(seconds)
+	var dest := SkyIsland.arrive_position() if to == "sky" else _station_arrive_position()
+	player.wake_at(dest)
+	player.facing = Vector2i.UP if to == "sky" else Vector2i.DOWN
+	_apply_camera_area()
+	Events.travelled.emit(to)
+	Events.toast.emit("하늘섬에 도착했어요." if to == "sky" else "농장 광장에 돌아왔어요.")
+	return true
+
+
+## 광장 정류장 앞 (정류장이 없으면 집 앞)
+func _station_arrive_position() -> Vector2:
+	for b in buildings:
+		if b is SkyStation:
+			return b.interact_point() + Vector2(0, 6)
+	return home_position
 
 
 ## 화면 크기 대응 (project.godot: stretch mode canvas_items, aspect expand)
