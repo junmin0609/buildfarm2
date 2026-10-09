@@ -15,7 +15,8 @@ extends Node
 
 ## 2: 메인 광장을 넓힘 (맵 64x44 → 112x64, 하늘섬·가게 실내 자리도 옮김)
 ## 3: 가게 실내를 12x9 로 키우며 방 자리를 옮김 (무드 개편)
-const VERSION := 3
+## 4: 농장을 동쪽·남쪽으로 넓히고 개울·광장·하늘섬·실내를 동쪽으로 옮김
+const VERSION := 4
 
 ## 세이브 파일 위치 (점검·화면 확인 스크립트는 다른 파일을 쓰도록 바꾼다)
 static var slot_path := "user://save_slot_1.json"
@@ -111,6 +112,8 @@ func load_game() -> bool:
 		if not section.load.call(sections[section.key]):
 			last_load.failed.append(section.key)
 			push_warning("저장 섹션이 손상돼 건너뜁니다: %s" % section.key)
+	if data.get("new_land", false):
+		world.obstacles.generate_new_land()  # 넓힌 농장의 새 땅 (사용자 결정: 잡초·돌이 덮인 채로)
 	last_load.ok = true
 	Events.game_loaded.emit()
 	return true
@@ -149,6 +152,12 @@ func _migrate(data: Dictionary) -> Dictionary:
 		var p2: Variant = data.sections.get("player")
 		if p2 is Dictionary and p2.get("position") is Array and p2.position.size() == 2 and float(p2.position[0]) >= 150 * FarmWorld.TILE:
 			p2.position = [world.home_position.x, world.home_position.y]
+	if int(data.version) < 4:
+		# 광장·하늘섬·가게 실내가 동쪽으로 옮겨졌으므로 x 38칸 동쪽에 서 있던 저장은 집 앞에서. 새 경작지에는 장애물을 깐다
+		var p3: Variant = data.sections.get("player")
+		if p3 is Dictionary and p3.get("position") is Array and p3.position.size() == 2 and float(p3.position[0]) >= 38 * FarmWorld.TILE:
+			p3.position = [world.home_position.x, world.home_position.y]
+		data["new_land"] = true
 	data.version = VERSION
 	return data
 

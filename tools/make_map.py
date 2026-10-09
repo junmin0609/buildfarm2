@@ -325,10 +325,12 @@ put(73, 6, "G")                       # 북쪽 숲길 아치
 rect(84, 48, 6, 3, "#", over=".e")    # 나루터 + 배송함 (장식)
 put(86, 49, "8")
 
-# 낮은 나무 울타리 (=): 길가·개울가. 길이 지나는 칸은 비운다
-for y, x0, x1 in [(25, 53, 58), (25, 91, 96), (47, 43, 48), (47, 53, 59), (47, 63, 67), (47, 80, 86), (47, 104, 107), (21, 61, 65), (21, 98, 103)]:
-    for x in range(x0, x1):
-        put(x, y, "=", over=".")
+# 꽃밭 + 앞쪽 낮은 나무 울타리 (무드: 울타리는 꽃밭을 두르는 데만, 길 위에는 없음)
+for gx, gy, gw in [(43, 26, 6), (56, 31, 4), (97, 33, 6), (44, 6, 5), (97, 5, 5), (60, 44, 5), (79, 42, 4)]:
+    for x in range(gx, gx + gw):
+        for y in (gy, gy + 1):
+            put(x, y, "*", over=".,")
+        put(x, gy + 2, "=", over=".,")
 
 # 빈 시설 터 (나중 시설)
 for x, y, w, h in [(98, 10, 5, 4), (44, 39, 5, 4), (58, 43, 5, 4), (99, 27, 5, 4)]:
@@ -348,8 +350,8 @@ def open_around(x, y, r):
     return all(at(xx, yy) in ".," for yy in range(y - r, y + r + 1) for xx in range(x - r, x + r + 1))
 
 
-for cx, cy, r in [(46, 11, 2.2), (65, 12, 2.0), (97, 20, 2.0), (45, 29, 2.6), (58, 32, 2.0), (90, 36, 2.2), (101, 35, 2.4),
-                  (50, 46, 1.8), (64, 45, 1.6), (84, 44, 1.6), (104, 50, 1.4), (62, 7, 1.6), (86, 6, 1.6), (101, 6, 1.6), (45, 6, 1.6)]:
+for cx, cy, r in [(46, 11, 2.2), (65, 12, 2.0), (97, 20, 2.0), (90, 36, 2.2),
+                  (50, 46, 1.8), (104, 50, 1.4), (62, 7, 1.6), (86, 6, 1.6)]:   # 울타리 꽃밭 자리와 겹치는 무더기는 뺐다
     disc(cx, cy, r, "*", over=".")
 grown = 0
 for _ in range(4000):
@@ -365,6 +367,91 @@ for x, y in [(76, 2), (106, 15)]:
 for ch, x, y, w in SHOPS:
     rect(x, y, w, 3, ".")
     put(x, y, ch)
+
+# ================================================================ 8. 농장 넓히기 (사용자 요청: 가로·세로 더 넓게, 광장만큼은 아니게)
+# 옛 농장(x < 31, y < 44)은 칸 그대로 두어 저장 호환을 지키고, 개울과 광장을 통째로 동쪽으로 SHIFT 칸 민다.
+# 비는 자리(옛 숲띠·옛 개울)와 농장 아래 숲(y 41~56)을 새 경작지로 바꾼다.
+
+SHIFT = 12
+plaza = g
+W3, H3 = W2 + SHIFT, H2
+frng = random.Random(23)
+g = [["T" for _ in range(W3)] for _ in range(H3)]
+W, H = W3, H3
+# 광장 (옛 x 39~) 을 그대로 옮긴다
+for y in range(H3):
+    for x in range(39, W2):
+        g[y][x + SHIFT] = plaza[y][x]
+# 옛 농장 칸 그대로
+for y in range(len(base)):
+    for x in range(31):
+        g[y][x] = base[y][x]
+
+# 새 땅: 옛 농장 동쪽(옛 숲띠·개울 자리)과 남쪽 숲을 풀밭으로 (가장자리는 들쭉날쭉)
+for y in range(3, 59):
+    for x in range(3, 45):
+        if g[y][x] != "T" or (x < 31 and y < 41):
+            continue
+        edge = min(x - 3, 44 - x, y - 3, 58 - y)
+        if edge > 1 or frng.random() < 0.5 + 0.2 * edge:
+            g[y][x] = "."
+
+# 새 경작지 (g): 옛 경작지 동쪽·남쪽으로 이어지게
+for cx, cy, rx, ry in [(35, 25, 7.5, 11), (22, 47, 15, 7.5), (9, 47, 5.5, 5), (36, 46, 7, 8), (31, 36, 6, 5)]:
+    for y in range(H3):
+        for x in range(3, 45):
+            d = ((x + 0.5 - cx) / rx) ** 2 + ((y + 0.5 - cy) / ry) ** 2
+            if d <= 1.0 + (frng.random() - 0.5) * 0.15 and g[y][x] in ".T,":
+                g[y][x] = "g"
+
+# 개울 (농장과 광장 사이): 옛 물길을 SHIFT 만큼 옮기고 양쪽 숲띠
+RIVER2 = [(x + SHIFT, y) for x, y in RIVER[:-1]] + [(34.5 + SHIFT, 64)]
+stroke(RIVER2, "T", radius=3.2, over=".,")
+stroke(RIVER2, "~", radius=1.8, over=".T,g")
+# 광장 남쪽 개울이 큰 개울에 이어지게 (사이 숲띠 몇 칸만 물로)
+for y in range(48, H3):
+    if g[y][SHIFT + 39] in "~e":
+        x = SHIFT + 38
+        while x > 40 and g[y][x] != "~":
+            g[y][x] = "~" if g[y][SHIFT + 39] == "~" else "e"
+            x -= 1
+
+# 농장 길 → 다리 → 광장 큰길 (y 17~19)
+road = [(29.5, 13), (33, 15.5), (40, 17.5), (46, 18.2), (SHIFT + 40, 18.2)]
+stroke(road, ".", radius=1.7, over="T")
+stroke(road, "s", radius=0.85, over=".Tg,")
+for x in range(38, SHIFT + 41):
+    for y in (17, 18):
+        if g[y][x] == "~":
+            g[y][x] = "#"
+
+# 옛 숲 가장자리에 있던 어린 나무·덤불·바위가 새 경작지 한가운데 남지 않게
+for y in range(3, 59):
+    for x in range(20, 45):
+        if g[y][x] in "YBR" and not any(g[y + dy][x + dx] == "T" for dx in (-1, 0, 1) for dy in (-1, 0, 1)):
+            near_g = sum(g[y + dy][x + dx] == "g" for dx in (-1, 0, 1) for dy in (-1, 0, 1))
+            g[y][x] = "g" if near_g >= 4 else "."
+
+# 처음부터 일궈 둔 흙밭(d)은 없앤다 (사용자 요청): 보통 경작지로. 경작 가능 칸은 그대로라 저장 호환
+for y in range(H3):
+    for x in range(W3):
+        if g[y][x] == "d":
+            g[y][x] = "g"
+
+# 새 땅 꾸미기: 숲 가장자리에 어린 나무·덤불, 풀밭에 꽃 얼룩
+for y in range(3, 59):
+    for x in range(3, 46):
+        if (x >= 31 or y >= 41) and g[y][x] == "." and any(g[y + dy][x + dx] == "T" for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+            r = frng.random()
+            if r < 0.16:
+                g[y][x] = "Y"
+            elif r < 0.27:
+                g[y][x] = "B"
+for cx, cy in ((40, 8), (8, 55), (42, 40)):
+    for y in range(cy - 1, cy + 2):
+        for x in range(cx - 2, cx + 3):
+            if 0 <= y < H3 and g[y][x] == ".":
+                g[y][x] = ","
 
 # ================================================================ 저장
 

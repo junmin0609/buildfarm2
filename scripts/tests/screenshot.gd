@@ -12,10 +12,10 @@ func _ready() -> void:
 	await get_tree().process_frame
 	var world: FarmWorld = main.get_node("FarmWorld")
 	var farm := world.farm
-	var origin := Vector2i(9999, 9999)
-	for c: Vector2i in farm.farmable_cells:
-		if MapLayout.char_at(c) == "d":
-			origin = Vector2i(mini(origin.x, c.x), mini(origin.y, c.y))
+	var origin := Vector2i(11, 14)  # 집 앞 남동쪽 (예전 흙밭 자리, 흙밭은 사용자 요청으로 없앰)
+	for y in range(0, 12):
+		for x in range(0, 14):
+			world.obstacles.remove(origin + Vector2i(x, y))
 	for x in range(10, 16):
 		for y in range(4, 8):
 			var cell := origin + Vector2i(x - 6, y - 2)
@@ -182,20 +182,20 @@ func _ready() -> void:
 	world.build.move(house_fx, home_cell)
 
 	# 가게 실내 (사용자 요청): 광장의 잡화점·기계상점 → 잡화점 안 + 대화 창 → 대장간 안 → 기계상점 안
-	world.player.global_position = world.cell_center(Vector2i(48, 16))
+	world.player.global_position = world.cell_center(Vector2i(60, 16))
 	world.player.facing = Vector2i.UP
 	world.player.camera.reset_smoothing()
 	await get_tree().create_timer(0.6).timeout
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_plaza_shops.png"))
 	# 넓힌 광장: 분수 광장·공방 거리·정류장 마당, 그리고 줌을 당긴 전체 모습
-	for spot: Array in [[Vector2i(74, 33), "fountain"], [Vector2i(83, 18), "workshop"], [Vector2i(96, 50), "station"], [Vector2i(54, 17), "store"], [Vector2i(74, 49), "creek"], [Vector2i(44, 18), "entrance"]]:
+	for spot: Array in [[Vector2i(86, 33), "fountain"], [Vector2i(95, 18), "workshop"], [Vector2i(108, 50), "station"], [Vector2i(66, 17), "store"], [Vector2i(86, 49), "creek"], [Vector2i(56, 18), "entrance"]]:
 		world.player.global_position = world.cell_center(spot[0])
 		world.player.camera.reset_smoothing()
 		await get_tree().create_timer(0.6).timeout
 		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_plaza_%s.png" % spot[1]))
 	var zoom_before := world.player.camera.zoom
 	world.player.camera.zoom = zoom_before * 0.3
-	world.player.global_position = world.cell_center(Vector2i(74, 32))
+	world.player.global_position = world.cell_center(Vector2i(86, 32))
 	world.player.camera.reset_smoothing()
 	await get_tree().create_timer(0.8).timeout
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_plaza_overview.png"))
@@ -204,7 +204,7 @@ func _ready() -> void:
 	var clock_before := GameState.minutes
 	GameState.set_clock(21 * 60)
 	world._on_time_changed(GameState.day, GameState.minutes)
-	for spot: Array in [[Vector2i(70, 19), "night_shops", 0.55], [Vector2i(74, 33), "night_fountain", 0.75]]:
+	for spot: Array in [[Vector2i(82, 19), "night_shops", 0.55], [Vector2i(86, 33), "night_fountain", 0.75]]:
 		world.player.camera.zoom = zoom_before * float(spot[2])
 		world.player.global_position = world.cell_center(spot[0])
 		world.player.camera.reset_smoothing()
@@ -639,7 +639,7 @@ func _ready() -> void:
 		for obj in world.build.objects():
 			if obj is Conveyor and not obj is Router and k < 40:
 				if k % 3 == 0:
-					(obj as Conveyor).put(items[(k / 3) % items.size()], "silver", 0.5)
+					(obj as Conveyor).put(items[int(k / 3.0) % items.size()], "silver", 0.5)
 				k += 1
 		world.player.global_position = world.cell_center(fspot + Vector2i(5, 6))
 		world.player.facing = Vector2i.UP

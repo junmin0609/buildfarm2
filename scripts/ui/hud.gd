@@ -119,7 +119,7 @@ func _ready() -> void:
 	_sky_market.hide()
 	_sky_market.close_requested.connect(_close_panels)
 	_dialog = DialogPanel.new()
-	_place(_dialog, Vector2(0.5, 1.0), Vector2(0, -150), Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BEGIN)
+	_place(_dialog, Vector2(0.5, 1.0), Vector2(0, -124), Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BEGIN)
 	_dialog.hide()
 	_dialog.close_requested.connect(_close_panels)
 	_dialog.chosen.connect(_on_dialog_chosen)
@@ -144,7 +144,7 @@ func _ready() -> void:
 	_build_hint.add_theme_stylebox_override("panel", _panel_style(12))
 	_build_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_build_hint.add_child(_build_hint_label)
-	_place(_build_hint, Vector2(0.5, 1.0), Vector2(0, -122), Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BEGIN)
+	_place(_build_hint, Vector2(0.5, 1.0), Vector2(0, -98), Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BEGIN)
 	_build_hint.hide()
 	Events.build_hint_changed.connect(_on_build_hint)
 
@@ -656,7 +656,7 @@ func _build_prompt() -> void:
 	_prompt = Label.new()
 	_prompt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(_prompt)
-	_place(_prompt_box, Vector2(0.5, 1.0), Vector2(0, -122), Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BEGIN)
+	_place(_prompt_box, Vector2(0.5, 1.0), Vector2(0, -98), Control.GROW_DIRECTION_BOTH, Control.GROW_DIRECTION_BEGIN)
 
 
 func _key_style() -> StyleBoxTexture:
@@ -697,15 +697,15 @@ func _recenter(panel: Control) -> void:
 
 
 ## anchor 지점에 offset만큼 떨어뜨려 붙인다. 크기는 내용에 맞춰 grow 방향으로 커진다.
-func _place(ctrl: Control, anchor: Vector2, offset: Vector2, grow_h: Control.GrowDirection, grow_v: Control.GrowDirection) -> void:
+func _place(ctrl: Control, anchor: Vector2, pos: Vector2, grow_h: Control.GrowDirection, grow_v: Control.GrowDirection) -> void:
 	ctrl.anchor_left = anchor.x
 	ctrl.anchor_right = anchor.x
 	ctrl.anchor_top = anchor.y
 	ctrl.anchor_bottom = anchor.y
-	ctrl.offset_left = offset.x
-	ctrl.offset_right = offset.x
-	ctrl.offset_top = offset.y
-	ctrl.offset_bottom = offset.y
+	ctrl.offset_left = pos.x
+	ctrl.offset_right = pos.x
+	ctrl.offset_top = pos.y
+	ctrl.offset_bottom = pos.y
 	ctrl.grow_horizontal = grow_h
 	ctrl.grow_vertical = grow_v
 	_root.add_child(ctrl)

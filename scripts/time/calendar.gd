@@ -25,7 +25,7 @@ static func seasons() -> Array:
 
 static func season_of(day: int) -> String:
 	var list := seasons()
-	return list[int((maxi(day, 1) - 1) / days_per_season()) % list.size()]
+	return list[int((maxi(day, 1) - 1) / float(days_per_season())) % list.size()]
 
 
 ## 계절 안에서 몇째 날인지 (1 ~ days_per_season)
@@ -34,7 +34,7 @@ static func day_in_season(day: int) -> int:
 
 
 static func year_of(day: int) -> int:
-	return int((maxi(day, 1) - 1) / (days_per_season() * seasons().size())) + 1
+	return int((maxi(day, 1) - 1) / float(days_per_season() * seasons().size())) + 1
 
 
 static func season_name(season: String) -> String:

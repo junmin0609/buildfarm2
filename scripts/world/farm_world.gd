@@ -181,7 +181,7 @@ func _place_tree(cell: Vector2i) -> void:
 	# 숲 깊은 곳은 가끔 나무 그림을 빼서 작은 빈 틈을 만든다 (막힘은 그대로: 바깥 나무와 맵 경계가 막는다)
 	if interior and h % 9 == 0:
 		prop.texture = null
-	elif edge and (h / 3) % 5 == 0:
+	elif edge and int(h / 3.0) % 5 == 0:
 		# 가장자리 나무 몇 그루는 어린 나무로 — 숲 경계선에 들쭉날쭉한 틈이 생긴다 (밑동 충돌은 같다)
 		prop.texture = load("res://assets/art/young_tree.png")
 		prop.foot = Vector2(8, 23)
@@ -190,18 +190,18 @@ func _place_tree(cell: Vector2i) -> void:
 		prop.texture = load(v[0])
 		prop.foot = v[1]
 	# 칸 중심에서 조금씩 어긋나게 (가로 ±3px, 세로 -2~+1px) — 숲 가장자리가 자로 잰 듯 보이지 않게
-	var jitter := Vector2(float(h % 7) - 3.0, float((h / 7) % 4) - 2.0)
+	var jitter := Vector2(float(h % 7) - 3.0, float(int(h / 7.0) % 4) - 2.0)
 	if edge:
-		jitter += Vector2(open_dirs[0]) * float((h / 11) % 5)  # 가장자리 나무는 트인 쪽으로 0~4px 더 나오거나 들어간다
+		jitter += Vector2(open_dirs[0]) * float(int(h / 11.0) % 5)  # 가장자리 나무는 트인 쪽으로 0~4px 더 나오거나 들어간다
 	prop.position = cell_center(cell) + Vector2(0, TILE / 2.0 - 2) + jitter
 	if not edge:
 		prop.modulate = Color(0.9, 0.94, 0.9)  # 숲 안쪽은 살짝 어둡게: 가장자리 나무가 앞으로 나와 보이고 숲에 깊이가 생긴다
 	objects.add_child(prop)
 	# 숲 가장자리(트인 쪽이 있는 나무) 앞에 작은 수풀 (지나갈 수 있는 장식)
-	if edge and (h / 28) % 2 == 0:
-		var d: Vector2i = open_dirs[(h / 84) % open_dirs.size()]
+	if edge and int(h / 28.0) % 2 == 0:
+		var d: Vector2i = open_dirs[int(h / 84.0) % open_dirs.size()]
 		var bush := Prop.new()
-		bush.texture = load(UNDERGROWTH[(h / 5) % UNDERGROWTH.size()])
+		bush.texture = load(UNDERGROWTH[int(h / 5.0) % UNDERGROWTH.size()])
 		bush.foot = Vector2(8, 12)
 		bush.solid = false
 		bush.position = prop.position + Vector2(d) * Vector2(9, 5) + Vector2(0, 3)
@@ -333,7 +333,7 @@ func _build_details() -> void:
 			var h := absi(hash(cell * 31 + Vector2i(7, 3)))
 			if h % 100 >= DETAIL_PERCENT:
 				continue
-			var pick := (h / 100) % total
+			var pick := int(h / 100.0) % total
 			for i in DETAIL_WEIGHTS.size():
 				pick -= DETAIL_WEIGHTS[i]
 				if pick < 0:
@@ -459,10 +459,10 @@ func _station_arrive_position() -> Vector2:
 ##   그런데 창 배율 s 가 소수(예: 1700x1000 창이면 1.33)면 도트 한 칸이 4×1.33 = 5.3px 로 그려져 픽셀 크기가 들쭉날쭉해진다.
 ##   그래서 카메라 줌을 살짝 조정해 "창 배율 × 줌"이 항상 정수가 되게 한다 → 어떤 창 크기에서도 도트가 고르게 선명.
 func _fit_camera_zoom() -> void:
-	var visible := get_viewport().get_visible_rect().size
-	if visible.x <= 0.0:
+	var view := get_viewport().get_visible_rect().size
+	if view.x <= 0.0:
 		return
-	var s := float(get_window().size.x) / visible.x   # canvas_items 늘이기 배율
+	var s := float(get_window().size.x) / view.x   # canvas_items 늘이기 배율
 	if s <= 0.0:
 		s = 1.0
 	var pixel := maxf(1.0, roundf(CAMERA_ZOOM * s))   # 도트 한 칸이 화면에서 차지할 실제 픽셀 수 (정수)

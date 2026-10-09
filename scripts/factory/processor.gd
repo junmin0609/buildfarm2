@@ -145,7 +145,7 @@ static func runs_possible(inv: Inventory, r: Dictionary, limit: int) -> int:
 		return 0
 	var n := limit
 	for item_id: String in r.inputs:
-		n = mini(n, inv.count_of(item_id) / int(r.inputs[item_id]))
+		n = mini(n, int(inv.count_of(item_id) / float(int(r.inputs[item_id]))))
 	return maxi(0, n)
 
 
@@ -188,11 +188,11 @@ func start(inv: Inventory, id: String, runs: int, use_high_first := false) -> in
 	return n
 
 
-static func _quality_order(item: ItemDef, high_first: bool) -> Array[String]:
+static func _quality_order(item: ItemDef, high_quality_first: bool) -> Array[String]:
 	if item == null or not item.has_quality:
 		return [Quality.NONE]
 	var order := Quality.ids().duplicate()
-	if high_first:
+	if high_quality_first:
 		order.reverse()
 	return order
 

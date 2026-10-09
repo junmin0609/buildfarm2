@@ -16,7 +16,7 @@ const MARGIN := Vector2i(6, 4)
 
 const ROOMS := {
 	"store": {
-		"origin": Vector2i(160, 4),
+		"origin": Vector2i(164, 4),
 		"name": "잡화점",
 		"texture": "res://assets/art/interior_store.png",
 		# S 씨앗 선반 · K 난로 · C 계산대 · A 씨앗 자루 · T 모종 진열대 · B 통 · P 화분
@@ -26,7 +26,7 @@ const ROOMS := {
 			"options": [["씨앗·비료 사기", "buy"], ["작물·가공품 팔기", "sell"], ["나가기", ""]]},
 	},
 	"smith": {
-		"origin": Vector2i(160, 22),
+		"origin": Vector2i(164, 22),
 		"name": "대장간",
 		"texture": "res://assets/art/interior_smith.png",
 		# R 광석 선반 · F 화덕 · C 계산대 · N 모루 · T 공구 걸이 · I 주괴 탁자 · X 석탄 통 · B 통 · G 숫돌
@@ -36,7 +36,7 @@ const ROOMS := {
 			"options": [["도구 강화", "smith"], ["나가기", ""]]},
 	},
 	"machine": {
-		"origin": Vector2i(160, 40),
+		"origin": Vector2i(164, 40),
 		"name": "기계상점",
 		"texture": "res://assets/art/interior_machine.png",
 		# B 보일러 · S 부품 선반 · C 계산대 · V 미니 컨베이어 · X 기계 상자 · M 기계 진열대 · P 화분

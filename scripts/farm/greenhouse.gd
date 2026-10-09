@@ -33,7 +33,7 @@ func indoor_cells() -> Array[Vector2i]:
 ## 앞벽(맨 아래 줄)의 문 칸
 func door_cells() -> Array[Vector2i]:
 	var s := size()
-	var start := (s.x - door_width()) / 2
+	var start := int((s.x - door_width()) / 2.0)
 	var out: Array[Vector2i] = []
 	for x in door_width():
 		out.append(cell + Vector2i(start + x, s.y - 1))
@@ -145,7 +145,7 @@ func _build_walls() -> void:
 		Rect2(0, 1, 1, s.y - 1),
 		Rect2(s.x - 1, 1, 1, s.y - 1),
 	]
-	var door_start := (s.x - door_width()) / 2
+	var door_start := int((s.x - door_width()) / 2.0)
 	rects.append(Rect2(1, s.y - 1, door_start - 1, 1))
 	rects.append(Rect2(door_start + door_width(), s.y - 1, s.x - 1 - door_start - door_width(), 1))
 	for r in rects:

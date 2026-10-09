@@ -105,7 +105,7 @@ func deposit(inv: Inventory, item_id: String, quality: String, count: int) -> in
 	if not accepts(item):
 		return 0
 	var q := Quality.normalize(item, quality)
-	var room := (max_waiting_points() - waiting_points()) / points_of(item_id)
+	var room := int((max_waiting_points() - waiting_points()) / float(points_of(item_id)))
 	var n := mini(mini(count, room), inv.count_of(item_id, q))
 	if n <= 0 or not inv.remove(item_id, n, q):
 		return 0

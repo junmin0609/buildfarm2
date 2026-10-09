@@ -1098,7 +1098,8 @@ def make_sprinklers():
         arcs = {1: ((0, 3), (15, 3)), 2: ((0, 2), (15, 2), (1, 0), (14, 0)), 3: ((0, 1), (15, 1), (1, 0), (14, 0), (0, 4), (15, 4))}
         for x, y in arcs[tier]:
             c.set(x, y, spray)
-        c.set(0, 0, spray_l) if tier == 3 else None
+        if tier == 3:
+            c.set(0, 0, spray_l)
         c.save(f"sprinkler_{tier}.png")
 
 

@@ -23,7 +23,7 @@ func setup(obstacle_def: ObstacleDef, at_cell: Vector2i, variant_seed: int) -> v
 	name = "%s_%d_%d" % [def.id, cell.x, cell.y]
 	position = Vector2(cell.x * TILE + TILE / 2.0, (cell.y + 1) * TILE - 1)
 	# 줄지어 보이지 않게 좌우로 살짝 어긋나게 (모양별로 항상 같은 값)
-	position.x += float((variant / 3) % 5) - 2.0
+	position.x += float(int(variant / 3.0) % 5) - 2.0
 
 
 func _ready() -> void:
@@ -32,7 +32,7 @@ func _ready() -> void:
 	_sprite.texture = tex
 	_sprite.centered = false
 	_sprite.offset = Vector2(-tex.get_width() / 2.0, -tex.get_height() + 1)
-	_sprite.flip_h = (variant / 7) % 2 == 1
+	_sprite.flip_h = int(variant / 7.0) % 2 == 1
 	add_child(_sprite)
 	if def.solid:
 		var body := StaticBody2D.new()

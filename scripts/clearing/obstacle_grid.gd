@@ -62,6 +62,27 @@ func generate_start(start: Vector2) -> void:
 		spawn(cell, type_id, gen.randi())
 
 
+## 넓힌 농장의 새 경작지 (사용자 결정: 예전 저장에서도 잡초·돌이 덮인 채로). 집에서 가까운 절반은 작은 장애물, 먼 절반은 큰 장애물
+func generate_new_land() -> int:
+	var cfg := ObstacleDB.start_farm()
+	var gen := RandomNumberGenerator.new()
+	gen.seed = int(cfg.get("seed", 1)) + 404
+	var cells: Array = world.farm.farmable_cells.keys().filter(func(c: Vector2i) -> bool:
+		return not MapLayout.is_old_farm_cell(c) and MapLayout.char_at(c) == "g" and not world.farm.tiles.has(c) and not world.build.is_occupied(c))
+	var home := world.home_position
+	cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		return world.cell_center(a).distance_squared_to(home) < world.cell_center(b).distance_squared_to(home))
+	var made := 0
+	for i in cells.size():
+		var small := i < cells.size() / 2.0
+		var density := float(cfg.get("small_zone_density" if small else "large_zone_density", 0.5))
+		if gen.randf() >= density:
+			continue
+		if spawn(cells[i], ObstacleDB.pick_weighted(cfg.get("small_zone" if small else "large_zone", {}), gen), gen.randi()):
+			made += 1
+	return made
+
+
 # ---------- 생성·제거
 
 func spawn(cell: Vector2i, type_id: String, variant_seed: int = 0) -> Obstacle:

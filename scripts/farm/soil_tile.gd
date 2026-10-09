@@ -99,11 +99,11 @@ func to_dict() -> Dictionary:
 static func from_dict(d: Dictionary) -> SoilTile:
 	var tile := SoilTile.new()
 	tile.watered = d.get("watered", false) == true
-	var seed_id := str(d.get("seed_id", ""))
-	var seed_def := ItemDB.get_item(seed_id)
+	var saved_seed := str(d.get("seed_id", ""))
+	var seed_def := ItemDB.get_item(saved_seed)
 	# 데이터에서 사라진 씨앗이면 작물 없이 밭만 남긴다
 	if seed_def != null and seed_def.kind == ItemDef.Kind.SEED:
-		tile.seed_id = seed_id
+		tile.seed_id = saved_seed
 		tile.days_grown = maxi(0, int(d.get("days_grown", 0)))
 		tile.regrowing = d.get("regrowing", false) == true
 		tile.withered = d.get("withered", false) == true

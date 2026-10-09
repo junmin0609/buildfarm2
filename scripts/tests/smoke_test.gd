@@ -52,7 +52,7 @@ func _ready() -> void:
 
 	_check(farm.farmable_cells.size() >= 100, "밭 칸 (실제 %d)" % farm.farmable_cells.size())
 	_check(world.buildings.size() == 8, "건물 8개 배치 (집·잡화점·우물·출하함·대장간·기계상점·레시피 상점·비행선 정류장)")
-	_check(world.fences.get_used_cells().all(func(c: Vector2i) -> bool: return c.x >= 41) and not world.fences.get_used_cells().is_empty(), "농장에 울타리 없음 (울타리는 광장 길가에만)")
+	_check(world.fences.get_used_cells().all(func(c: Vector2i) -> bool: return c.x >= 53) and not world.fences.get_used_cells().is_empty(), "농장에 울타리 없음 (울타리는 광장 길가에만)")
 	_check(world.objects.get_children().filter(func(n: Node) -> bool: return n is Prop).size() > 100, "나무·바위 소품 배치")
 	var home_cell := world.world_to_cell(world.cell_center(_find_char("@")))
 	_near_home_at_start = world.obstacles.all().filter(func(ob: Obstacle) -> bool: return Vector2(ob.cell).distance_to(Vector2(home_cell)) < 6).size()
@@ -418,8 +418,8 @@ func _test_clearing(world: FarmWorld) -> void:
 		kinds[ob.def.id] = kinds.get(ob.def.id, 0) + 1
 	var big := int(kinds.get("big_rock", 0)) + int(kinds.get("big_stump", 0))
 	print("    장애물 %d / 농장 %d칸  %s" % [obs.count(), farm_n, kinds])
-	_check(obs.count() > farm_n * 0.4 and obs.count() < farm_n * 0.8, "시작 농장 장애물 분포 (약 %d%%)" % (obs.count() * 100 / farm_n))
-	_check(big > farm_n * 0.1 and big < farm_n * 0.3, "강화 도구가 필요한 땅 약 20%% (실제 %d%%)" % (big * 100 / farm_n))
+	_check(obs.count() > farm_n * 0.4 and obs.count() < farm_n * 0.8, "시작 농장 장애물 분포 (약 %d%%)" % roundi(obs.count() * 100.0 / farm_n))
+	_check(big > farm_n * 0.1 and big < farm_n * 0.3, "강화 도구가 필요한 땅 약 20%% (실제 %d%%)" % roundi(big * 100.0 / farm_n))
 	_check(kinds.has("weed") and kinds.has("branch") and kinds.has("small_rock") and kinds.has("stump"), "작은 장애물 종류 모두 있음")
 	_check(_near_home_at_start == 0, "집 근처는 바로 쓸 수 있는 땅 (시작 시점)")
 	_check(inv.count_of("axe") == 1 and inv.count_of("pickaxe") == 1, "도끼·곡괭이 지급")
@@ -527,8 +527,8 @@ func _test_crops_and_quality(world: FarmWorld, hud: HUD) -> void:
 	# 품질 가격 (§24, §36) + 판매 방식 배율
 	for row: Array in [["carrot", [35, 44, 56]], ["potato", [30, 38, 48]], ["strawberry", [45, 56, 72]]]:
 		var it := ItemDB.get_item(row[0])
-		var got := Quality.ids().map(func(q: String) -> int: return Pricing.quality_price(it, q))
-		_check(got == row[1], "%s 브론즈·실버·골드 %s (실제 %s)" % [it.name, row[1], got])
+		var prices := Quality.ids().map(func(q: String) -> int: return Pricing.quality_price(it, q))
+		_check(prices == row[1], "%s 브론즈·실버·골드 %s (실제 %s)" % [it.name, row[1], prices])
 	var carrot := ItemDB.get_item("carrot")
 	_check(Pricing.unit_price(carrot, "bronze", Pricing.PLAZA) == 28 and Pricing.unit_price(carrot, "gold", Pricing.PLAZA) == 45, "광장 즉시 판매 = 품질가의 80%")
 	_check(Pricing.unit_price(carrot, "silver", Pricing.SHIPPING_BIN) == 44, "출하함 = 품질가의 100%")
@@ -797,7 +797,7 @@ func _test_day_end(world: FarmWorld, hud: HUD) -> void:
 
 	# 5) 새 시스템은 단계에 등록만 하면 된다
 	var calls := []
-	var on_sales := func(rep: Dictionary) -> void: calls.append(["sales", GameState.day])
+	var on_sales := func(_rep: Dictionary) -> void: calls.append(["sales", GameState.day])
 	var on_night := func(rep: Dictionary) -> void:
 		calls.append(["night", GameState.day])
 		rep["night_production"] = {"flour": 3}
@@ -2769,7 +2769,7 @@ func _test_recipe_shop(world: FarmWorld, hud: HUD) -> void:
 
 	# 광장 건물 [E] → 창 (게임·시간 멈춤)
 	var shops := world.buildings.filter(func(b: Interactable) -> bool: return b is RecipeShop)
-	_check(shops.size() == 1 and MapLayout.char_at(Vector2i(52, 37)) == "C", "광장에 레시피 상점 (3x2)")
+	_check(shops.size() == 1 and MapLayout.char_at(Vector2i(64, 37)) == "C", "광장에 레시피 상점 (3x2)")
 	if shops.is_empty():
 		return
 	player.global_position = shops[0].interact_point()
@@ -3037,7 +3037,7 @@ func _test_routers(world: FarmWorld, hud: HUD) -> void:
 	_check(net.next_belt(src) == sp and not sp.accepts_dir(Vector2i.DOWN), "뒤에서만 받음 (옆에서는 안 받음)")
 	var outs := {out_l: "L", out_f: "F", out_r: "R"}
 	var route := func(n: int) -> String:
-		var seq := ""
+		var trace := ""
 		for i in n:
 			src.put("wheat", "bronze", 0.9)
 			for k in 8:
@@ -3048,9 +3048,9 @@ func _test_routers(world: FarmWorld, hud: HUD) -> void:
 						landed = outs[b]
 						b.clear_item()
 				if landed != "":
-					seq += landed
+					trace += landed
 					break
-		return seq
+		return trace
 	var seq: String = route.call(6)
 	_check(seq == "LFRLFR", "왼쪽 → 앞 → 오른쪽 돌아가며 (%s)" % seq)
 	out_l.put("stone", Quality.NONE, 1.0)  # 왼쪽이 막힘 (물건이 끝에서 기다림)
@@ -3179,10 +3179,10 @@ func _test_sky_market(world: FarmWorld, hud: HUD) -> void:
 	GameState.sky_market = t1.duplicate(true)
 
 	# 흔들림: 가공품이 곡물보다 크게 움직이고, 이벤트가 가끔 (§86, §88)
-	var spread := func(c: String, rolls: Array) -> float:
+	var spread := func(c: String, samples: Array) -> float:
 		var lo := 99.0
 		var hi := 0.0
-		for r: Dictionary in rolls:
+		for r: Dictionary in samples:
 			lo = minf(lo, float(r.categories[c]))
 			hi = maxf(hi, float(r.categories[c]))
 		return hi - lo
@@ -3203,7 +3203,7 @@ func _test_sky_market(world: FarmWorld, hud: HUD) -> void:
 
 	# 비행선 정류장: 복구 전 (§89)
 	var stations := world.buildings.filter(func(b: Interactable) -> bool: return b is SkyStation)
-	_check(stations.size() == 1 and MapLayout.char_at(Vector2i(94, 45)) == "A" and stations[0].prompt.contains("오래된"), "광장에 오래된 비행선 정류장")
+	_check(stations.size() == 1 and MapLayout.char_at(Vector2i(106, 45)) == "A" and stations[0].prompt.contains("오래된"), "광장에 오래된 비행선 정류장")
 	if stations.is_empty():
 		return
 	var station: SkyStation = stations[0]
@@ -3327,7 +3327,7 @@ func _test_water(world: FarmWorld, hud: HUD) -> void:
 	var plus := FarmArea.cells(sp_at, {"shape": "plus", "radius": 1})
 	for c in plus:
 		farm.till(c)
-	var sp := grid.place(PlaceableDB.get_def("sprinkler_1"), sp_at) as Sprinkler
+	grid.place(PlaceableDB.get_def("sprinkler_1"), sp_at)
 	grid.start_day()
 	_check(plus.all(func(c: Vector2i) -> bool: return not farm.get_tile(c).watered) and grid.sprinkler_missed == 4, "물탱크가 없으면 4칸 모두 못 적심 (아침 알림)")
 	await get_tree().process_frame
@@ -3541,14 +3541,23 @@ func _test_fixtures(world: FarmWorld) -> void:
 
 ## 넓힌 메인 광장 (사용자 요청: 가로·세로 모두 더 크게)
 func _test_plaza(world: FarmWorld) -> void:
-	_check(MapLayout.size() == Vector2i(112, 64), "맵 112x64 (%s)" % MapLayout.size())
+	_check(MapLayout.size() == Vector2i(124, 64), "맵 124x64 (%s)" % MapLayout.size())
+	_check(world.farm.farmable_cells.size() >= 1200, "넓힌 농장 경작지 %d칸 (예전 514)" % world.farm.farmable_cells.size())
 	var walk := 0
 	for y in MapLayout.size().y:
-		for x in range(41, MapLayout.size().x):
+		for x in range(53, MapLayout.size().x):
 			if not MapLayout.char_at(Vector2i(x, y)) in ["T", "~", "#", "x", "M", "C", "K", "J", "A", "Y", "B", "R", "*", "P", "e", "=", "l", "u", "4", "6", "7", "8"]:
 				walk += 1
 	_check(walk >= 2000, "광장 걸을 수 있는 칸 %d (예전 771, 꽃밭·나무로 채움)" % walk)
-	_check(MapLayout.char_at(Vector2i(74, 30)) == "F" and MapLayout.char_at(Vector2i(73, 18)) == "p", "분수 광장 + 큰길")
+	_check(MapLayout.char_at(Vector2i(86, 30)) == "F" and MapLayout.char_at(Vector2i(85, 18)) == "p", "분수 광장 + 큰길")
+	# 새 경작지 장애물 (예전 저장): 옛 농장 칸에는 깔지 않고 새 땅에만
+	var new_cells := world.farm.farmable_cells.keys().filter(func(c: Vector2i) -> bool: return not MapLayout.is_old_farm_cell(c))
+	var old_before := world.obstacles.all().filter(func(o: Obstacle) -> bool: return MapLayout.is_old_farm_cell(o.cell)).size()
+	for c: Vector2i in new_cells:
+		world.obstacles.remove(c)
+	var made := world.obstacles.generate_new_land()
+	var old_after := world.obstacles.all().filter(func(o: Obstacle) -> bool: return MapLayout.is_old_farm_cell(o.cell)).size()
+	_check(made > new_cells.size() / 4.0 and old_after == old_before, "예전 저장의 새 땅에만 잡초·돌 %d개 (옛 농장 칸 그대로)" % made)
 	var right_edge := float(MapLayout.size().x * FarmWorld.TILE)
 	_check(SkyIsland.island_rect().position.x > right_edge and Vector2(Interior.origin_of("store") * FarmWorld.TILE).x > SkyIsland.island_rect().end.x, "하늘섬·가게 실내는 넓힌 맵 밖")
 	# 예전(버전 1) 저장: 광장에 서 있었으면 집 앞으로, 농장이면 그대로
@@ -3582,7 +3591,7 @@ func _test_interiors(world: FarmWorld, hud: HUD) -> void:
 	var inv := GameState.inventory
 	var saved_inv := inv.to_data()
 	var store: ShopBuilding = world.buildings.filter(func(b: Interactable) -> bool: return b is ShopBuilding and b.room_id == "store")[0]
-	_check(MapLayout.char_at(Vector2i(52, 11)) == "M" and store.size_tiles == Vector2i(5, 3) and MapLayout.char_at(Vector2i(85, 11)) == "J" and MapLayout.char_at(Vector2i(79, 11)) == "K", "잡화점 5x3 (52, 11) · 대장간 (79, 11) · 기계상점 (85, 11)")
+	_check(MapLayout.char_at(Vector2i(64, 11)) == "M" and store.size_tiles == Vector2i(5, 3) and MapLayout.char_at(Vector2i(97, 11)) == "J" and MapLayout.char_at(Vector2i(91, 11)) == "K", "잡화점 5x3 (64, 11) · 대장간 (91, 11) · 기계상점 (97, 11)")
 
 	# 문 [E] → 실내 (걸을 때는 시간이 흐름)
 	GameState.set_clock(9 * 60)

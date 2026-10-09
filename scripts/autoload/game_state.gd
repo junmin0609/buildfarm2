@@ -316,7 +316,7 @@ func load_data(data: Variant) -> bool:
 	return true
 
 
-static func format_clock(total_minutes: int) -> String:
+func format_clock(total_minutes: int) -> String:
 	var h := int(total_minutes / 60.0) % 24
 	var m := total_minutes % 60
 	var period := "오전" if h < 12 else "오후"

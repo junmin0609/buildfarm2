@@ -1,5 +1,7 @@
 extends Node
 ## 게임 전체에서 쓰는 신호 모음.
+## (신호는 다른 시스템이 내보내고 받으므로 "이 클래스 안에서 안 쓰는 신호" 경고는 끈다)
+@warning_ignore_start("unused_signal")
 ## 시스템끼리 서로를 직접 찾지 않고 이 신호로 소통하면, 기능을 붙이고 떼기 쉬워진다.
 
 signal money_changed(amount: int)

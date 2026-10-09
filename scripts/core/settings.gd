@@ -65,4 +65,4 @@ static func _fit_window_to_screen() -> void:
 	if size.x > usable.size.x or size.y > usable.size.y:
 		return
 	DisplayServer.window_set_size(size)
-	DisplayServer.window_set_position(usable.position + (usable.size - size) / 2)
+	DisplayServer.window_set_position(usable.position + Vector2i(Vector2(usable.size - size) / 2.0))

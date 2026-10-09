@@ -142,4 +142,5 @@ static func time_text(game_minutes: float) -> String:
 	var m := ceili(game_minutes)
 	if m < 60:
 		return "%d분" % m
-	return "%d시간" % (m / 60) if m % 60 == 0 else "%d시간 %d분" % [m / 60, m % 60]
+	var hours := int(m / 60.0)
+	return "%d시간" % hours if m % 60 == 0 else "%d시간 %d분" % [hours, m % 60]

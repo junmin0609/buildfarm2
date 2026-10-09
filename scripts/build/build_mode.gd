@@ -322,9 +322,9 @@ static func affordable(def: PlaceableDef) -> int:
 		return 0
 	var n := 1 << 30
 	if def.price > 0:
-		n = GameState.money / def.price
+		n = int(GameState.money / float(def.price))
 	for mat_id: String in def.materials:
-		n = mini(n, GameState.inventory.count_of(mat_id) / maxi(1, int(def.materials[mat_id])))
+		n = mini(n, int(GameState.inventory.count_of(mat_id) / float(maxi(1, int(def.materials[mat_id])))))
 	return n
 
 
@@ -447,7 +447,7 @@ func _current_def() -> PlaceableDef:
 ## 커서 칸이 시설의 아래쪽 가운데가 되도록 왼쪽 위 칸을 정한다
 func _origin_for(def: PlaceableDef) -> Vector2i:
 	var s := def.size_for(turns)
-	return _hover - Vector2i((s.x - 1) / 2, s.y - 1)
+	return _hover - Vector2i(int((s.x - 1) / 2.0), s.y - 1)
 
 
 func _draw() -> void:

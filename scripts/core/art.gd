@@ -86,4 +86,6 @@ static func pixel_font(bold := false) -> Font:
 		_font_bold = FontVariation.new()
 		_font_bold.base_font = _font
 		_font_bold.variation_embolden = 0.5
-	return _font_bold if bold else _font
+	if bold:
+		return _font_bold
+	return _font

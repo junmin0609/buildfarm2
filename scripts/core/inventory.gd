@@ -15,8 +15,8 @@ const HOTBAR_SIZE := 9
 var slots: Array = []
 
 
-func _init(size: int = SIZE) -> void:
-	slots.resize(size)
+func _init(slot_count: int = SIZE) -> void:
+	slots.resize(slot_count)
 
 
 func size() -> int:
@@ -103,10 +103,10 @@ func can_add(item_id: String, count: int = 1, quality: String = Quality.NONE) ->
 
 
 ## 칸 형식 묶음({"id", "count", "quality"} 배열)이 품질까지 그대로 한꺼번에 다 들어가는지
-func can_add_stacks(stacks: Array) -> bool:
+func can_add_stacks(incoming: Array) -> bool:
 	var trial := Inventory.new(slots.size())
 	trial.slots = slots.duplicate(true)
-	for st: Dictionary in stacks:
+	for st: Dictionary in incoming:
 		if trial.add(str(st.get("id", "")), int(st.get("count", 0)), str(st.get("quality", Quality.NONE))) > 0:
 			return false
 	return true
