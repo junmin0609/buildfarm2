@@ -18,6 +18,8 @@ extends RefCounted
 ##   아직 못 얻은 재료가 있으면 "???" 로 보이고 얻은 재료만 알려 준다.
 
 const DATA_PATH := "res://data/recipes.json"
+## 합쳐서 없어진 레시피 id → 남은 id (경제 기준 v1.0: 과일 시럽·고급잼을 하나씩). 옛 저장의 배운 레시피·가공기 설정을 그대로 읽는다
+const RENAMED := {"fruit_syrup_blueberry": "fruit_syrup_strawberry", "premium_jam_blueberry": "premium_jam_strawberry"}
 
 static var _recipes: Dictionary = {}  # id -> 사전
 static var _order: Array[String] = []
@@ -48,6 +50,7 @@ static func _ensure_loaded() -> void:
 			"count": maxi(1, int(raw.get("count", 1))),
 			"minutes": maxf(1.0, float(raw.get("minutes", 60))),
 			"tier": maxi(1, int(raw.get("tier", 1))),
+			"machine_tier": maxi(1, int(raw.get("machine_tier", raw.get("tier", 1)))),
 			"unlocked": bool(raw.get("unlocked", false)),
 			"price": maxi(0, int(raw.get("price", 0))),
 			"input_quality": _parse_quality(raw.get("quality", {}), inputs),
@@ -69,14 +72,19 @@ static func need_quality(recipe: Dictionary, item_id: String) -> Variant:
 	return recipe.get("input_quality", {}).get(item_id, null)
 
 
+## 옛 id 면 지금 id 로
+static func canonical(id: String) -> String:
+	return RENAMED.get(id, id)
+
+
 static func get_recipe(id: String) -> Dictionary:
 	_ensure_loaded()
-	return _recipes.get(id, {})
+	return _recipes.get(canonical(id), {})
 
 
 static func has(id: String) -> bool:
 	_ensure_loaded()
-	return _recipes.has(id)
+	return _recipes.has(canonical(id))
 
 
 ## 데이터 순서대로 전부
@@ -90,7 +98,15 @@ static func all() -> Array[Dictionary]:
 
 static func is_known(id: String) -> bool:
 	var r := get_recipe(id)
-	return not r.is_empty() and (r.unlocked or GameState.unlocks.get("recipe:" + id, false))
+	if r.is_empty():
+		return false
+	if r.unlocked or GameState.unlocks.get("recipe:" + r.id, false):
+		return true
+	# 옛 id 로 배운 저장 (합쳐진 레시피)
+	for old: String in RENAMED:
+		if RENAMED[old] == r.id and GameState.unlocks.get("recipe:" + old, false):
+			return true
+	return false
 
 
 ## 레시피를 배운다 (영구). 이미 알거나 없는 레시피면 false

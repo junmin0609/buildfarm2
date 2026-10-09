@@ -119,7 +119,7 @@ func recipe_problem(id: String) -> String:
 		return "없는 레시피예요."
 	if not RecipeDB.is_known(id):
 		return "아직 배우지 않은 레시피예요."
-	if int(r.tier) > tier():
+	if int(r.machine_tier) > tier():
 		return "더 좋은 가공기가 필요해요."
 	return ""
 
@@ -169,6 +169,7 @@ static func runs_possible(inv: Inventory, r: Dictionary, limit: int) -> int:
 ## 레시피 id 를 runs 번 돌리기 시작한다. 재료가 모자라면 가능한 만큼만. 실제로 정한 횟수를 돌려준다 (못 하면 0).
 ## high_first: true 면 높은 품질 재료부터 쓴다 (기본은 낮은 품질부터 — 좋은 재료는 따로 팔 수 있게)
 func start(inv: Inventory, id: String, runs: int, use_high_first := false) -> int:
+	id = RecipeDB.canonical(id)
 	if is_automatic() or is_working() or recipe_problem(id) != "":
 		return 0
 	var r := RecipeDB.get_recipe(id)
@@ -310,6 +311,7 @@ func auto_problem() -> String:
 ## 레시피를 정한다. 만들던 회차가 있으면 그 재료를 맞닿은 창고(없으면 가공기 안 결과물 칸)로 돌려놓고 바꾼다.
 ## 돌려놓을 자리가 없으면 바꾸지 않고 false.
 func set_recipe(id: String) -> bool:
+	id = RecipeDB.canonical(id)
 	if not is_automatic() or recipe_problem(id) != "":
 		return false
 	if id == recipe_id:
@@ -619,7 +621,7 @@ func save_state() -> Dictionary:
 
 
 func load_state(data: Dictionary) -> void:
-	recipe_id = str(data.get("recipe", "")) if RecipeDB.has(str(data.get("recipe", ""))) else ""
+	recipe_id = RecipeDB.canonical(str(data.get("recipe", ""))) if RecipeDB.has(str(data.get("recipe", ""))) else ""
 	queue.clear()
 	var raw_queue: Variant = data.get("queue")
 	if raw_queue is Array and recipe_id != "":

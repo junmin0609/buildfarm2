@@ -49,6 +49,40 @@
 		"copper_bar": 100, "iron_bar": 195, "gold_bar": 350
 	},
 
+	"_processed": "가공품 기본 판매가 (명세 3장)",
+	"processed_prices": {
+		"flour": 52, "potato_starch": 120, "potato_snack": 80, "dried_sweet_potato": 105, "sugar": 110, "corn_flour": 145, "tomato_puree": 195, "pumpkin_puree": 65,
+		"dough": 145, "bread": 195, "strawberry_jam": 250, "blueberry_jam": 285, "watermelon_juice": 135, "pickled_cabbage": 110, "tomato_sauce": 520, "corn_bread": 390,
+		"bottled_sauce": 1340, "fruit_syrup": 340, "premium_jam": 700, "sweet_potato_dessert": 250, "vegetable_pickle_set": 380, "pumpkin_pie": 520
+	},
+
+	"_recipes": "레시피 (명세 3장, 사용자 결정 반영). tier = 등급 1 하급 · 2 중급 · 3 상급, machine_tier = 실제로 필요한 가공기 등급 (상급 가공기가 생기기 전까지 상급 레시피는 중급 가공기에서, 사용자 결정). 반죽·빵은 하급으로 두고 값·시간만 명세대로 (사용자 결정). 고급잼은 골드 조건 없음, 과일 시럽·고급잼은 레시피 하나로 (옛 _blueberry id 는 RecipeDB.RENAMED). count = 1회 결과물 수. minutes = 게임 분. 처음부터 아는 레시피·레시피 상점 값 규칙은 recipe_shop",
+	"recipe_shop": {"price_per_output_value": 3, "_price": "배워야 하는 레시피 값 = 결과물 판매가 × count × price_per_output_value (지금까지 쓰던 규칙)"},
+	"recipes": {
+		"flour": {"tier": 1, "minutes": 60, "inputs": {"wheat": 2}, "count": 1},
+		"potato_starch": {"tier": 1, "minutes": 60, "inputs": {"potato": 3}, "count": 1},
+		"potato_snack": {"tier": 1, "minutes": 60, "inputs": {"potato": 2}, "count": 1},
+		"dried_sweet_potato": {"tier": 1, "minutes": 60, "inputs": {"sweet_potato": 2}, "count": 1},
+		"sugar": {"tier": 1, "minutes": 60, "inputs": {"sugar_beet": 2}, "count": 1},
+		"corn_flour": {"tier": 1, "minutes": 60, "inputs": {"corn": 2}, "count": 1},
+		"tomato_puree": {"tier": 1, "minutes": 60, "inputs": {"tomato": 3}, "count": 1},
+		"pumpkin_puree": {"tier": 1, "minutes": 60, "inputs": {"pumpkin": 1}, "count": 2},
+		"dough": {"tier": 1, "minutes": 120, "inputs": {"flour": 2}, "count": 1},
+		"bread": {"tier": 1, "minutes": 120, "inputs": {"dough": 1}, "count": 1},
+		"strawberry_jam": {"tier": 2, "minutes": 120, "inputs": {"strawberry": 3}, "count": 1},
+		"blueberry_jam": {"tier": 2, "minutes": 120, "inputs": {"blueberry": 3}, "count": 1},
+		"watermelon_juice": {"tier": 2, "minutes": 120, "inputs": {"watermelon": 1}, "count": 1},
+		"pickled_cabbage": {"tier": 2, "minutes": 120, "inputs": {"cabbage": 2}, "count": 1},
+		"tomato_sauce": {"tier": 2, "minutes": 120, "inputs": {"tomato_puree": 2}, "count": 1},
+		"corn_bread": {"tier": 2, "minutes": 120, "inputs": {"corn_flour": 2}, "count": 1},
+		"bottled_sauce": {"tier": 3, "machine_tier": 2, "minutes": 180, "inputs": {"tomato_sauce": 2}, "count": 1},
+		"fruit_syrup_strawberry": {"tier": 3, "machine_tier": 2, "minutes": 180, "inputs": {"strawberry": 2, "blueberry": 2}, "count": 1},
+		"premium_jam_strawberry": {"tier": 3, "machine_tier": 2, "minutes": 180, "inputs": {"strawberry_jam": 1, "blueberry_jam": 1}, "count": 1},
+		"sweet_potato_dessert": {"tier": 3, "machine_tier": 2, "minutes": 180, "inputs": {"sweet_potato": 2, "sugar": 1}, "count": 1},
+		"vegetable_pickle_set": {"tier": 3, "machine_tier": 2, "minutes": 180, "inputs": {"pickled_cabbage": 2, "carrot": 2}, "count": 1},
+		"pumpkin_pie": {"tier": 3, "machine_tier": 2, "minutes": 180, "inputs": {"pumpkin_puree": 2, "dough": 1, "sugar": 1}, "count": 1}
+	},
+
 	"_checks": "자동 검산 기준 (apply_economy.py --report 와 자동 점검): 제련은 석탄값까지 넣어 적자가 아니고, 이익률이 smelt_margin_max 를 넘지 않을 것. 광산 한 층을 다 깼을 때 평균 수입이 mine_floor_vs_crop_max × (가장 좋은 작물 한 칸의 한 계절 이익) 을 넘으면 '주의'",
 	"checks": {"smelt_margin_max": 0.5, "mine_floor_vs_crop_max": 1.5},
 
@@ -77,14 +111,7 @@
 	},
 
 	"later": {
-		"_comment": "아직 적용하지 않은 문서 값. 순서: 레시피 → 계절 → 새 기능 (각각 사용자 승인 후)",
-		"processed_prices": {
-			"_why": "지금 레시피 재료가 문서와 달라서, 값만 먼저 바꾸면 손해 보는 레시피가 생김 (예: 딸기잼 250 < 지금 재료 딸기×3 + 설탕). 레시피 단계에서 함께",
-			"flour": 52, "potato_starch": 120, "potato_snack": 80, "dried_sweet_potato": 105, "sugar": 110, "corn_flour": 145, "tomato_puree": 195, "pumpkin_puree": 65,
-			"dough": 145, "bread": 195, "strawberry_jam": 250, "blueberry_jam": 285, "watermelon_juice": 135, "pickled_cabbage": 110, "tomato_sauce": 520, "corn_bread": 390,
-			"bottled_sauce": 1340, "fruit_syrup": 340, "premium_jam": 700, "sweet_potato_dessert": 250, "vegetable_pickle_set": 380, "pumpkin_pie": 520
-		},
-		"recipe_minutes_by_tier": {"low": 60, "mid": 120, "high": 180},
+		"_comment": "아직 적용하지 않은 문서 값. 순서: 계절 → 새 기능 (각각 사용자 승인 후). 광산 10층 아래 수입은 그대로 두기로 (사용자 결정)",
 		"crop_seasons": {
 			"_why": "사용자 결정: 겨울 작물 3종(시금치·브로콜리·사탕무)은 겨울 그대로, 온실은 모든 일반 작물. 나머지는 문서 계절로",
 			"potato": ["spring", "autumn"], "carrot": ["spring", "autumn"], "radish": ["spring", "autumn"], "wheat": ["spring", "autumn"],

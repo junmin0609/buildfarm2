@@ -123,6 +123,24 @@ class JsonText:
             return True
         return self.set(path, value)
 
+    def remove(self, path):
+        """path 키를 (앞 쉼표와 함께) 지운다. 없으면 그대로"""
+        lo, hi = self._object_span(path[:-1])
+        try:
+            a, b = self._key_value(path[-1], lo, hi)
+        except KeyError:
+            return False
+        key_at = self.s.rfind('"%s"' % path[-1], lo, a)
+        cut_from = key_at
+        while self.s[cut_from - 1] in " \t\n":
+            cut_from -= 1
+        if self.s[cut_from - 1] == ",":
+            cut_from -= 1
+        old = json.loads(self.s[a:b])
+        self.s = self.s[:cut_from] + self.s[b:]
+        self.changes.append(("/".join(path), old, None))
+        return True
+
     def save(self):
         json.loads(self.s)
         io.open(self.path, "w", encoding="utf-8", newline="").write(self.s.replace("\n", self.nl))
@@ -153,6 +171,7 @@ def apply(econ, dry_run):
     items = JsonText(DATA / "items.json")
     quality = JsonText(DATA / "quality.json")
     places = JsonText(DATA / "placeables.json")
+    recipes = JsonText(DATA / "recipes.json")
 
     # 품질 배율 · 비료 확률 · 비료 가격
     for q, m in econ["quality"]["multipliers"].items():
@@ -211,12 +230,33 @@ def apply(econ, dry_run):
         old = items.get([f"watering_can_{step + 1}", "description"])
         items.set([f"watering_can_{step + 1}", "description"], re.sub(r"물이 \d+번", f"물이 {cap}번", old))
 
-    for f_ in (items, quality, places):
+    # 가공품 값 · 레시피 (재료·개수·시간·등급·필요 가공기·상점 값)
+    for pid, price in econ["processed_prices"].items():
+        items.set([pid, "sell_price"], price)
+    shop = econ["recipe_shop"]["price_per_output_value"]
+    for rid, r in econ["recipes"].items():
+        recipes.set([rid, "inputs"], r["inputs"])
+        recipes.set([rid, "count"], r["count"])
+        recipes.set([rid, "minutes"], r["minutes"])
+        recipes.set([rid, "tier"], r["tier"])
+        if "machine_tier" in r:
+            recipes.set_or_add([rid, "machine_tier"], r["machine_tier"], after="tier")
+        else:
+            recipes.remove([rid, "machine_tier"])
+        recipes.remove([rid, "quality"])  # 재료 품질 조건 없음 (고급잼 골드 조건 없앰, 사용자 결정)
+        if not recipes.get([rid, "unlocked"]):
+            out = recipes.get([rid, "output"])
+            recipes.set([rid, "price"], econ["processed_prices"][out] * r["count"] * shop)
+    extra = [k for k in json.loads(recipes.s) if not k.startswith("_") and k not in econ["recipes"]]
+    if extra:
+        print("  경고: economy_v1.json 에 없는 레시피", extra)
+
+    for f_ in (items, quality, places, recipes):
         for path, old, new in f_.changes:
             print(f"  {f_.path.name:16} {path:48} {old!r} → {new!r}")
         if not dry_run and f_.changes:
             f_.save()
-    total = sum(len(f_.changes) for f_ in (items, quality, places))
+    total = sum(len(f_.changes) for f_ in (items, quality, places, recipes))
     print(f"{'바뀔' if dry_run else '바꾼'} 값 {total}개")
 
 

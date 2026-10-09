@@ -2195,7 +2195,28 @@ func _test_processor(world: FarmWorld, hud: HUD) -> void:
 	# 레시피 데이터 (§73): 지금 있는 작물로 만들 수 있는 20개, 기초 6개만 처음부터 앎
 	var recipes := RecipeDB.all()
 	var known := recipes.filter(func(r: Dictionary) -> bool: return RecipeDB.is_known(r.id)).map(func(r: Dictionary) -> String: return r.id)
-	_check(recipes.size() == 24, "레시피 24개 (1급 20 + 2급 4, %d)" % recipes.size())
+	var by_tier := [1, 2, 3].map(func(t: int) -> int: return recipes.filter(func(r: Dictionary) -> bool: return int(r.tier) == t).size())
+	_check(recipes.size() == 22 and by_tier == [10, 6, 6], "레시피 22개 = 경제 기준 (하급 10 · 중급 6 · 상급 6, %s)" % [by_tier])
+	var econ_r: Dictionary = _econ().recipes
+	var rbad := []
+	for rid: String in econ_r:
+		var er: Dictionary = econ_r[rid]
+		var rr := RecipeDB.get_recipe(rid)
+		var want_in := {}
+		for k: String in er.inputs:
+			want_in[k] = int(er.inputs[k])
+		if rr.is_empty() or rr.inputs != want_in or int(rr.count) != int(er.count) or int(rr.minutes) != int(er.minutes) or int(rr.tier) != int(er.tier) or int(rr.machine_tier) != int(er.get("machine_tier", er.tier)) or not rr.input_quality.is_empty():
+			rbad.append(rid)
+		elif not rr.unlocked and int(rr.price) != ItemDB.get_item(rr.output).sell_price * int(rr.count) * int(_econ().recipe_shop.price_per_output_value):
+			rbad.append(rid + "(값)")
+	_check(rbad.is_empty(), "레시피 재료·개수·시간·등급·가공기·상점 값 = 경제 기준 %s" % [rbad])
+	var add_ok := true
+	for r: Dictionary in recipes:
+		var cost := 0
+		for k: String in r.inputs:
+			cost += ItemDB.get_item(k).sell_price * int(r.inputs[k])
+		add_ok = add_ok and ItemDB.get_item(r.output).sell_price * int(r.count) > cost
+	_check(add_ok, "모든 레시피가 재료값보다 비싸게 팔림 (손해 없음)")
 	_check(known == ["flour", "dough", "bread", "sugar", "tomato_puree", "potato_snack"], "처음 아는 레시피: 기초 6개 %s" % [known])
 	var flour := ItemDB.get_item("flour")
 	_check(flour != null and flour.kind == ItemDef.Kind.PROCESSED and flour.has_quality and ShippingBin.accepts(flour), "가공품: 품질 있음, 출하함에 팔 수 있음")
@@ -2237,22 +2258,22 @@ func _test_processor(world: FarmWorld, hud: HUD) -> void:
 	player._interact()
 	var panel := hud._processor
 	_check(panel.visible and get_tree().paused and GameState.is_time_paused(), "가공기 창 열면 게임·시간 멈춤")
-	_check(panel._list.get_child_count() == 24 and panel.selected == "flour", "창에 레시피 24개, 첫 레시피 선택")
+	_check(panel._list.get_child_count() == RecipeDB.all().size() and panel.selected == "flour", "창에 레시피 %d개, 첫 레시피 선택" % RecipeDB.all().size())
 	hud._close_panels()
 
 	# 모르는 레시피는 못 씀 → 배우면 영구 (저장됨)
-	inv.add("strawberry", 3)
-	inv.add("sugar", 1)
-	_check(pr.recipe_problem("strawberry_jam") != "" and pr.start(inv, "strawberry_jam", 1) == 0, "안 배운 레시피(딸기잼)는 못 돌림")
-	_check(RecipeDB.learn("strawberry_jam") and RecipeDB.is_known("strawberry_jam") and pr.recipe_problem("strawberry_jam") == "", "레시피 배우기 (영구 해금)")
-	world.save_manager.save_game("manual")
+	inv.add("potato", 3)
+	_check(pr.recipe_problem("potato_starch") != "" and pr.start(inv, "potato_starch", 1) == 0, "안 배운 레시피(감자 전분)는 못 돌림")
+	_check(RecipeDB.learn("potato_starch") and RecipeDB.is_known("potato_starch") and pr.recipe_problem("potato_starch") == "", "레시피 배우기 (영구 해금)")
+	_check(RecipeDB.learn("strawberry_jam") and pr.recipe_problem("strawberry_jam") == "더 좋은 가공기가 필요해요.", "중급 레시피(딸기잼)는 배워도 수동 가공기로는 못 만듦")
 	GameState.unlocks.erase("recipe:strawberry_jam")
+	world.save_manager.save_game("manual")
+	GameState.unlocks.erase("recipe:potato_starch")
 	world.save_manager.load_game()
 	pr = grid.object_at(origin) as Processor
-	_check(RecipeDB.is_known("strawberry_jam"), "배운 레시피는 저장·불러오기 후에도 앎")
-	GameState.unlocks.erase("recipe:strawberry_jam")
-	inv.remove("strawberry", 3)
-	inv.remove("sugar", 1)
+	_check(RecipeDB.is_known("potato_starch"), "배운 레시피는 저장·불러오기 후에도 앎")
+	GameState.unlocks.erase("recipe:potato_starch")
+	inv.remove("potato", 3)
 
 	# 시작: 정한 횟수만, 재료는 한꺼번에 가져가고 회차마다 품질 평균
 	GameState.set_clock(8 * 60)
@@ -2802,10 +2823,11 @@ func _test_recipe_shop(world: FarmWorld, hud: HUD) -> void:
 	var money0 := GameState.money
 	var player := world.player
 
-	# 데이터: 처음부터 아는 6개를 뺀 18개(1급 14 + 2급 4)를 팔고, 값이 있음
+	# 데이터: 처음부터 아는 6개를 뺀 16개를 팔고, 값 = 결과물 판매가 × 개수 × 3
 	var shop := RecipeDB.shop_recipes()
-	_check(shop.size() == 18 and shop.all(func(r: Dictionary) -> bool: return int(r.price) > 0 and not r.unlocked), "레시피 상점 품목 18개, 모두 값이 있음 (recipes.json price)")
-	_check(int(RecipeDB.get_recipe("strawberry_jam").price) == 2100 and int(RecipeDB.get_recipe("flour").price) == 0, "딸기잼 2100 G (임시 값), 처음부터 아는 레시피는 0")
+	_check(shop.size() == 16 and shop.all(func(r: Dictionary) -> bool: return int(r.price) > 0 and not r.unlocked), "레시피 상점 품목 16개, 모두 값이 있음 (recipes.json price)")
+	var syrup_price := int(RecipeDB.get_recipe("fruit_syrup_strawberry").price)
+	_check(syrup_price == ItemDB.get_item("fruit_syrup").sell_price * 3 and int(RecipeDB.get_recipe("flour").price) == 0, "과일 시럽 %d G (판매가 × 3), 처음부터 아는 레시피는 0" % syrup_price)
 
 	# 광장 건물 [E] → 창 (게임·시간 멈춤)
 	var shops := world.buildings.filter(func(b: Interactable) -> bool: return b is RecipeShop)
@@ -2820,40 +2842,43 @@ func _test_recipe_shop(world: FarmWorld, hud: HUD) -> void:
 	_check(not hud._recipes.visible and not get_tree().paused and not GameState.is_time_paused(), "닫으면 재개")
 
 	# 재료를 모두 얻어 봐야 진열 (사용자 결정: 주재료를 처음 얻으면)
-	for key: String in ["found:strawberry", "found:sugar", "found:blueberry", "recipe:strawberry_jam", "recipe:blueberry_jam"]:
+	for key: String in ["found:strawberry", "found:blueberry", "recipe:fruit_syrup_strawberry", "recipe:fruit_syrup_blueberry", "recipe:blueberry_jam", "recipe:strawberry_jam"]:
 		GameState.unlocks.erase(key)
 	inv.remove("strawberry", inv.count_of("strawberry"))
-	inv.remove("sugar", inv.count_of("sugar"))
 	inv.remove("blueberry", inv.count_of("blueberry"))
-	var jam := RecipeDB.get_recipe("strawberry_jam")
-	_check(not RecipeDB.is_revealed("strawberry_jam") and RecipeDB.buy_problem("strawberry_jam") != "" and RecipeShopPanel._hidden_inputs(jam) == "??? · ???", "재료를 못 얻었으면 ??? (%s)" % RecipeShopPanel._hidden_inputs(jam))
+	var syrup := RecipeDB.get_recipe("fruit_syrup_strawberry")
+	_check(not RecipeDB.is_revealed("fruit_syrup_strawberry") and RecipeDB.buy_problem("fruit_syrup_strawberry") != "" and RecipeShopPanel._hidden_inputs(syrup) == "??? · ???", "재료를 못 얻었으면 ??? (%s)" % RecipeShopPanel._hidden_inputs(syrup))
 	inv.add("strawberry", 1)
-	_check(GameState.has_found("strawberry") and not RecipeDB.is_revealed("strawberry_jam") and RecipeShopPanel._hidden_inputs(jam) == "딸기 · ???", "가방에 들어온 재료는 이름이 보임 (%s)" % RecipeShopPanel._hidden_inputs(jam))
+	_check(GameState.has_found("strawberry") and not RecipeDB.is_revealed("fruit_syrup_strawberry") and RecipeShopPanel._hidden_inputs(syrup) == "딸기 · ???", "가방에 들어온 재료는 이름이 보임 (%s)" % RecipeShopPanel._hidden_inputs(syrup))
 	var wh := Warehouse.new()
 	wh.setup(PlaceableDB.get_def("warehouse"), Vector2i.ZERO)
-	wh.insert("sugar", 1)
+	wh.insert("blueberry", 1)
 	wh.free()
-	_check(GameState.has_found("sugar") and RecipeDB.is_revealed("strawberry_jam"), "창고로 바로 들어온 재료도 얻은 것으로 침 → 딸기잼 진열")
-	_check(RecipeShopPanel.ordered()[0].id == "strawberry_jam" or RecipeDB.is_revealed(RecipeShopPanel.ordered()[0].id), "배울 수 있는 레시피가 맨 위")
+	_check(GameState.has_found("blueberry") and RecipeDB.is_revealed("fruit_syrup_strawberry"), "창고로 바로 들어온 재료도 얻은 것으로 침 → 과일 시럽 진열")
+	_check(RecipeDB.is_revealed(RecipeShopPanel.ordered()[0].id), "배울 수 있는 레시피가 맨 위")
 
 	# 사기: 돈이 모자라면 못 배우고, 내면 영구히 배움
-	GameState.money = 1000
-	_check(RecipeDB.buy_problem("strawberry_jam").begins_with("돈이 부족") and not RecipeDB.buy("strawberry_jam"), "돈이 모자라면 못 배움")
-	GameState.money = 3000
-	_check(RecipeDB.buy("strawberry_jam") and RecipeDB.is_known("strawberry_jam") and GameState.money == 900, "2100 G 내고 딸기잼 배움 (남은 돈 %d)" % GameState.money)
-	_check(RecipeDB.buy_problem("strawberry_jam") == "이미 배운 레시피예요." and RecipeShopPanel.ordered()[-1].id in shop.filter(func(r: Dictionary) -> bool: return RecipeDB.is_known(r.id)).map(func(r: Dictionary) -> String: return r.id), "배운 레시피는 맨 아래, 다시 못 삼")
+	GameState.money = syrup_price - 1
+	_check(RecipeDB.buy_problem("fruit_syrup_strawberry").begins_with("돈이 부족") and not RecipeDB.buy("fruit_syrup_strawberry"), "돈이 모자라면 못 배움")
+	GameState.money = syrup_price + 100
+	_check(RecipeDB.buy("fruit_syrup_strawberry") and RecipeDB.is_known("fruit_syrup_strawberry") and GameState.money == 100, "%d G 내고 과일 시럽 배움 (남은 돈 %d)" % [syrup_price, GameState.money])
+	_check(RecipeDB.buy_problem("fruit_syrup_strawberry") == "이미 배운 레시피예요." and RecipeShopPanel.ordered()[-1].id in shop.filter(func(r: Dictionary) -> bool: return RecipeDB.is_known(r.id)).map(func(r: Dictionary) -> String: return r.id), "배운 레시피는 맨 아래, 다시 못 삼")
+	# 옛 id (합쳐진 레시피): 옛 저장에서 블루베리 과일 시럽을 배웠으면 지금 과일 시럽을 아는 것으로
+	GameState.unlocks.erase("recipe:fruit_syrup_strawberry")
+	GameState.unlocks["recipe:fruit_syrup_blueberry"] = true
+	_check(RecipeDB.is_known("fruit_syrup_strawberry") and RecipeDB.has("fruit_syrup_blueberry") and RecipeDB.get_recipe("fruit_syrup_blueberry").id == "fruit_syrup_strawberry", "옛 id(fruit_syrup_blueberry)로 배운 저장 → 지금 과일 시럽")
+	GameState.unlocks.erase("recipe:fruit_syrup_blueberry")
 
 	# 창에서 배우기
-	inv.add("blueberry", 1)
 	GameState.money = 5000
 	player.global_position = shops[0].interact_point()
 	await get_tree().physics_frame
 	player._interact()
 	var rows := hud._recipes._list.get_children()
-	var first_name := (rows[0].get_child(1).get_child(0) as Label).text
-	_check(rows.size() == 18 and first_name == "블루베리잼", "창: 18줄, 맨 위는 배울 수 있는 블루베리잼 (%s)" % first_name)
+	_check(rows.size() == 16, "창: 16줄 (%d)" % rows.size())
+	var bj_price := int(RecipeDB.get_recipe("blueberry_jam").price)
 	hud._recipes._buy("blueberry_jam")
-	_check(RecipeDB.is_known("blueberry_jam") and GameState.money == 3050, "창에서 [배우기] (1950 G)")
+	_check(RecipeDB.is_known("blueberry_jam") and GameState.money == 5000 - bj_price, "창에서 [배우기] (블루베리잼 %d G)" % bj_price)
 	hud._close_panels()
 
 	# 처음 만든 가공품도 얻은 것 (다음 레시피 재료)
@@ -2868,10 +2893,10 @@ func _test_recipe_shop(world: FarmWorld, hud: HUD) -> void:
 
 	# 저장 / 불러오기: 배운 레시피·얻은 기록 유지
 	world.save_manager.save_game("manual")
-	GameState.unlocks.erase("recipe:strawberry_jam")
-	GameState.unlocks.erase("found:sugar")
+	GameState.unlocks.erase("recipe:blueberry_jam")
+	GameState.unlocks.erase("found:blueberry")
 	world.save_manager.load_game()
-	_check(RecipeDB.is_known("strawberry_jam") and GameState.has_found("sugar"), "저장·불러오기: 배운 레시피와 얻은 기록 유지")
+	_check(RecipeDB.is_known("blueberry_jam") and GameState.has_found("blueberry"), "저장·불러오기: 배운 레시피와 얻은 기록 유지")
 
 	GameState.unlocks = saved_unlocks
 	GameState.money = money0
@@ -3868,13 +3893,14 @@ func _test_mid_processor(world: FarmWorld) -> void:
 	var ep_def := PlaceableDB.get_def("electric_processor")
 	var item := ItemDB.get_item("mid_processor")
 	_check(mid_def != null and mid_def.size == Vector2i(3, 3) and mid_def.machine_item() == item and item.shop == "machine" and item.buy_price == int(_econ().machines.mid_processor), "중급 가공기 정의 (3x3, 기계상점 %d G + 재료)" % item.buy_price)
-	# 양배추 (봄) + 2급 레시피 4개
+	# 양배추 (봄) + 중급·상급 레시피 (상급은 상급 가공기가 생기기 전까지 중급 가공기에서, 사용자 결정)
 	var cab := ItemDB.get_item("cabbage_seed")
 	_check(cab != null and cab.grows == "cabbage" and cab.seasons == ["spring"] and Calendar.crop_allowed(cab, "spring") and not Calendar.crop_allowed(cab, "summer"), "양배추 씨앗: 봄 작물")
-	var tier2 := RecipeDB.all().filter(func(r: Dictionary) -> bool: return int(r.tier) == 2).map(func(r: Dictionary) -> String: return r.id)
-	_check(tier2 == ["pickled_cabbage", "vegetable_pickle_set", "premium_jam_strawberry", "premium_jam_blueberry"], "2급 레시피 4개 %s" % [tier2])
-	_check(RecipeDB.all().filter(func(r: Dictionary) -> bool: return int(r.tier) == 1).size() == 20, "기존 1급 레시피는 그대로 20개")
-	_check(RecipeDB.need_quality(RecipeDB.get_recipe("premium_jam_strawberry"), "strawberry") == "gold" and RecipeDB.inputs_text(RecipeDB.get_recipe("premium_jam_strawberry")).contains("골드"), "고급잼: 딸기는 골드만 (%s)" % RecipeDB.inputs_text(RecipeDB.get_recipe("premium_jam_strawberry")))
+	var tier2 := RecipeDB.all().filter(func(r: Dictionary) -> bool: return int(r.tier) >= 2).map(func(r: Dictionary) -> String: return r.id)
+	var high := RecipeDB.all().filter(func(r: Dictionary) -> bool: return int(r.tier) == 3)
+	_check(tier2.size() == 12 and high.size() == 6 and high.all(func(r: Dictionary) -> bool: return int(r.machine_tier) == 2), "중급 6 + 상급 6, 상급은 지금 중급 가공기에서 %s" % [high.map(func(r: Dictionary) -> String: return r.id)])
+	var pj := RecipeDB.get_recipe("premium_jam_strawberry")
+	_check(pj.inputs == {"strawberry_jam": 1, "blueberry_jam": 1} and pj.input_quality.is_empty() and not RecipeDB.inputs_text(pj).contains("골드"), "고급잼: 딸기잼 + 블루베리잼, 품질 조건 없음 (%s)" % RecipeDB.inputs_text(pj))
 	# 자리: 창고(4x4) | 중급 가공기(3x3) — 맞닿게
 	var origin := Vector2i(-1, -1)
 	var cells: Array = world.farm.farmable_cells.keys()
@@ -3904,21 +3930,21 @@ func _test_mid_processor(world: FarmWorld) -> void:
 	_check(is_equal_approx(float(mid.recipe_for("flour").minutes), 30.0) and is_equal_approx(float(ep.recipe_for("flour").minutes), 60.0), "밀가루 60분 → 중급은 30분")
 	for id: String in tier2:
 		GameState.unlocks["recipe:" + id] = true
-	_check(ep.recipe_problem("pickled_cabbage") == "더 좋은 가공기가 필요해요." and mid.recipe_problem("pickled_cabbage") == "" and mid.recipe_problem("flour") == "", "2급 레시피는 중급에서만 (1급도 중급에서 됨)")
-	# 골드 딸기만 받는 재료
+	_check(ep.recipe_problem("pickled_cabbage") == "더 좋은 가공기가 필요해요." and mid.recipe_problem("pickled_cabbage") == "" and mid.recipe_problem("flour") == "" and mid.recipe_problem("pumpkin_pie") == "" and ep.recipe_problem("pumpkin_pie") != "", "중급·상급 레시피는 중급 가공기에서만 (하급도 중급에서 됨)")
+	_check(is_equal_approx(float(mid.recipe_for("pumpkin_pie").minutes), 90.0), "상급 180분 → 중급 가공기는 2배 빨라 90분")
+	# 고급잼: 품질 상관없이 받음
 	_check(mid.set_recipe("premium_jam_strawberry"), "중급에 고급잼 레시피 정하기")
-	_check(not mid.accept_item("strawberry", "silver") and mid.accept_item("strawberry", "gold") and mid.accept_item("fruit_syrup", "bronze"), "벨트 입구: 실버 딸기는 안 받고 골드만 받음")
-	wh.storage.add("strawberry", 5, "silver")
-	wh.storage.add("fruit_syrup", 3, "silver")
-	_check(mid._available("strawberry", "gold") == 1 and mid._pull_run(mid.recipe()), "창고 실버 딸기는 안 쓰고 받아 둔 골드 딸기로 1회분 시작")
-	_check(wh.storage.count_of("strawberry", "silver") == 5 and mid._available("strawberry", "gold") == 0 and not mid._pull_run(mid.recipe()), "골드가 없으면 다음 회분은 시작 못 함 (실버 5개 그대로)")
+	_check(mid.accept_item("strawberry_jam", "silver") and mid.accept_item("blueberry_jam", "bronze") and not mid.accept_item("strawberry", "gold"), "벨트 입구: 딸기잼·블루베리잼은 품질 상관없이, 다른 재료는 안 받음")
+	wh.storage.add("strawberry_jam", 2, "silver")
+	wh.storage.add("blueberry_jam", 2, "gold")
+	_check(mid._pull_run(mid.recipe()) and mid._pull_run(mid.recipe()), "받아 둔 것 + 맞닿은 창고로 회분 시작")
 	inv.load_data([])
-	inv.add("strawberry", 3, "silver")
-	inv.add("fruit_syrup", 4, "silver")
+	inv.add("strawberry_jam", 2, "silver")
+	inv.add("blueberry_jam", 1, "bronze")
 	var r := RecipeDB.get_recipe("premium_jam_strawberry")
-	_check(Processor.runs_possible(inv, r, 9) == 0, "가방: 실버 딸기뿐이면 0회")
-	inv.add("strawberry", 1, "gold")
-	_check(Processor.runs_possible(inv, r, 9) == 1, "골드 딸기 1개 → 1회")
+	_check(Processor.runs_possible(inv, r, 9) == 1, "가방: 딸기잼 2 + 블루베리잼 1 → 1회")
+	# 옛 id 로 정해도 지금 레시피로
+	_check(mid.set_recipe("premium_jam_blueberry") and mid.recipe_id == "premium_jam_strawberry", "옛 id(premium_jam_blueberry) → 지금 고급잼")
 	# 정리
 	for id: String in tier2:
 		GameState.unlocks.erase("recipe:" + id)

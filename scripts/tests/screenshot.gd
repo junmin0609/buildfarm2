@@ -688,15 +688,14 @@ func _ready() -> void:
 		var mid := world.build.place(mid_def, mid_at + Vector2i(4, 0)) as Processor
 		var mgen := world.build.place(PlaceableDB.get_def("small_generator"), mid_at + Vector2i(7, 0)) as Generator
 		if mid and mwh:
-			for id: String in ["pickled_cabbage", "vegetable_pickle_set", "premium_jam_strawberry", "premium_jam_blueberry"]:
+			for id: String in ["pickled_cabbage", "vegetable_pickle_set", "premium_jam_strawberry"]:
 				RecipeDB.learn(id)
 			if mgen:
 				GameState.inventory.add("wood", 10)
 				mgen.deposit(GameState.inventory, "wood", 10)
 				mgen.produce(120.0)
 			mwh.storage.add("pickled_cabbage", 6, "silver")
-			mwh.storage.add("eggplant", 6, "gold")
-			mwh.storage.add("radish", 6, "silver")
+			mwh.storage.add("carrot", 12, "gold")
 			mid.set_recipe("vegetable_pickle_set")
 			mid.set_enabled(true)
 			mid.advance(40.0)

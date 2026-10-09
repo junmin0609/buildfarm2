@@ -241,10 +241,10 @@ func _fill_list() -> void:
 		var item := ItemDB.get_item(r.output)
 		var known := RecipeDB.is_known(r.id)
 		var label := item.name + (" ×%d" % r.count if r.count > 1 else "")
-		var too_high := known and int(r.tier) > processor.tier()
+		var too_high := known and int(r.machine_tier) > processor.tier()
 		var info := "%s · %s" % [RecipeDB.inputs_text(r), RecipeDB.time_text(r.minutes / processor.speed())] if known else "잠김 · 광장 레시피 상점에서 배워요"
 		if too_high:
-			info = "%d급 레시피 · 중급 가공기가 필요해요" % int(r.tier)
+			info = "%d급 레시피 · %s가 필요해요" % [int(r.tier), "중급 가공기" if int(r.machine_tier) == 2 else "상급 가공기"]
 		var row := ShopPanel.item_row(item, info)
 		(row.get_child(1) as Label).text = label
 		for child in row.get_children():
