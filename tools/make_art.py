@@ -1059,26 +1059,46 @@ TIER_METAL = {
 
 
 def make_sprinklers():
-    """16x20: 나무 말뚝 위 둥근 분사 머리 + 물방울"""
+    """16x20 (무드 이미지 3단계): 하급 나무 말뚝 + 쇠 십자 관 / 중급 청록 관 + 돌 받침 / 상급 금빛 머리 + 하늘색 빛 + 둥근 돌 받침"""
     w = P["wood"]
-    for tier, (m, md, ml) in TIER_METAL.items():
+    iron, iron_l = hexc("3c3d44"), hexc("6a6c76")
+    copper, copper_l = hexc("b8733a"), hexc("e0a060")
+    teal, teal_d, teal_l = hexc("3f8a7a"), hexc("2f6a5e"), hexc("6fbfa8")
+    gold, gold_d, gold_l = hexc("d6a83a"), hexc("a8782a"), hexc("f3d36b")
+    stone, stone_l = hexc("8a8574"), hexc("bdb7a3")
+    spray, spray_l = hexc("7cc4e6"), hexc("c2ecfa")
+    for tier in (1, 2, 3):
         c = Canvas(T, 20)
-        c.ellipse(8, 18.5, 5, 1.3, SOFT_SHADOW)
-        c.rect(7, 11, 2, 8, w[1])
-        c.rect(7, 11, 1, 8, w[2])
-        rrect(c, 3, 7, 10, 5, 2, m)
-        c.rect(4, 10, 8, 1, md)
-        c.rect(5, 8, 3, 1, ml)
-        rrect(c, 6, 4, 4, 4, 1, m)
-        c.set(7, 5, ml)
-        # 단계만큼 노즐 (하급 1 · 중급 2 · 상급 3)
-        for k in range(tier):
-            x = 8 - tier + 2 * k
-            c.set(x, 3, md); c.set(x, 2, md)
+        c.ellipse(8, 18.5, 6, 1.3, SOFT_SHADOW)
+        if tier == 1:
+            c.ellipse(8, 18, 4, 1.5, P["leaf"][2]); c.set(5, 17, FLOWERS[0]); c.set(11, 17, FLOWERS[0])
+            c.rect(7, 9, 3, 9, w[1]); c.rect(7, 9, 1, 9, w[2])           # 나무 말뚝
+            c.rect(2, 6, 12, 2, iron); c.rect(2, 6, 12, 1, iron_l)        # 쇠 십자 관
+            c.rect(1, 5, 2, 4, iron); c.rect(13, 5, 2, 4, iron)
+            c.rect(7, 3, 3, 5, iron); c.set(7, 3, iron_l)
+            rrect(c, 6, 1, 5, 3, 1, copper); c.set(7, 1, copper_l)       # 구리 마개
+        elif tier == 2:
+            rrect(c, 4, 14, 9, 5, 1, stone); c.rect(5, 14, 7, 1, stone_l)  # 돌 받침
+            c.set(3, 17, P["leaf"][2]); c.set(13, 17, P["leaf"][2])
+            c.rect(7, 6, 3, 9, teal); c.rect(7, 6, 1, 9, teal_l)          # 청록 관
+            c.rect(8, 6, 2, 9, teal_d)
+            c.rect(2, 7, 13, 2, copper); c.rect(2, 7, 13, 1, copper_l)    # 구리 팔
+            c.rect(1, 6, 2, 4, teal_d); c.rect(14, 6, 2, 4, teal_d)
+            rrect(c, 6, 2, 5, 5, 1, copper); c.set(7, 3, copper_l)
+            c.rect(6, 11, 5, 1, copper)
+        else:
+            c.ellipse(8, 17, 6.5, 2.5, stone); c.ellipse(8, 16.5, 5.5, 1.8, stone_l)   # 둥근 돌 받침
+            c.rect(7, 8, 3, 8, gold_d); c.rect(7, 8, 1, 8, gold)          # 금빛 기둥
+            for dx in (-1, 1):                                            # 팔 넷
+                c.rect(8 + dx * 3 - (1 if dx < 0 else 0), 5, 3, 2, gold); c.rect(8 + dx * 6 - (1 if dx < 0 else 0), 4, 2, 4, gold_d)
+            rrect(c, 4, 2, 9, 7, 2, gold); c.rect(5, 2, 7, 1, gold_l)     # 육각 머리
+            rrect(c, 6, 3, 5, 5, 1.5, hexc("3fc8e0")); c.rect(7, 4, 2, 2, hexc("c2f4fc"))   # 하늘색 빛
+            c.set(8, 0, gold_l); c.rect(7, 1, 3, 1, gold)
         c.outline(INK)
-        for x, y in ((1, 2), (14, 3), (2, 6), (13, 7)):
-            c.set(x, y, hexc("7cc4e6"))
-        c.set(1, 3, hexc("c2ecfa")); c.set(14, 4, hexc("c2ecfa"))
+        arcs = {1: ((0, 3), (15, 3)), 2: ((0, 2), (15, 2), (1, 0), (14, 0)), 3: ((0, 1), (15, 1), (1, 0), (14, 0), (0, 4), (15, 4))}
+        for x, y in arcs[tier]:
+            c.set(x, y, spray)
+        c.set(0, 0, spray_l) if tier == 3 else None
         c.save(f"sprinkler_{tier}.png")
 
 
