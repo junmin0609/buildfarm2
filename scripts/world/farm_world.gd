@@ -26,6 +26,8 @@ var home_position := Vector2.ZERO
 var shipping_bin: ShippingBin
 ## 건설 모드로 옮길 수 있는 농장 고정 건물 (사용자 결정): placeables.json 의 fixture id -> 건물 노드. Fixture 자리표가 옮긴다
 var fixture_buildings := {}
+## 광장 주민·동물 (Townsfolk)
+var townsfolk: Array[Townsfolk] = []
 ## 하루 마감 흐름 (scripts/time/day_cycle.gd)
 var day_cycle: DayCycle
 ## 저장 / 불러오기 (scripts/save/save_manager.gd)
@@ -56,6 +58,7 @@ func _ready() -> void:
 	move_child(_edge_corners, edges.get_index() + 1)
 	_build_map()
 	build.ensure_fixtures()
+	townsfolk = Townsfolk.spawn_all(self)  # 광장 주민·동물 (사용자 요청)
 	obstacles.generate_start(player.position)
 	_build_edges()
 	_build_details()

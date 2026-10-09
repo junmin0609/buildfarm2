@@ -7,7 +7,7 @@ extends PanelContainer
 signal chosen(action: String)
 signal close_requested
 
-var npc: Npc
+var npc: Node  # Npc 또는 Townsfolk
 var _name: Label
 var _line: Label
 var _buttons: HBoxContainer
@@ -31,7 +31,8 @@ func _ready() -> void:
 	box.add_child(_buttons)
 
 
-func open(target: Npc) -> void:
+## target: 가게 NPC(Npc) 또는 광장 주민(Townsfolk) — npc_name · greeting · options 를 가진 노드
+func open(target: Node) -> void:
 	npc = target
 	_name.text = npc.npc_name
 	_line.text = npc.greeting

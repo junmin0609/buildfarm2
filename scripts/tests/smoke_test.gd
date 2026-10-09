@@ -53,6 +53,9 @@ func _ready() -> void:
 	_check(farm.farmable_cells.size() >= 100, "밭 칸 (실제 %d)" % farm.farmable_cells.size())
 	_check(world.buildings.size() == 8, "건물 8개 배치 (집·잡화점·우물·출하함·대장간·기계상점·레시피 상점·비행선 정류장)")
 	_check(world.fences.get_used_cells().all(func(c: Vector2i) -> bool: return c.x >= 53) and not world.fences.get_used_cells().is_empty(), "농장에 울타리 없음 (울타리는 광장 길가에만)")
+	# 광장 주민·동물은 자기 점검(_test_townsfolk) 전까지 제자리에 둔다 (다른 점검의 [E] 대상과 겹치지 않게)
+	for t: Townsfolk in world.townsfolk:
+		t.process_mode = Node.PROCESS_MODE_DISABLED
 	_check(world.objects.get_children().filter(func(n: Node) -> bool: return n is Prop).size() > 100, "나무·바위 소품 배치")
 	var home_cell := world.world_to_cell(world.cell_center(_find_char("@")))
 	_near_home_at_start = world.obstacles.all().filter(func(ob: Obstacle) -> bool: return Vector2(ob.cell).distance_to(Vector2(home_cell)) < 6).size()
@@ -236,6 +239,7 @@ func _ready() -> void:
 	_test_plaza(world)
 	await _test_fixtures(world)
 	_test_tank_refill(world)
+	await _test_townsfolk(world, hud)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -3441,6 +3445,68 @@ func _test_tool_cooldown(world: FarmWorld) -> void:
 	await _wait_real(600)
 	_check(player.tool_uses - uses == held, "떼면 멈춤")
 	inv.load_data(saved_inv)
+
+
+## 광장 주민·동물 (사용자 요청: 고양이·강아지·벤치 할머니·바구니 든 아이). 쓰다듬기는 하트만 (보상 없음, 사용자 결정)
+func _test_townsfolk(world: FarmWorld, hud: HUD) -> void:
+	var folk := {}
+	for t: Townsfolk in world.townsfolk:
+		folk[str(t.data.id)] = t
+	_check(folk.size() == 4 and folk.has("cat") and folk.has("dog") and folk.has("grandma") and folk.has("kid"), "광장 주민·동물 4 (고양이·강아지·할머니·아이)")
+	_check(world.townsfolk.all(func(t: Townsfolk) -> bool: return Interior.room_at(t.position) == "" and t.position.x >= 53 * FarmWorld.TILE and t.get_children().all(func(c: Node) -> bool: return not c is PhysicsBody2D)), "모두 광장에, 길을 막지 않음 (충돌 없음)")
+	GameState.set_clock(10 * 60)
+	var toasts: Array[String] = []
+	var grab := func(msg: String) -> void: toasts.append(msg)
+	Events.toast.connect(grab)
+	var cat: Townsfolk = folk.cat
+	var money := GameState.money
+	var bag := GameState.inventory.to_data()
+	cat.interact(world.player)
+	_check(toasts.has("나비가 골골거려요.") and cat.get_child_count() >= 2 and GameState.money == money and GameState.inventory.to_data() == bag, "고양이 쓰다듬기 → 하트 + 골골 (보상 없음)")
+	Events.toast.disconnect(grab)
+	var grandma: Townsfolk = folk.grandma
+	grandma.interact(world.player)
+	_check(hud._dialog.visible and hud._dialog._name.text == "순자 할머니" and hud._dialog._line.text != "" and get_tree().paused, "할머니 말 걸기 → 대화 창 (%s)" % hud._dialog._line.text)
+	hud._dialog.choose("")
+	_check(not hud._dialog.visible and not get_tree().paused, "대화 닫기")
+	_check(grandma.line_for(1) != grandma.line_for(2) or grandma.line_for(1) != grandma.line_for(3), "할머니 대사는 날마다 바뀜")
+
+	# 아이: 정해진 곳 사이를 돌길로 오감
+	var kid: Townsfolk = folk.kid
+	kid.process_mode = Node.PROCESS_MODE_INHERIT
+	kid._rest = 0.01
+	kid.step(0.02)
+	var first_leg := kid.path.size()
+	var start := kid.position
+	for i in 600:
+		kid.step(0.1)
+	_check(first_leg > 5 and kid.position.distance_to(start) > 64.0, "아이가 돌길을 따라 다음 장소로 감 (%d칸 길)" % first_leg)
+	_check(kid.path.all(func(p: Vector2) -> bool: return MapLayout.char_at(world.world_to_cell(p)) == "p"), "아이는 돌길 위로만")
+	# 고양이: 가까이 가면 따라옴, 강아지: 돌아다님
+	cat.process_mode = Node.PROCESS_MODE_INHERIT
+	cat._napping = false
+	cat._follow_cooldown = 0.0
+	var p0 := world.player.global_position
+	world.player.global_position = cat.global_position + Vector2(30, 0)
+	cat.step(0.1)
+	_check(cat._follow_left > 0.0, "고양이 근처에 가면 따라오기 시작")
+	var dog: Townsfolk = folk.dog
+	var d0 := dog.position
+	dog._rest = 0.01
+	for i in 100:
+		dog.step(0.1)
+	_check(dog.position != d0 and dog.position.distance_to(dog.home) <= dog._roam() * 1.5, "강아지는 광장 안에서 돌아다님")
+	world.player.global_position = p0
+	# 밤 9시: 사람은 집에 가고 고양이는 잠듦, 아침엔 돌아옴
+	GameState.set_clock(21 * 60 + 30)
+	for t: Townsfolk in world.townsfolk:
+		t.step(0.1)
+	_check(not kid.visible and not grandma.visible and not kid.can_interact(kid.interact_point()) and cat._napping and dog.visible, "밤 9시 이후: 아이·할머니는 집에, 고양이는 잠")
+	GameState.set_clock(8 * 60)
+	for t: Townsfolk in world.townsfolk:
+		t.step(0.1)
+	_check(kid.visible and grandma.visible and kid.position == kid.home, "아침: 처음 자리로 돌아옴")
+	await get_tree().process_frame
 
 
 ## 물탱크로 물뿌리개 채우기 (사용자 요청): [E] · 물뿌리개로 클릭 모두, 지역 물통에서 꺼낸다

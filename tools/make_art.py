@@ -2218,6 +2218,134 @@ def make_interiors():
     c.save("interior_machine.png")
 
 
+# ---------------------------------------------------------------- 마을 주민·동물 (무드 이미지: 삼색 고양이 · 누렁 강아지 · 벤치 할머니 · 바구니 든 아이)
+#   한 장에 프레임을 가로로 늘어놓는다 (왼쪽부터 0, 1, 2 ...). 오른쪽을 보는 그림이고, 왼쪽은 게임이 뒤집는다
+
+def cat_frame(c, ox, pose):
+    """16x14 삼색 고양이. pose: 0 앉기, 1 걷기 A, 2 걷기 B, 3 웅크려 자기"""
+    white, orange, black, pink = hexc("fbf6ec"), hexc("e8a050"), hexc("3a2e28"), hexc("f0a8bd")
+    c.ellipse(ox + 8, 13, 6, 1.2, SOFT_SHADOW)
+    if pose == 3:
+        c.ellipse(ox + 8, 10, 6, 3.5, white); c.ellipse(ox + 6, 9, 3, 2.5, orange); c.ellipse(ox + 11, 10, 2, 2, black)
+        c.ellipse(ox + 12, 8.5, 3, 2.6, white); c.set(ox + 11, 6, orange); c.set(ox + 14, 6, black)
+        c.rect(ox + 11, 9, 2, 1, black)   # 감은 눈
+        c.rect(ox + 2, 11, 4, 1, orange)  # 말린 꼬리
+        return
+    if pose == 0:
+        c.ellipse(ox + 7, 9.5, 4, 4, white); c.ellipse(ox + 6, 8, 2.5, 2.5, orange)
+        c.rect(ox + 5, 12, 2, 1, white); c.rect(ox + 8, 12, 2, 1, white)
+        c.rect(ox + 2, 8, 1, 4, black); c.set(ox + 3, 12, black)          # 꼬리
+        hx, hy = 10, 5
+    else:
+        c.ellipse(ox + 7, 9, 5, 3, white); c.ellipse(ox + 5, 8.5, 2.5, 2, orange); c.ellipse(ox + 9, 8, 1.8, 1.5, black)
+        legs = (3, 9) if pose == 1 else (5, 7)
+        for lx in legs:
+            c.rect(ox + lx, 11, 1, 2, white)
+        c.rect(ox + legs[0] + 1, 11, 1, 2, white); c.rect(ox + legs[1] + 2, 11, 1, 2, white)
+        c.rect(ox + 1, 6, 1, 3, orange); c.set(ox + 2, 8, orange)
+        hx, hy = 12, 6
+    c.ellipse(ox + hx, hy + 1.5, 3, 2.8, white)
+    c.set(ox + hx - 2, hy - 1, orange); c.set(ox + hx - 2, hy - 2, orange)    # 귀
+    c.set(ox + hx + 2, hy - 1, black); c.set(ox + hx + 2, hy - 2, black)
+    c.ellipse(ox + hx - 1, hy + 1, 1.5, 1.2, orange)
+    c.set(ox + hx, hy + 1, black); c.set(ox + hx + 2, hy + 1, black); c.set(ox + hx + 1, hy + 2, pink)
+
+
+def dog_frame(c, ox, pose):
+    """20x16 누렁 강아지 (무드의 골든 리트리버). pose: 0 앉기, 1 걷기 A, 2 걷기 B, 3 꼬리 흔들기(앉아서)"""
+    fur, fur_d, fur_l, ink = hexc("e0a85a"), hexc("b87a3a"), hexc("f3cf8f"), hexc("3a2e28")
+    c.ellipse(ox + 10, 15, 8, 1.3, SOFT_SHADOW)
+    if pose in (0, 3):
+        c.ellipse(ox + 9, 11, 5, 4, fur); c.ellipse(ox + 8, 10, 3, 2.5, fur_l)
+        c.rect(ox + 7, 14, 2, 1, fur_d); c.rect(ox + 11, 14, 2, 1, fur_d)
+        tail_up = pose == 3
+        c.rect(ox + 3, 9 if tail_up else 12, 3, 2, fur_d)
+        if tail_up:
+            c.set(ox + 2, 8, fur_d)
+        hx, hy = 13, 5
+    else:
+        c.ellipse(ox + 9, 10, 7, 3.5, fur); c.ellipse(ox + 8, 9, 4, 2, fur_l)
+        legs = (4, 12) if pose == 1 else (6, 10)
+        for lx in legs:
+            c.rect(ox + lx, 12, 2, 3, fur_d)
+        c.rect(ox + 1, 8, 3, 2, fur_d)
+        hx, hy = 15, 5
+    c.ellipse(ox + hx, hy + 2, 3.5, 3.2, fur); c.ellipse(ox + hx + 2.5, hy + 3.5, 2, 1.5, fur_l)
+    c.ellipse(ox + hx - 2, hy + 2.5, 1.5, 2.5, fur_d)                  # 늘어진 귀
+    c.set(ox + hx, hy + 1, ink); c.set(ox + hx + 4, hy + 3, ink)       # 눈·코
+    c.set(ox + hx + 3, hy + 5, hexc("e0715f"))                         # 혀
+
+
+def make_townsfolk():
+    # 고양이 4프레임 (64x14), 강아지 4프레임 (80x16)
+    c = Canvas(16 * 4, 14)
+    for i in range(4):
+        cat_frame(c, i * 16, i)
+    c.outline(INK)
+    c.save("cat.png")
+    c = Canvas(20 * 4, 16)
+    for i in range(4):
+        dog_frame(c, i * 20, i)
+    c.outline(INK)
+    c.save("dog.png")
+
+    # 벤치 할머니 (앉아서 뜨개질, 2프레임 16x22): 회색 쪽머리 · 안경 · 자주 카디건 · 앞치마 · 털실
+    skin, hair, hair_l = hexc("f2d3b0"), hexc("b8b4ac"), hexc("dcd8d0")
+    card, card_d, apron = hexc("9a5a7a"), hexc("7a3f5f"), hexc("f6ead2")
+    c = Canvas(16 * 2, 22)
+    for i in range(2):
+        ox = i * 16
+        c.ellipse(ox + 8, 21, 5, 1.1, SOFT_SHADOW)
+        c.rect(ox + 5, 17, 2, 3, hexc("5b4636")); c.rect(ox + 9, 17, 2, 3, hexc("5b4636"))   # 다리 (앉음)
+        rrect(c, ox + 3, 10, 10, 8, 2, card); c.rect(ox + 3, 16, 10, 2, card_d)
+        rrect(c, ox + 5, 12, 6, 6, 1, apron)
+        c.ellipse(ox + 8, 6.5, 4, 4, skin)
+        c.rect(ox + 4, 2, 8, 3, hair); c.set(ox + 4, 5, hair); c.set(ox + 11, 5, hair)
+        c.ellipse(ox + 8, 1.5, 2.2, 1.6, hair_l)                                          # 쪽머리
+        c.rect(ox + 5, 7, 2, 1, hexc("6b5a4a")); c.rect(ox + 9, 7, 2, 1, hexc("6b5a4a"))  # 안경
+        c.set(ox + 8, 9, hexc("e0715f"))
+        # 뜨개질: 바늘 두 개 + 털실 뭉치 (프레임마다 바늘이 움직임)
+        c.ellipse(ox + 8, 14, 2.5, 1.8, hexc("e0715f")); c.set(ox + 7, 13, hexc("f0a8bd"))
+        dy = 0 if i == 0 else 1
+        c.rect(ox + 4, 12 + dy, 4, 1, hexc("d9d4c8")); c.rect(ox + 9, 13 - dy, 4, 1, hexc("d9d4c8"))
+        c.ellipse(ox + 13, 18, 2, 1.6, hexc("7fb069"))                                    # 바구니 속 털실
+    c.outline(INK)
+    c.save("grandma.png")
+
+    # 바구니 든 아이 (16x24, 4프레임: 정면 서기 · 정면 걷기 둘 · 옆 걷기): 빨간 두건 · 땋은 머리 · 크림 블라우스 · 갈색 치마 · 채소 바구니
+    skin, hair = hexc("f2d3b0"), hexc("7a4e32")
+    scarf, scarf_d = hexc("d9534f"), hexc("a83a36")
+    blouse, skirt, skirt_d = hexc("fbf3e1"), hexc("8a5a3a"), hexc("6b4528")
+    c = Canvas(16 * 4, 24)
+    for i in range(4):
+        ox = i * 16
+        c.ellipse(ox + 8, 22.5, 5, 1.2, SOFT_SHADOW)
+        if i == 0:
+            lx = (5, 9)
+        elif i == 1:
+            lx = (4, 9)
+        elif i == 2:
+            lx = (5, 10)
+        else:
+            lx = (6, 8)
+        for x in lx:
+            c.rect(ox + x, 19, 2, 3, hexc("5b4636"))
+        rrect(c, ox + 4, 14, 8, 6, 1.5, skirt); c.rect(ox + 4, 18, 8, 2, skirt_d)
+        rrect(c, ox + 4, 10, 8, 5, 1.5, blouse)
+        c.ellipse(ox + 8, 6.5, 4, 4, skin)
+        c.rect(ox + 4, 2, 8, 3, scarf); c.rect(ox + 4, 4, 8, 1, scarf_d); c.set(ox + 12, 5, scarf)   # 두건
+        c.rect(ox + 3, 6, 1, 6, hair); c.set(ox + 3, 12, scarf)                                          # 땋은 머리
+        if i == 3:
+            c.set(ox + 10, 7, INK); c.set(ox + 9, 9, hexc("e0715f"))
+        else:
+            c.set(ox + 6, 7, INK); c.set(ox + 10, 7, INK); c.set(ox + 8, 9, hexc("e0715f"))
+        # 채소 바구니 (오른팔)
+        rrect(c, ox + 10, 13, 6, 4, 1, hexc("c98c5c")); c.rect(ox + 10, 13, 6, 1, hexc("e6b77f"))
+        c.set(ox + 11, 12, hexc("e8a050")); c.set(ox + 13, 12, hexc("7fb069")); c.set(ox + 14, 11, hexc("d9534f"))
+    c.outline(INK)
+    c.save("villager.png")
+
+
 def npc(c, skin, hair, top, top_d, apron=None, extra=None):
     """16x24 정면 서 있는 사람"""
     c.ellipse(8, 22.5, 5, 1.2, SOFT_SHADOW)
@@ -3233,6 +3361,7 @@ if __name__ == "__main__":
     make_plaza_props()
     make_mood_props()
     make_interiors()
+    make_townsfolk()
     make_placeables()
     make_greenhouse()
     make_compost_bin()

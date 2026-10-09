@@ -370,7 +370,7 @@ func open_sky_market() -> void:
 ## 상점 NPC 대화 창 (사용자 요청): 게임과 시간을 멈춘다
 func open_dialog(npc: Node) -> void:
 	_close_inventory()
-	_dialog.open(npc as Npc)
+	_dialog.open(npc)
 	_prompt_box.hide()
 	_crop_info.suppressed = true
 	_pause_for("dialog")
