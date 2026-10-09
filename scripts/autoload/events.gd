@@ -39,6 +39,8 @@ signal travelled(to: String)
 signal sky_station_restored
 ## 가게 건물 문 [E] → 그 실내로 (room_id: "store" · "smith" · "machine")
 signal enter_requested(room_id: String)
+## 광산 n 층으로 (0 = 입구층). 동굴 입구 · 사다리 · 엘리베이터가 보낸다 (Mine.go_to)
+signal mine_requested(floor_no: int)
 ## 실내 NPC [E] → 대화 창
 signal npc_talk_requested(npc: Node)
 ## 플레이어가 있는 곳이 바뀜 ("farm" · "sky" · 실내 room_id). 비·눈 화면 효과는 실내에서 숨는다

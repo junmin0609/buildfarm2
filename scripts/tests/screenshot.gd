@@ -710,6 +710,46 @@ func _ready() -> void:
 			get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_mid_processor_panel.png"))
 			hud._close_panels()
 
+	# 광산 (사용자 결정: 북쪽 숲길 끝 입구 · 아래로 내려가는 층 · 엘리베이터)
+	var shot := func(file: String) -> void:
+		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://%s.png" % file))
+	GameState.minutes = 14 * 60
+	world.player.wake_at(world.mine_entrance.interact_point() + Vector2(0, 10))
+	world.player.facing = Vector2i.UP
+	world._apply_camera_area()
+	world.player.camera.reset_smoothing()
+	await get_tree().create_timer(0.8).timeout
+	shot.call("shot_mine_entrance")
+	GameState.unlocks["mine_deepest"] = 12
+	Events.mine_requested.emit(0)
+	world.player.camera.reset_smoothing()
+	await get_tree().create_timer(0.8).timeout
+	shot.call("shot_mine_floor0")
+	var lift: MineFeature = world.mine._features.filter(func(f: MineFeature) -> bool: return f.kind == MineFeature.Kind.ELEVATOR)[0]
+	lift.interact(world.player)
+	await get_tree().create_timer(0.5).timeout
+	shot.call("shot_mine_elevator")
+	hud._close_panels()
+	Events.mine_requested.emit(12)
+	world.player.facing = Vector2i.RIGHT
+	for i in 3:  # 바위 몇 개를 깨서 사다리가 보이게
+		var o: Obstacle = world.mine.rocks.all()[i]
+		world.mine.rocks.remove(o.cell)
+		world.mine._on_rock_cleared(o.cell, o.def)
+	if not world.mine.has_ladder():
+		var o2: Obstacle = world.mine.rocks.all()[0]
+		world.mine.rocks.remove(o2.cell)
+		world.mine._ladder_found = true
+		world.mine._add_feature(MineFeature.Kind.DOWN, o2.cell - Mine.ORIGIN)
+	world.player.camera.reset_smoothing()
+	await get_tree().create_timer(0.8).timeout
+	shot.call("shot_mine_floor12")
+	Events.mine_requested.emit(10)
+	world.player.camera.reset_smoothing()
+	await get_tree().create_timer(0.8).timeout
+	shot.call("shot_mine_treasure")
+	world.exit_mine()
+
 	# 맵 전체 내려다보기
 	get_tree().paused = false
 	main.get_node("HUD").visible = false

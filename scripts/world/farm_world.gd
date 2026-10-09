@@ -36,7 +36,10 @@ var save_manager: SaveManager
 var sky_island: SkyIsland
 ## 가게 실내 (room_id -> Interior). 하늘섬보다 더 오른쪽 바깥에 따로 그린다
 var interiors := {}
-## 지금 플레이어가 있는 곳 ("farm" · "sky" · 실내 room_id)
+## 광산 (사용자 결정: 광장 북쪽 숲길 끝 입구). 가게 실내 아래쪽 바깥에 한 층 자리를 두고 층마다 새로 꾸민다
+var mine: Mine
+var mine_entrance: MineEntrance
+## 지금 플레이어가 있는 곳 ("farm" · "sky" · "mine" · 실내 room_id)
 var area := "farm"
 
 
@@ -79,6 +82,13 @@ func _ready() -> void:
 		move_child(room, objects.get_index())
 		room.build(self, room_id)
 		interiors[room_id] = room
+	mine = Mine.new()
+	add_child(mine)
+	move_child(mine, objects.get_index())
+	mine.build(self)
+	mine_entrance = MineEntrance.new()
+	mine_entrance.position = MineEntrance.place_position()
+	objects.add_child(mine_entrance)
 	Events.travel_requested.connect(travel)
 	Events.enter_requested.connect(enter_interior)
 	# 하루가 끝나 집에서 깨어나거나 저장을 불러오면, 플레이어가 있는 곳(농장/하늘섬)에 카메라 범위를 맞춘다
@@ -373,6 +383,13 @@ func _set_camera_limits(r: Rect2) -> void:
 	cam.reset_smoothing()
 
 
+## 방이 화면보다 작은 쪽은 방을 화면 가운데에 고정하고, 큰 쪽은 방 끝까지만 따라간다 (바깥 어둠이 한쪽으로 쏠리지 않게)
+func _centered_limits(room: Rect2) -> Rect2:
+	var view := get_viewport().get_visible_rect().size / player.camera.zoom
+	var size := Vector2(maxf(room.size.x, view.x), maxf(room.size.y, view.y))
+	return Rect2(room.get_center() - size / 2.0, size)
+
+
 # ---------- 하늘섬 오가기 (§90, 사용자 결정: 비행선 + 작은 하늘섬 맵)
 
 func is_on_sky_island() -> bool:
@@ -385,6 +402,9 @@ func _apply_camera_area() -> void:
 	if room_id != "":
 		area = room_id
 		_set_camera_limits(Interior.view_rect_of(room_id))
+	elif Mine.contains(player.global_position):
+		area = "mine"
+		_set_camera_limits(_centered_limits(Mine.room_rect()))
 	elif is_on_sky_island():
 		area = "sky"
 		_set_camera_limits(SkyIsland.view_rect())
@@ -392,6 +412,8 @@ func _apply_camera_area() -> void:
 		area = "farm"
 		_set_camera_limits(Rect2(Vector2.ZERO, Vector2(MapLayout.size() * TILE)))
 	Events.area_changed.emit(area)
+	if _daylight:
+		_daylight.color = _light_target(GameState.minutes)  # 광산을 드나들면 밝기를 바로 바꾼다
 
 
 func is_indoors() -> bool:
@@ -430,6 +452,20 @@ func _building_front(room_id: String) -> Vector2:
 func _physics_process(_delta: float) -> void:
 	if is_indoors() and (interiors[area] as Interior).is_door(player.my_cell()):
 		exit_interior()
+	elif area == "mine" and mine.is_exit(player.my_cell()):
+		exit_mine()
+
+
+## 광산 층을 옮겼다 (Mine.go_to): 카메라 범위·밝기
+func enter_mine_area() -> void:
+	_apply_camera_area()
+
+
+## 광산 입구층 출구를 밟으면 → 동굴 입구 앞으로
+func exit_mine() -> void:
+	player.wake_at(mine_entrance.interact_point() + Vector2(0, 6))
+	_apply_camera_area()
+	Events.travelled.emit("farm")
 
 
 ## 비행선을 탄다. to: "sky" 하늘섬으로 / "home" 광장 정류장으로. 편도 게임 시계 travel_minutes 가 흐른다
@@ -516,6 +552,15 @@ func _setup_daylight() -> void:
 
 
 func _on_time_changed(_day: int, minutes: int) -> void:
+	var tween := create_tween()
+	tween.tween_property(_daylight, "color", _light_target(minutes), 1.5)
+	get_tree().call_group(NightLight.GROUP, "set_night", night_factor())
+
+
+## 지금 시각·날씨의 밝기. 광산 안은 늘 같은 등불 빛
+func _light_target(minutes: int) -> Color:
+	if area == "mine":
+		return Mine.LIGHT
 	var target: Color = DAYLIGHT[-1][1]
 	for i in DAYLIGHT.size() - 1:
 		var a: Array = DAYLIGHT[i]
@@ -523,10 +568,7 @@ func _on_time_changed(_day: int, minutes: int) -> void:
 		if minutes >= a[0] and minutes <= b[0]:
 			target = (a[1] as Color).lerp(b[1], float(minutes - a[0]) / (b[0] - a[0]))
 			break
-	target *= Weather.tint(GameState.weather)  # 흐림·비·눈은 조금 어둡고 푸르게
-	var tween := create_tween()
-	tween.tween_property(_daylight, "color", target, 1.5)
-	get_tree().call_group(NightLight.GROUP, "set_night", night_factor())
+	return target * Weather.tint(GameState.weather)  # 흐림·비·눈은 조금 어둡고 푸르게
 
 
 ## 저녁 불빛 세기 (무드 개편): 17시부터 서서히 켜져 19시 30분에 가장 밝다. 0 낮 ~ 1 밤

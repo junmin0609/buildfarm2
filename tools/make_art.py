@@ -3048,6 +3048,17 @@ def material_icon(c, kind):
         st = [hexc("7d6f63"), hexc("9a8b7d"), hexc("b5a696"), hexc("cdbfae"), hexc("e6dccd")]
         blob(c, [(8, 9.5, 4.8), (5.5, 10.5, 3), (10.5, 10.5, 3.2)], st)
         c.set(6, 7, st[4]); c.set(7, 7, st[4])
+    elif kind in ORE_ICONS:
+        # 광석 덩이: 회갈색 돌 + 광석 알갱이 (석탄은 통째로 검다)
+        ore = kind.replace("_ore", "")
+        d, m, hi = (hexc(x) for x in ORE[ore])
+        base = [d, m, m, hi, hi] if ore == "coal" else CAVE_ROCK
+        blob(c, [(8, 9.5, 4.8), (5.5, 10.5, 3), (10.5, 10.5, 3.2)], base)
+        if ore != "coal":
+            for x, y in ((6, 8), (9, 10), (10, 7), (5, 11)):
+                c.set(x, y, m); c.set(x + 1, y, d); c.set(x, y - 1, hi)
+        else:
+            c.set(6, 7, hi); c.set(7, 7, hi); c.set(10, 9, hi)
     elif kind == "conveyor":
         # 돌돌 만 벨트 한 칸: 나무 난간 두 줄 사이 짙은 벨트 + V 무늬 (비스듬히)
         for y in range(3, 14):
@@ -3220,6 +3231,8 @@ MACHINE_ICONS = [("sprinkler_1", "sprinkler_1"), ("sprinkler_2", "sprinkler_2"),
 # 그다음 새 아이템 (아이콘 80번부터): 봄 양배추 · 2급 가공품. 앞 번호를 밀지 않게 맨 뒤에 붙인다
 NEW_ICONS = ["cabbage_seed", "cabbage", "pickled_cabbage", "vegetable_pickle_set", "premium_jam"]
 NEW_PRODUCTS = ["pickled_cabbage", "vegetable_pickle_set", "premium_jam"]
+# 광산 광석 (아이콘 85번부터)
+ORE_ICONS = ["coal", "copper_ore", "iron_ore"]
 
 
 def load_png(name):
@@ -3256,6 +3269,127 @@ def shrink_icon(c, src):
                 c.set(ox + x, oy + y, px[:3] + (255,))
 
 
+# ---------------------------------------------------------------- 광산 (사용자 결정: 광장 북쪽 숲길 끝, 아래로 내려가는 층)
+
+ORE = {  # 광석 무늬 색: [어두운, 밝은, 반짝임]
+    "coal": ["2b2b2e", "4a4a50", "77777f"],
+    "copper": ["9a4a24", "c46a3a", "f0a070"],
+    "iron": ["4f5866", "a9b8cc", "eef3f8"],
+}
+CAVE = [hexc("3a2f26"), hexc("4a3d33"), hexc("54453a"), hexc("5f4f42"), hexc("6e5c4d")]
+CAVE_ROCK = [hexc("5e5650"), hexc("78706a"), hexc("948b82"), hexc("ada398"), hexc("c8beb2")]
+
+
+def ore_rock(c, ore, seed):
+    """광산 바위 (16x16). ore 가 있으면 광석 알갱이를 박는다"""
+    c.ellipse(8, 14, 6.5, 1.5, (20, 14, 10, 90))
+    blob(c, [(8, 9.5, 5.6), (4.8, 11.5, 3.5), (11.4, 11.2, 3.8)], CAVE_ROCK)
+    c.set(5, 6, CAVE_ROCK[4]); c.set(6, 6, CAVE_ROCK[4])
+    if ore:
+        d, m, hi = (hexc(x) for x in ORE[ore])
+        r = random.Random(seed)
+        for x, y in r.sample([(4, 9), (7, 7), (10, 8), (6, 11), (9, 11), (11, 10), (5, 12), (8, 9)], 4):
+            c.set(x, y, m); c.set(x + 1, y, d); c.set(x, y + 1, d)
+            c.set(x, y - 1, hi) if r.random() < 0.6 else None
+    c.outline(hexc("231a14"))
+
+
+def make_mine():
+    # 바닥 4가지 (16x16 씩 가로로) + 벽 2가지
+    floor = Canvas(T * 4, T)
+    for v in range(4):
+        c, done = sub(floor, v, 0)
+        r = random.Random(700 + v)
+        c.rect(0, 0, T, T, CAVE[2])
+        for _ in range(20):
+            c.set(r.randrange(T), r.randrange(T), CAVE[r.choice((1, 3, 3))])
+        for _ in range(2 + v):
+            x, y = r.randrange(1, 14), r.randrange(1, 14)
+            c.set(x, y, CAVE[4]); c.set(x + 1, y, CAVE[3]); c.set(x, y + 1, CAVE[1])
+        done()
+    floor.save("mine_floor.png")
+    wall = Canvas(T * 2, T)
+    for v in range(2):
+        c, done = sub(wall, v, 0)
+        r = random.Random(720 + v)
+        c.rect(0, 0, T, T, CAVE[0])
+        for k in range(5):  # 울퉁불퉁한 바위 덩이
+            cx, cy = r.randrange(1, 15), r.randrange(1, 13)
+            c.ellipse(cx, cy, r.uniform(2.5, 4.2), r.uniform(2, 3.2), hexc("4a3c31"))
+            c.set(int(cx) - 1, int(cy) - 1, hexc("6a5646"))
+        c.rect(0, 13, T, 3, hexc("2a211a"))  # 아래 그림자 (벽 밑동)
+        done()
+    wall.save("mine_wall.png")
+
+    for name, ore, seed in (("mine_stone", None, 1), ("mine_coal", "coal", 2), ("mine_copper", "copper", 3), ("mine_iron", "iron", 4)):
+        c = Canvas(T, T)
+        ore_rock(c, ore, seed)
+        c.save(name + ".png")
+
+    w = P["wood"]
+    c = Canvas(T, T)  # 내려가는 사다리 (구멍 + 사다리 끝)
+    c.ellipse(8, 9, 7, 5.5, hexc("120d0a"))
+    c.ellipse(8, 8, 6, 4.2, hexc("1d1612"))
+    for x in (5, 10):
+        c.rect(x, 3, 1, 10, w[2]); c.set(x, 3, w[3])
+    for y in (5, 8, 11):
+        c.rect(5, y, 6, 1, w[1])
+    c.outline(hexc("231a14"))
+    c.save("mine_ladder_down.png")
+
+    c = Canvas(T, T * 2)  # 올라가는 사다리 (벽에 기댐, 16x32)
+    for x in (4, 11):
+        c.rect(x, 1, 2, 30, w[2]); c.rect(x, 1, 1, 30, w[3])
+    for y in range(4, 30, 4):
+        c.rect(6, y, 5, 2, w[1]); c.rect(6, y, 5, 1, w[2])
+    c.outline(hexc("231a14"))
+    c.save("mine_ladder_up.png")
+
+    c = Canvas(T * 2, T * 2 + 8)  # 엘리베이터 (나무 틀 + 철망 + 도르래, 32x40)
+    H = c.h
+    c.ellipse(16, H - 2, 15, 2, (20, 14, 10, 90))
+    c.rect(2, 6, 28, H - 8, hexc("2a211a"))
+    for x in (2, 27):
+        c.rect(x, 4, 3, H - 6, w[1]); c.rect(x, 4, 1, H - 6, w[2])
+    c.rect(1, 3, 30, 4, w[1]); c.rect(1, 3, 30, 1, w[3])
+    c.ellipse(16, 4, 3, 3, hexc("8f939a")); c.set(16, 4, hexc("2b2b2e"))
+    c.rect(16, 7, 1, 10, hexc("c9a03a"))
+    c.rect(6, 17, 20, 2, hexc("8f939a")); c.rect(6, 17, 20, 1, hexc("c9ccd1"))   # 케이지 바닥 가로대
+    for x in range(7, 26, 3):
+        c.rect(x, 19, 1, H - 23, hexc("6f737a"))
+    c.rect(5, H - 5, 22, 3, w[0]); c.rect(5, H - 5, 22, 1, w[2])
+    c.rect(22, 22, 3, 4, hexc("f2c443")); c.set(23, 23, hexc("fff3c0"))   # 호출 버튼 등
+    c.outline(hexc("231a14"))
+    c.save("mine_elevator.png")
+
+    c = Canvas(T, T)  # 보물 상자
+    c.ellipse(8, 14, 6.5, 1.5, (20, 14, 10, 90))
+    rrect(c, 2, 6, 12, 8, 1, w[1]); c.rect(2, 6, 12, 3, w[2]); c.rect(3, 6, 10, 1, w[3])
+    c.rect(2, 9, 12, 1, hexc("c9a03a")); c.rect(7, 8, 2, 3, hexc("f2c443")); c.set(7, 8, hexc("fff3c0"))
+    c.outline(hexc("231a14"))
+    c.save("mine_chest.png")
+
+    # 광장 북쪽 숲길 끝의 동굴 입구 (3칸 x 3칸 = 48x48). 바위 언덕 + 어두운 굴 + 나무 버팀목 + 등불
+    c = Canvas(T * 3, T * 3)
+    rock = [hexc("6f665e"), hexc("8a8178"), hexc("a39a90"), hexc("bdb3a8"), hexc("d6cdc2")]
+    blob(c, [(24, 26, 21), (8, 34, 10), (40, 34, 10), (24, 12, 14)], rock)
+    g = P["leaf"]
+    for x, y, rr in ((9, 14, 4), (36, 11, 5), (24, 4, 4), (44, 24, 3)):
+        c.ellipse(x, y, rr, rr * 0.8, g[2]); c.ellipse(x - 1, y - 1, rr * 0.6, rr * 0.45, g[3])
+    c.ellipse(24, 37, 10, 12, hexc("120d0a"))
+    c.rect(14, 37, 21, 11, hexc("120d0a"))
+    c.ellipse(24, 38, 8, 10, hexc("1d1612"))
+    for x in (12, 34):   # 버팀목 기둥
+        c.rect(x, 26, 3, 22, w[1]); c.rect(x, 26, 1, 22, w[2])
+    c.rect(11, 24, 27, 3, w[1]); c.rect(11, 24, 27, 1, w[3])
+    c.rect(37, 28, 3, 4, hexc("f2c443")); c.set(38, 29, hexc("fff3c0")); c.rect(38, 26, 1, 2, hexc("2b2b2e"))  # 등불
+    for x in range(16, 33, 3):   # 굴 안 레일 침목
+        c.rect(x, 44, 2, 1, w[0])
+    c.rect(15, 45, 19, 1, hexc("8f939a"))
+    c.outline(INK)
+    c.save("mine_entrance.png")
+
+
 def make_items():
     order = ["hoe", "watering_can", "carrot_seed", "potato_seed", "strawberry_seed", "carrot", "potato", "strawberry",
              "axe", "pickaxe", "fiber", "wood", "stone",
@@ -3270,6 +3404,7 @@ def make_items():
     order += ["conveyor"]  # 컨베이어 (아이콘 63번)
     order += [item for item, _ in MACHINE_ICONS]  # 기계 (아이콘 64번부터)
     order += NEW_ICONS  # 양배추·2급 가공품 (아이콘 80번부터)
+    order += ORE_ICONS  # 광석 (아이콘 85번부터)
     machine_art = dict(MACHINE_ICONS)
     atlas = Canvas(len(order) * T, T)
     for col, item in enumerate(order):
@@ -3287,7 +3422,7 @@ def make_items():
             c.template(PICKAXE, ICON_PAL)
         elif item in machine_art:
             shrink_icon(c, load_png(machine_art[item] + ".png"))
-        elif item in ("fiber", "wood", "stone", "conveyor"):
+        elif item in ("fiber", "wood", "stone", "conveyor") or item in ORE_ICONS:
             material_icon(c, item)
         elif item.endswith("_fertilizer"):
             fertilizer_bag(c, item)
@@ -3428,6 +3563,7 @@ if __name__ == "__main__":
     make_electric_processor()
     make_mid_processor()
     make_well()
+    make_mine()
     make_shipping_bin()
     make_blacksmith()
     make_recipe_shop()

@@ -379,6 +379,9 @@ func open_dialog(npc: Node) -> void:
 ## 대화에서 고른 일: 상점 창(사기·팔기·기계) 또는 대장간 강화 창을 연다
 func _on_dialog_chosen(action: String) -> void:
 	_close_panels()
+	if action.begins_with("mine:"):  # 광산 엘리베이터: 고른 층으로
+		Events.mine_requested.emit(int(action.trim_prefix("mine:")))
+		return
 	match action:
 		"smith":
 			open_blacksmith()

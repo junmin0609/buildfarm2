@@ -207,6 +207,15 @@ Godot 4.7로 만든 2D 픽셀 농장 게임의 기본 버전입니다. 16px 도�
 - 순자 할머니: 분수 왼쪽 벤치에서 뜨개질, [E] 말 걸기 → 계절·비 오는 날 대사 (날마다 바뀜) / 아이 다온: 잡화점·분수·노점 사이를 돌길로 오감 (`TownPaths`)
 - 모두 지나갈 수 있음, 광장 안에서만. 밤 9시 이후 할머니·아이는 집에 가서 안 보이고 고양이는 잠듦. 이름·대사는 임시
 
+## 광산 1단계 (사용자 결정, `data/mine.json`, `scripts/mine/`)
+- 광장 북쪽 숲길 맨 위 끝의 동굴 입구 [E] → 입구층 (늘 같은 모양: 엘리베이터 · 내려가는 사다리 · 아래쪽 출구). 숲길 아치는 입구 앞을 비우려고 4칸 남쪽으로 옮김
+- 1층부터는 들어올 때마다 바위 배치가 새로 생김 (저장하지 않음). 곡괭이로 바위를 깨면 확률로 내려가는 사다리 (깰수록 잘 나오고 마지막 바위는 반드시). 올라가는 사다리는 입구층으로
+- 바위: 돌 · 석탄 · 구리 (1층부터) · 철 (10층부터, 강화 곡괭이 필요). 광석은 그대로 팔면 쌈 (2단계 제련로에서 주괴로 값이 붙을 예정)
+- 엘리베이터: 5층마다 정류장, 그 층에 처음 닿으면 열림. 입구층·정류장 층의 엘리베이터에서 [E] → 대화 창에서 층 고르기
+- 보물 층 10·20층: 광석 바위만 잔뜩 + 상자 하나 (처음 한 번만, 10층 800 G + 구리 15 · 석탄 10, 20층 2000 G + 철 15 · 석탄 15)
+- 1단계 바닥은 20층. 시간은 그대로 흐르고, 하루가 끝나면 집 앞에서 깸. 광산 안에서 저장했다가 불러오면 입구층에서 시작
+- 가장 깊이 간 층·연 상자는 `GameState.unlocks` (`mine_deepest`, `mine_chest:<층>`). 수치는 모두 임시
+
 ## 무드 개편: 아늑한 마을 광장 (사용자가 준 무드 이미지 5장)
 - 바닥은 빽빽한 꿀색 자갈, 가운데 새싹 석상 분수(3x3) + 꽃 화분 고리·벤치·가로등, 빈 잔디는 꽃밭·나무, 길가·개울가에 짧은 나무 울타리
 - 남쪽 개울: 석축 둑(못 지나감, 타일 `e`) + 수련·오리 + 나무다리 + 배송함 나루터(장식). 다리 옆 "내 농장" 팻말·이정표, 북쪽 숲길 나무 아치
@@ -328,6 +337,7 @@ data/quality.json        품질 배율·수확 품질 확률
 data/economy.json        판매 방식별 가격 배율 (광장 80%, 출하함 100%)
 data/time.json           하루 길이(15분)·경고 시점(1분 전)·시계 범위
 data/recipes.json        가공 레시피 (재료·결과물·시간·등급·처음부터 아는지)
+data/mine.json           광산 (바닥 층·엘리베이터 간격·층별 바위 비율·사다리 확률·보물 층)
 assets/art/              픽셀 아트 (tools/make_art.py 로 생성)
 assets/fonts/            Neo둥근모 한글 도트 폰트 (SIL OFL 1.1, NeoDunggeunmo-LICENSE.txt)
 tools/make_art.py        모든 그래픽을 코드로 찍어 내는 생성기
@@ -341,6 +351,7 @@ scripts/
   world/      MapLayout(글자 지도), TerrainTileSet(타일셋 생성), FarmWorld(맵 조립), Prop(나무·바위)
   farm/       SoilTile(밭 한 칸), FarmGrid(격자 농사), WateringCan(물뿌리개 물), Greenhouse(온실), CompostBin(퇴비통)
   factory/    Warehouse(창고), Processor(가공기), RecipeDB(레시피)
+  mine/       Mine(광산 층), MineFeature(사다리·엘리베이터·상자), MineEntrance(동굴 입구)
   player/     Player
   buildings/  Interactable(공통), House, ShopStall, Well(우물, 물 공급원), ShippingBin(출하함), Blacksmith(대장간)
   ui/         HUD, Hotbar, InventoryPanel, ShopPanel, ItemSlot, CompostBinPanel(퇴비통 창), WarehousePanel(창고 창), ProcessorPanel(가공기 창)
@@ -356,6 +367,7 @@ scripts/
 - 확인용 장면: `scenes/tests/resolution_check.tscn` (창 크기를 바꿔 가며 user://res_*.png 와 배율 숫자를 남김)
 
 ## 그래픽
+- `mine_*.png` 광산 (입구 48x48 · 바닥/벽 타일 · 바위 4종 · 사다리 2종 · 엘리베이터 · 상자), 광석 아이콘 `items.png` 85~87번 (석탄·구리 광석·철 광석)
 - `medal_gold/silver/bronze.png` 작물 품질 메달 (사용자가 준 그림 mood/medal 의 금·은·동매달을 18x18 도트로 옮김, make_art.py 가 만들지 않음). 가방·핫바·상점 칸 오른쪽 위
 모든 그림은 외부 에셋 없이 `tools/make_art.py`가 픽셀 단위로 그립니다 (Python만 있으면 됨).
 스타일: 둥글고 따뜻한 톤. 외곽선은 검정 대신 갈색(`INK`), 모서리는 둥글게, 회색 대신 모래·크림색. 색은 파일 위쪽 `P` 팔레트에서 한 번에 바꿀 수 있습니다.

@@ -802,5 +802,27 @@
 		"max_stack": 20,
 		"icon": 79,
 		"description": "전기 가공기보다 2배 빠르고 2급 레시피도 만들어요. 맞닿은 창고와 알아서 주고받아요. 전력이 필요해요."
+	},
+	"coal": {
+		"name": "석탄",
+		"kind": "material",
+		"_comment": "광산 1층부터 (사용자 결정: 광석은 그대로 팔면 싸고, 2단계 제련로에서 주괴로 만들어야 값이 붙는다). 값은 임시",
+		"sell_price": 6,
+		"icon": 85,
+		"description": "광산 바위에서 나오는 검은 돌. 나중에 제련로 연료가 돼요."
+	},
+	"copper_ore": {
+		"name": "구리 광석",
+		"kind": "material",
+		"sell_price": 10,
+		"icon": 86,
+		"description": "광산 1층부터 나와요. 그대로 팔면 싸지만, 나중에 주괴로 만들 수 있어요."
+	},
+	"iron_ore": {
+		"name": "철 광석",
+		"kind": "material",
+		"sell_price": 18,
+		"icon": 87,
+		"description": "광산 10층부터 나와요. 강화 곡괭이가 있어야 캘 수 있어요."
 	}
 }

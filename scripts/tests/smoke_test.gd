@@ -241,6 +241,7 @@ func _ready() -> void:
 	_test_tank_refill(world)
 	_test_mid_processor(world)
 	await _test_townsfolk(world, hud)
+	_test_mine(world, hud)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -3511,6 +3512,114 @@ func _test_townsfolk(world: FarmWorld, hud: HUD) -> void:
 
 
 ## 중급 가공기 + 2급 레시피 (사용자 결정: 새 기계 · 새 레시피만 2급 · 봄 양배추 · 상급은 나중에)
+## 광산 (사용자 결정: 북쪽 숲길 끝 입구 · 아래로 내려가는 층 · 엘리베이터 · 사다리 찾기 · 10층마다 보물 층 · 광석 4종)
+func _test_mine(world: FarmWorld, hud: Node) -> void:
+	var mine := world.mine
+	var inv := GameState.inventory
+	var saved_inv := inv.to_data()
+	var saved_unlocks := GameState.unlocks.duplicate(true)
+	var saved_money := GameState.money
+	var saved_pos := world.player.global_position
+	GameState.unlocks.erase("mine_deepest")
+	for k: String in GameState.unlocks.keys():
+		if k.begins_with("mine_chest:"):
+			GameState.unlocks.erase(k)
+	# 입구: 북쪽 숲길 맨 위 (길 칸 앞)
+	var front := world.world_to_cell(world.mine_entrance.interact_point())
+	_check(MapLayout.char_at(front) == "p" and front.y <= 4 and front.x >= 84 and front.x <= 86, "광산 입구: 북쪽 숲길 끝 %s" % front)
+	_check(ItemDB.get_item("coal") != null and ItemDB.get_item("copper_ore") != null and ItemDB.get_item("iron_ore") != null and ItemDB.get_item("iron_ore").sell_price < 30, "광석 아이템 3종 (그대로 팔면 쌈)")
+	_check(not Mine.rock_weights(1).has("mine_iron") and Mine.rock_weights(12).has("mine_iron") and Mine.rock_weights(10).has("mine_iron") and Mine.bottom() == 20, "깊이별 바위: 철은 10층부터, 1단계 바닥 20층")
+	_check(not Mine.view_rect().intersects(SkyIsland.view_rect()) and not Mine.view_rect().intersects(Interior.view_rect_of("machine")) and not Mine.view_rect().intersects(Rect2(Vector2.ZERO, Vector2(MapLayout.size() * FarmWorld.TILE))), "광산 자리가 농장·하늘섬·가게와 겹치지 않음")
+	# 들어가기 → 입구층
+	world.mine_entrance.interact(world.player)
+	_check(world.area == "mine" and mine.floor_no == 0 and mine.rocks.count() == 0 and world.player.global_position.distance_to(mine.arrive_position()) < 1.0, "[E] 입구 → 입구층 (바위 없음)")
+	_check(world._daylight.color == Mine.LIGHT, "광산 안은 늘 같은 등불 빛")
+	var kinds := mine._features.map(func(f: MineFeature) -> int: return f.kind)
+	_check(MineFeature.Kind.ELEVATOR in kinds and MineFeature.Kind.DOWN in kinds and mine.has_ladder(), "입구층: 엘리베이터 + 내려가는 사다리")
+	_check(mine.is_exit(Mine.ORIGIN + Mine.EXIT_CELLS[0]) and not mine.is_exit(Mine.ORIGIN + Vector2i(5, 5)), "입구층 아래 출구 칸")
+	var elevator: MineFeature = mine._features.filter(func(f: MineFeature) -> bool: return f.kind == MineFeature.Kind.ELEVATOR)[0]
+	elevator._fill_options()
+	_check(elevator.options.size() == 1 and elevator.greeting.contains("5층"), "처음엔 열린 정류장 없음 (%s)" % elevator.greeting)
+	# 1층: 바위 깔림, 사다리는 아직
+	var down: MineFeature = mine._features.filter(func(f: MineFeature) -> bool: return f.kind == MineFeature.Kind.DOWN)[0]
+	down.interact(world.player)
+	_check(mine.floor_no == 1 and Mine.deepest() == 1 and mine.rocks.count() >= 26 and mine.rocks.count() <= 36 and not mine.has_ladder(), "사다리 → 1층 (바위 %d개, 사다리 아직 없음)" % mine.rocks.count())
+	var ids := mine.rocks.all().map(func(o: Obstacle) -> String: return o.def.id)
+	_check(not ids.has("mine_iron") and ids.has("mine_stone"), "1층엔 철 바위 없음")
+	var walls_ok := true
+	for o: Obstacle in mine.rocks.all():
+		if mine.is_wall(o.cell - Mine.ORIGIN) or (o.cell - Mine.ORIGIN).distance_to(Mine.UP_LADDER_AT + Vector2i.DOWN) < 2.5:
+			walls_ok = false
+	_check(walls_ok, "바위는 벽·내려선 자리 위에 생기지 않음")
+	# 곡괭이로 깨다 보면 사다리가 나온다 (마지막 바위면 반드시)
+	inv.load_data([])
+	var pick := ItemDB.get_item("pickaxe_2")
+	var broke := 0
+	var safety := 0
+	while not mine.has_ladder() and mine.rocks.count() > 0 and safety < 400:
+		safety += 1
+		var o: Obstacle = mine.rocks.all()[0]
+		mine.rocks.try_clear(o.cell, pick)
+		if mine.rocks.obstacle_at(o.cell) == null:
+			broke += 1
+	var ladder := mine._features.filter(func(f: MineFeature) -> bool: return f.kind == MineFeature.Kind.DOWN)
+	_check(mine.has_ladder() and ladder.size() == 1 and inv.count_of("stone") + inv.count_of("coal") + inv.count_of("copper_ore") > 0, "바위 %d개 깨서 사다리 찾음 · 광석이 가방에" % broke)
+	_check(ladder.size() == 1 and (ladder[0] as MineFeature).prompt.contains("2층") and (ladder[0] as MineFeature).z_index == -1, "새 사다리: 깬 바위 자리, 바닥에 깔림")
+	# 철 바위: 강화 곡괭이(2단계)가 있어야
+	var spot := Mine.ORIGIN + Vector2i(15, 9)
+	mine.rocks.remove(spot)
+	mine.rocks.spawn(spot, "mine_iron", 1)
+	for i in 6:
+		mine.rocks.try_clear(spot, ItemDB.get_item("pickaxe"))
+	_check(mine.rocks.obstacle_at(spot) != null, "철 바위: 기본 곡괭이로는 안 깨짐")
+	for i in 6:
+		mine.rocks.try_clear(spot, pick)
+	_check(mine.rocks.obstacle_at(spot) == null and inv.count_of("iron_ore") >= 1, "철 바위: 강화 곡괭이로 철 광석")
+	# 5층에 닿으면 정류장이 열리고, 엘리베이터로 오간다
+	Events.mine_requested.emit(5)
+	_check(mine.floor_no == 5 and Mine.deepest() == 5 and Mine.elevator_stops() == [0, 5], "5층 도착 → 정류장 열림 %s" % [Mine.elevator_stops()])
+	var el5 := mine._features.filter(func(f: MineFeature) -> bool: return f.kind == MineFeature.Kind.ELEVATOR)
+	_check(el5.size() == 1 and mine._features.filter(func(f: MineFeature) -> bool: return f.kind == MineFeature.Kind.UP).size() == 1, "5층: 엘리베이터 + 올라가는 사다리")
+	(el5[0] as MineFeature)._fill_options()
+	_check((el5[0] as MineFeature).options[0] == ["입구층", "mine:0"], "5층 엘리베이터 → 입구층 버튼")
+	hud._on_dialog_chosen("mine:0")
+	_check(mine.floor_no == 0 and world.area == "mine", "엘리베이터 대화 → 입구층")
+	elevator = mine._features.filter(func(f: MineFeature) -> bool: return f.kind == MineFeature.Kind.ELEVATOR)[0]
+	elevator._fill_options()
+	_check(elevator.options[0] == ["5층", "mine:5"], "입구층 엘리베이터 → 5층 버튼")
+	# 보물 층 (10층): 상자는 처음 한 번만
+	Events.mine_requested.emit(10)
+	var chest := mine._features.filter(func(f: MineFeature) -> bool: return f.kind == MineFeature.Kind.CHEST)
+	_check(chest.size() == 1 and mine.rocks.count() >= 40 and not mine.rocks.all().any(func(o: Obstacle) -> bool: return o.def.id == "mine_stone"), "10층 보물 층: 상자 + 광석 바위 %d개" % mine.rocks.count())
+	var money := GameState.money
+	var copper := inv.count_of("copper_ore")
+	(chest[0] as MineFeature).interact(world.player)
+	_check(GameState.money == money + 800 and inv.count_of("copper_ore") == copper + 15 and GameState.unlocks.get("mine_chest:10", false), "보물 상자: 800 G + 구리 광석 15")
+	Events.mine_requested.emit(10)
+	_check(mine._features.filter(func(f: MineFeature) -> bool: return f.kind == MineFeature.Kind.CHEST).is_empty(), "다시 와도 상자는 없음")
+	# 맨 아래층(20층)은 사다리가 나오지 않는다
+	Events.mine_requested.emit(20)
+	while mine.rocks.count() > 0:
+		var o: Obstacle = mine.rocks.all()[0]
+		mine.rocks.remove(o.cell)
+		mine._on_rock_cleared(o.cell, o.def)
+	_check(mine.floor_no == 20 and not mine.has_ladder() and Mine.elevator_stops() == [0, 5, 10, 15, 20], "20층(바닥): 사다리 없음, 정류장 %s" % [Mine.elevator_stops()])
+	Events.mine_requested.emit(99)
+	_check(mine.floor_no == 20, "바닥보다 깊이는 못 감")
+	# 광산 안에서 불러오면 입구층에서 시작
+	Events.mine_requested.emit(7)
+	Events.game_loaded.emit()
+	_check(mine.floor_no == 0 and world.area == "mine", "광산 안에서 불러오면 입구층")
+	# 출구 → 입구 앞
+	world.exit_mine()
+	_check(world.area == "farm" and world.player.global_position.distance_to(world.mine_entrance.interact_point()) < 10.0 and world._daylight.color != Mine.LIGHT, "출구 → 동굴 입구 앞, 햇빛으로")
+	inv.load_data(saved_inv)
+	GameState.unlocks = saved_unlocks
+	GameState.money = saved_money
+	world.player.wake_at(saved_pos)
+	world._apply_camera_area()
+
+
 func _test_mid_processor(world: FarmWorld) -> void:
 	var grid := world.build
 	var inv := GameState.inventory

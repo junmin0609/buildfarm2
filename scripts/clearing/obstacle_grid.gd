@@ -7,6 +7,8 @@ extends Node
 ## 수치는 모두 data/obstacles.json 에 있다.
 
 signal changed
+## 도구로 다 깨서 치웠다 (광산은 이걸 보고 사다리를 낸다)
+signal cleared(cell: Vector2i, def: ObstacleDef)
 
 const TOOL_NAMES := {"hoe": "괭이", "axe": "도끼", "pickaxe": "곡괭이"}
 
@@ -106,6 +108,12 @@ func remove(cell: Vector2i) -> void:
 	changed.emit()
 
 
+## 장애물을 다 지운다 (광산이 층을 옮길 때)
+func clear() -> void:
+	for cell: Vector2i in _cells.keys():
+		remove(cell)
+
+
 # ---------- 도구로 치기
 
 ## 손에 든 아이템으로 cell 의 장애물을 친다. 장애물이 있으면 true (휘두름을 소비함).
@@ -136,7 +144,9 @@ func try_clear(cell: Vector2i, item: ItemDef) -> bool:
 	for item_id: String in drops:
 		GameState.inventory.add(item_id, drops[item_id])
 		got.append("%s +%d" % [ItemDB.get_item(item_id).name, drops[item_id]])
+	var def := ob.def
 	remove(cell)
+	cleared.emit(cell, def)
 	if not got.is_empty():
 		Events.toast.emit(" · ".join(got))
 	return true

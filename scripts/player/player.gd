@@ -169,8 +169,8 @@ func _use_selected() -> void:
 	# 다 자란 작물은 무엇을 들고 있든 수확한다
 	if _try_harvest(cell):
 		return
-	# 장애물이 있으면 개간 (도구가 맞지 않으면 안내만 하고 끝)
-	if _world().obstacles.try_clear(cell, item):
+	# 장애물이 있으면 개간 (도구가 맞지 않으면 안내만 하고 끝). 광산 바위도 같은 규칙
+	if _world().obstacles.try_clear(cell, item) or _world().mine.rocks.try_clear(cell, item):
 		return
 	if item == null:
 		return
