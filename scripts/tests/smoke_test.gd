@@ -88,7 +88,8 @@ func _ready() -> void:
 	_check(player.global_position == world.home_position, "자고 나면 집 앞에서 깨어남")
 
 	_check(WateringCan.water_left(inv, 1) == 12, "물뿌리개는 가득 찬 채로 시작 (12)")
-	for d in 3:
+	var carrot_days := ItemDB.get_item("carrot_seed").grow_days
+	for d in carrot_days:
 		# 매일 아침 집에서 깨어나므로 밭으로 다시 간다
 		player.global_position = world.cell_center(cell + Vector2i.UP)
 		player.facing = Vector2i.DOWN
@@ -96,15 +97,15 @@ func _ready() -> void:
 		player._use_selected()
 		_check(farm.get_tile(cell).watered, "%d일째 물 주기" % (d + 1))
 		GameState.sleep()
-	_check(WateringCan.water_left(inv, 1) == 9, "물 줄 때마다 1씩 줄어듦 (남은 물 %d)" % WateringCan.water_left(inv, 1))
-	_check(farm.get_tile(cell).is_mature(), "3일 물 주고 당근 다 자람")
-	_check(GameState.day == 5, "5일차 (실제 %d)" % GameState.day)
+	_check(WateringCan.water_left(inv, 1) == 12 - carrot_days, "물 줄 때마다 1씩 줄어듦 (남은 물 %d)" % WateringCan.water_left(inv, 1))
+	_check(farm.get_tile(cell).is_mature(), "%d일 물 주고 당근 다 자람" % carrot_days)
+	_check(GameState.day == 2 + carrot_days, "%d일차 (실제 %d)" % [2 + carrot_days, GameState.day])
 
 	player.global_position = world.cell_center(cell + Vector2i.UP)
 	player.facing = Vector2i.DOWN
 	GameState.select_slot(0)
 	player._use_selected()
-	_check(inv.count_of("carrot") == 1, "당근 1개 수확")
+	_check(inv.count_of("carrot") >= ItemDB.get_item("carrot_seed").yield_min and inv.count_of("carrot") <= ItemDB.get_item("carrot_seed").yield_max, "당근 %d개 수확" % inv.count_of("carrot"))
 	_check(not farm.get_tile(cell).has_crop(), "수확 후 빈 밭")
 	var carrot_q := ""
 	for st in inv.stacks():
@@ -116,8 +117,9 @@ func _ready() -> void:
 	var carrot_price := Pricing.unit_price(ItemDB.get_item("carrot"), carrot_q, Pricing.PLAZA)
 	hud._shop._sell("carrot", 1, carrot_q)
 	_check(GameState.money == money + carrot_price, "광장에서 당근 판매 +%d G (실제 %d)" % [carrot_price, GameState.money - money])
+	var potato_seed_price := ItemDB.get_item("potato_seed").buy_price
 	hud._shop._buy("potato_seed", 2)
-	_check(GameState.money == money + carrot_price - 90 and inv.count_of("potato_seed") == 2, "감자 씨앗 2개 구매 (45G × 2)")
+	_check(GameState.money == money + carrot_price - potato_seed_price * 2 and inv.count_of("potato_seed") == 2, "감자 씨앗 2개 구매 (%dG × 2)" % potato_seed_price)
 	hud._shop._buy("strawberry_seed", 99)
 	_check(inv.count_of("strawberry_seed") == 0, "돈 부족하면 못 삼")
 
@@ -126,7 +128,7 @@ func _ready() -> void:
 	player.global_position = house.interact_point()
 	_check(player._nearest_interactable() == house, "집 앞에서 잠자기 안내")
 	house.interact(player)
-	_check(GameState.day == 6, "집에서 자면 다음 날")
+	_check(GameState.day == 3 + carrot_days, "집에서 자면 다음 날")
 
 	# 상점 창 열기/닫기
 	Events.shop_requested.emit("buy")
@@ -522,20 +524,29 @@ func _test_crops_and_quality(world: FarmWorld, hud: HUD) -> void:
 	# 작물 데이터 (BUILD_FARM_PLAN §36)
 	_check(ItemDB.get_item("turnip_seed") == null and ItemDB.get_item("turnip") == null, "순무 제거됨")
 	var cs := ItemDB.get_item("carrot_seed")
-	_check(cs.grow_days == 3 and not cs.regrows() and cs.yield_max == 1 and cs.buy_price == 20 and ItemDB.get_item("carrot").sell_price == 35, "당근: 3일 · 1개 · 씨앗 20G · 35G")
 	var ps := ItemDB.get_item("potato_seed")
-	_check(ps.grow_days == 5 and not ps.regrows() and ps.yield_min == 1 and ps.yield_max == 3 and ps.buy_price == 45 and ItemDB.get_item("potato").sell_price == 30, "감자: 5일 · 1~3개 · 씨앗 45G · 30G")
 	var ss := ItemDB.get_item("strawberry_seed")
-	_check(ss.grow_days == 7 and ss.regrow_days == 3 and ss.yield_max == 3 and ss.buy_price == 120 and ItemDB.get_item("strawberry").sell_price == 45, "딸기: 7일 · 3일마다 · 1~3개 · 씨앗 120G · 45G")
+	var crop_bad := []
+	var econ_crops: Dictionary = _econ().get("crops", {})
+	for id: String in econ_crops:
+		var e: Dictionary = econ_crops[id]
+		var sd := ItemDB.get_item(id + "_seed")
+		if sd == null or [sd.buy_price, ItemDB.get_item(id).sell_price, sd.grow_days, sd.regrow_days, sd.yield_min, sd.yield_max] != [int(e.seed), int(e.sell), int(e.grow_days), int(e.regrow_days), int(e["yield"][0]), int(e["yield"][1])]:
+			crop_bad.append(id)
+	_check(econ_crops.size() == 15 and crop_bad.is_empty(), "작물 15종 = 경제 기준 v1.0 (씨앗·판매가·성장일·재수확·수확량) %s" % [crop_bad])
+	_check(not cs.regrows() and ss.regrows() and ss.regrow_days == int(econ_crops.strawberry.regrow_days), "당근은 한 번, 딸기는 다시 열림")
 
-	# 품질 가격 (§24, §36) + 판매 방식 배율
-	for row: Array in [["carrot", [35, 44, 56]], ["potato", [30, 38, 48]], ["strawberry", [45, 56, 72]]]:
-		var it := ItemDB.get_item(row[0])
+	# 품질 가격 = 기준가 × 품질 배율 (경제 기준 1.0 / 1.3 / 1.7) + 판매 방식 배율 (광장 80% · 출하함 100%, 사용자 결정)
+	var mult: Dictionary = _econ().quality.multipliers
+	_check(Quality.ids().all(func(q: String) -> bool: return is_equal_approx(Quality.multiplier(q), float(mult[q]))), "품질 배율 = 경제 기준 %s" % [mult])
+	for id: String in ["carrot", "potato", "strawberry"]:
+		var it := ItemDB.get_item(id)
+		var want := Quality.ids().map(func(q: String) -> int: return roundi(it.sell_price * float(mult[q])))
 		var prices := Quality.ids().map(func(q: String) -> int: return Pricing.quality_price(it, q))
-		_check(prices == row[1], "%s 브론즈·실버·골드 %s (실제 %s)" % [it.name, row[1], prices])
+		_check(prices == want, "%s 브론즈·실버·골드 %s (실제 %s)" % [it.name, want, prices])
 	var carrot := ItemDB.get_item("carrot")
-	_check(Pricing.unit_price(carrot, "bronze", Pricing.PLAZA) == 28 and Pricing.unit_price(carrot, "gold", Pricing.PLAZA) == 45, "광장 즉시 판매 = 품질가의 80%")
-	_check(Pricing.unit_price(carrot, "silver", Pricing.SHIPPING_BIN) == 44, "출하함 = 품질가의 100%")
+	_check(Pricing.unit_price(carrot, "bronze", Pricing.PLAZA) == roundi(Pricing.quality_price(carrot, "bronze") * 0.8) and Pricing.unit_price(carrot, "gold", Pricing.PLAZA) == roundi(Pricing.quality_price(carrot, "gold") * 0.8), "광장 즉시 판매 = 품질가의 80%")
+	_check(Pricing.unit_price(carrot, "silver", Pricing.SHIPPING_BIN) == Pricing.quality_price(carrot, "silver"), "출하함 = 품질가의 100%")
 	_check(Pricing.unit_price(ItemDB.get_item("wood"), "", Pricing.PLAZA) == 0, "판매가 없는 아이템은 0")
 
 	# 품질별 스택
@@ -579,10 +590,10 @@ func _test_crops_and_quality(world: FarmWorld, hud: HUD) -> void:
 	var got := farm.harvest(c)
 	_check(got.get("id") == "strawberry" and got.count >= 1 and got.count <= 3, "딸기 수확 %d개" % got.get("count", 0))
 	_check(farm.get_tile(c).has_crop() and farm.get_tile(c).regrowing and not farm.get_tile(c).is_mature(), "수확 뒤에도 딸기 포기가 남음")
-	for d in 3:
+	for d in ss.regrow_days:
 		farm.water(c)
 		GameState.sleep()
-	_check(farm.get_tile(c).is_mature(), "3일 뒤 다시 열림")
+	_check(farm.get_tile(c).is_mature(), "%d일 뒤 다시 열림" % ss.regrow_days)
 
 	# 가방이 가득 차면 수확 실패, 작물은 남음
 	var player := world.player
@@ -613,13 +624,14 @@ func _test_crops_and_quality(world: FarmWorld, hud: HUD) -> void:
 	farm.get_tile(c).days_grown = 1
 	farm.get_tile(c).watered = true
 	var info := farm.crop_info(c)
-	_check(info.name == "당근" and not info.mature and info.days == 1 and info.need == 3 and info.days_left == 2 and info.watered, "작물 정보: 당근 1/3일, 물 줌, 2일 남음")
+	var need := cs.grow_days
+	_check(info.name == "당근" and not info.mature and info.days == 1 and info.need == need and info.days_left == need - 1 and info.watered, "작물 정보: 당근 1/%d일, 물 줌, %d일 남음" % [need, need - 1])
 	var texts := CropInfoPopup.lines(info).map(func(l: Array) -> String: return l[0])
-	_check(texts == ["자라는 중", "1 / 3일", "오늘 물: 줬어요", "수확까지 2일"], "정보 문구 %s" % [texts])
+	_check(texts == ["자라는 중", "1 / %d일" % need, "오늘 물: 줬어요", "수확까지 %d일" % (need - 1)], "정보 문구 %s" % [texts])
 	farm.get_tile(c).watered = false
 	texts = CropInfoPopup.lines(farm.crop_info(c)).map(func(l: Array) -> String: return l[0])
 	_check(texts.has("오늘 물: 안 줬어요") and texts.has("오늘은 자라지 않아요"), "물 안 주면 '오늘은 자라지 않아요'")
-	farm.get_tile(c).days_grown = 3
+	farm.get_tile(c).days_grown = need
 	texts = CropInfoPopup.lines(farm.crop_info(c)).map(func(l: Array) -> String: return l[0])
 	_check(texts == ["수확할 수 있어요"], "다 자라면 '수확할 수 있어요'")
 	_check(farm.crop_info(c + Vector2i(40, 40)).is_empty(), "작물 없는 칸은 정보 없음")
@@ -654,7 +666,7 @@ func _test_crops_and_quality(world: FarmWorld, hud: HUD) -> void:
 	GameState.select_slot(0)
 	var carrots := inv.count_of("carrot")
 	player._use_selected()
-	_check(inv.count_of("carrot") == carrots + 1 and not farm.get_tile(c).has_crop(), "다 자란 작물은 괭이로 쳐도 수확이 먼저")
+	_check(inv.count_of("carrot") > carrots and not farm.get_tile(c).has_crop(), "다 자란 작물은 괭이로 쳐도 수확이 먼저")
 	farm.get_tile(c).watered = false
 
 	# 물뿌리개 용량 (items.json capacity)
@@ -971,7 +983,7 @@ func _test_shipping(world: FarmWorld, hud: HUD) -> void:
 	_check(bin.deposit(inv, "potato", "gold", 9) == 2 and inv.count_of("potato") == 0 and bin.count_of("potato", "gold") == 2, "가진 것보다 많이 넣으면 가진 만큼만")
 	_check(bin.deposit(inv, "hoe", "", 1) == 0 and inv.count_of("hoe") == 1, "판매가 없는 물건(도구)은 안 들어감")
 	_check(bin.withdraw(inv, "carrot", "silver", 1) == 1 and inv.count_of("carrot", "silver") == 3 and bin.count_of("carrot", "silver") == 2, "하루가 끝나기 전에는 다시 꺼낼 수 있음")
-	var expect := 2 * 44 + 2 * 48
+	var expect := 2 * Pricing.unit_price(ItemDB.get_item("carrot"), "silver", Pricing.SHIPPING_BIN) + 2 * Pricing.unit_price(ItemDB.get_item("potato"), "gold", Pricing.SHIPPING_BIN)
 	_check(bin.pending_value() == expect, "오늘 밤 받을 돈 = 품질가 100%% (%d G)" % bin.pending_value())
 	var keep := inv.to_data()
 	for i in inv.size():
@@ -991,8 +1003,9 @@ func _test_shipping(world: FarmWorld, hud: HUD) -> void:
 
 	# 광장 즉시 판매는 80%, 오늘 장부에 적힘
 	var money := GameState.money
+	var plaza_silver := Pricing.unit_price(ItemDB.get_item("carrot"), "silver", Pricing.PLAZA)
 	hud._shop._sell("carrot", 1, "silver")
-	_check(GameState.money == money + 35 and int(GameState.today_sales.get(Pricing.PLAZA, 0)) >= 35, "광장 즉시 판매는 80%% (실버 당근 35 G), 오늘 장부에 기록")
+	_check(GameState.money == money + plaza_silver and int(GameState.today_sales.get(Pricing.PLAZA, 0)) >= plaza_silver, "광장 즉시 판매는 80%% (실버 당근 %d G), 오늘 장부에 기록" % plaza_silver)
 
 	# 하루 마감: 출하함 정산 + 판매 수익 요약
 	money = GameState.money
@@ -1023,26 +1036,33 @@ func _test_fertilizer(world: FarmWorld) -> void:
 	# 데이터: 상점 무한 구매, 확률표 = 기획서 §25
 	var shop_ids := ItemDB.shop_items().map(func(it: ItemDef) -> String: return it.id)
 	_check(ids.all(func(id: String) -> bool: return ItemDB.get_item(id) != null and ItemDB.get_item(id).kind == ItemDef.Kind.FERTILIZER and ItemDB.get_item(id).buy_price > 0 and id in shop_ids), "비료 3종, 상점에서 구매 가능")
-	var plan := {"none": [80, 18, 2], "basic": [60, 35, 5], "advanced": [35, 50, 15], "premium": [15, 45, 40]}
+	var plan: Dictionary = _econ().quality.harvest_chances
 	var chances: Dictionary = DataFile.load_dict(Quality.DATA_PATH).get("harvest_chances", {})
-	var same := true
+	var same := plan.size() == 4
 	for t: String in plan:
 		var row: Dictionary = chances.get(t, {})
-		same = same and [int(row.get("bronze", -1)), int(row.get("silver", -1)), int(row.get("gold", -1))] == plan[t]
-	_check(same, "품질 확률표 = 기획서 §25 (무비료·기본·고급·최상급)")
+		for q: String in ["bronze", "silver", "gold"]:
+			same = same and int(row.get(q, -1)) == int(plan[t][q])
+	_check(same, "품질 확률표 = 경제 기준 v1.0 (무비료·기본·고급·최상급)")
 	_check(ids.map(func(id: String) -> String: return ItemDB.get_item(id).quality_table) == ["basic", "advanced", "premium"], "비료 → 확률표 연결")
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 3
 	var counts := {"bronze": 0, "silver": 0, "gold": 0}
 	for i in 4000:
 		counts[Quality.roll(rng, "premium")] += 1
-	_check(absf(counts.gold / 4000.0 - 0.40) < 0.03 and absf(counts.bronze / 4000.0 - 0.15) < 0.03, "최상급 비료 품질 분포 %s" % counts)
+	_check(absf(counts.gold / 4000.0 - plan.premium.gold / 100.0) < 0.03 and absf(counts.bronze / 4000.0 - plan.premium.bronze / 100.0) < 0.03, "최상급 비료 품질 분포 %s" % counts)
 
 	# 뿌리기 규칙: 갈아 둔 빈 밭에, 심기 전에만
 	var c := _free_clear_cell(world)
 	var basic := ItemDB.get_item("basic_fertilizer")
 	var premium := ItemDB.get_item("premium_fertilizer")
-	var carrot_seed := ItemDB.get_item("carrot_seed")
+	# 지금 계절에 밖에 심을 수 있는 씨앗 (앞 점검들이 날짜를 얼마나 넘겼는지와 상관없이)
+	var season := Calendar.season_of(GameState.day)
+	var carrot_seed: ItemDef = ItemDB.get_item("carrot_seed")
+	for it: ItemDef in ItemDB.shop_items():
+		if it.kind == ItemDef.Kind.SEED and Calendar.crop_allowed(it, season) and not it.regrows():
+			carrot_seed = it
+			break
 	_check(not farm.fertilize(c, basic), "갈지 않은 땅에는 못 뿌림")
 	farm.till(c)
 	_check(farm.fertilize(c, basic) and farm.get_tile(c).fertilizer == "basic_fertilizer", "갈아 둔 빈 밭에 비료")
@@ -1086,7 +1106,11 @@ func _test_fertilizer(world: FarmWorld) -> void:
 	_check(farm.tiles.has(c) and farm.get_tile(c).fertilizer == "" and not farm.get_tile(c).has_crop(), "한 번 거두는 작물은 수확하면 비료 효과 끝")
 
 	# 다시 열리는 작물: 포기가 살아 있는 동안 유지
-	var strawberry := ItemDB.get_item("strawberry_seed")
+	var strawberry: ItemDef = ItemDB.get_item("strawberry_seed")
+	for it: ItemDef in ItemDB.shop_items():
+		if it.kind == ItemDef.Kind.SEED and it.regrows() and Calendar.crop_allowed(it, season):
+			strawberry = it  # 지금 계절에 심을 수 있는 다시 열리는 작물
+			break
 	farm.fertilize(c, basic)
 	farm.plant(c, strawberry)
 	farm.get_tile(c).days_grown = strawberry.grow_days
@@ -1430,31 +1454,24 @@ func _test_blacksmith(world: FarmWorld, hud: HUD) -> void:
 func _test_seasonal_crops(world: FarmWorld, hud: HUD) -> void:
 	var farm := world.farm
 	var start_day := GameState.day
-	# 기획서 수치: [성장, 재수확, 수확량 최소, 최대, 씨앗가, 판매가(브론즈), 계절]
+	# 계절은 기획서 그대로 (경제 기준의 계절 변경은 다음 단계), 숫자는 경제 기준 v1.0 (작물 점검에서 확인)
 	var plan := {
-		"wheat": [4, 0, 1, 1, 25, 35, ["spring", "summer"]],
-		"tomato": [6, 3, 1, 3, 90, 38, ["summer"]],
-		"blueberry": [8, 4, 2, 4, 140, 32, ["summer"]],
-		"corn": [9, 4, 1, 2, 110, 60, ["summer", "autumn"]],
-		"watermelon": [10, 5, 1, 1, 120, 110, ["summer"]],
-		"sweet_potato": [5, 0, 1, 3, 65, 50, ["autumn"]],
-		"eggplant": [6, 3, 1, 2, 100, 60, ["autumn"]],
-		"pumpkin": [10, 0, 1, 1, 140, 300, ["autumn"]],
-		"radish": [4, 0, 1, 1, 35, 60, ["autumn"]],
+		"wheat": ["spring", "summer"], "tomato": ["summer"], "blueberry": ["summer"], "corn": ["summer", "autumn"], "watermelon": ["summer"],
+		"sweet_potato": ["autumn"], "eggplant": ["autumn"], "pumpkin": ["autumn"], "radish": ["autumn"],
 	}
 	var bad := []
 	for id: String in plan:
-		var row: Array = plan[id]
 		var sd := ItemDB.get_item(id + "_seed")
 		var crop := ItemDB.get_item(id)
-		if sd == null or crop == null or sd.grows != id or [sd.grow_days, sd.regrow_days, sd.yield_min, sd.yield_max, sd.buy_price, crop.sell_price] != row.slice(0, 6) or sd.seasons != row[6]:
+		if sd == null or crop == null or sd.grows != id or sd.seasons != plan[id] or crop.sell_price <= 0 or sd.buy_price <= 0:
 			bad.append(id)
-	_check(bad.is_empty(), "여름·가을 작물 9종 = 기획서 §36~§38 (성장·재수확·수확량·씨앗가·판매가·계절) %s" % [bad])
+	_check(bad.is_empty(), "여름·가을 작물 9종 (계절·값) %s" % [bad])
+	var mult: Dictionary = _econ().quality.multipliers
 	var q_ok := true
-	for row: Array in [["tomato", [38, 48, 61]], ["blueberry", [32, 40, 51]], ["watermelon", [110, 138, 176]], ["pumpkin", [300, 375, 480]]]:
-		var it := ItemDB.get_item(row[0])
-		q_ok = q_ok and Quality.ids().map(func(q: String) -> int: return Pricing.quality_price(it, q)) == row[1]
-	_check(q_ok, "품질 가격 = 기획서 (토마토 38/48/61, 호박 300/375/480 ...)")
+	for id: String in ["tomato", "blueberry", "watermelon", "pumpkin"]:
+		var it := ItemDB.get_item(id)
+		q_ok = q_ok and Quality.ids().map(func(q: String) -> int: return Pricing.quality_price(it, q)) == Quality.ids().map(func(q: String) -> int: return roundi(it.sell_price * float(mult[q])))
+	_check(q_ok, "품질 가격 = 기준가 × 품질 배율 (토마토·블루베리·수박·호박)")
 	_check(ItemDB.get_item("golden_pumpkin") == null and ItemDB.get_item("golden_pumpkin_seed") == null, "황금호박 같은 특수작물은 아직 없음")
 	var rows := {}
 	var art_ok := true
@@ -1497,12 +1514,13 @@ func _test_seasonal_crops(world: FarmWorld, hud: HUD) -> void:
 	_check(not farm.plant(a, ItemDB.get_item("carrot_seed")) and not farm.get_tile(a).has_crop(), "여름에는 봄 씨앗(당근)을 심을 수 없음")
 	_check(farm.plant(a, ItemDB.get_item("tomato_seed")) and farm.plant(b, ItemDB.get_item("wheat_seed")) and farm.plant(corn_c, ItemDB.get_item("corn_seed")), "여름 씨앗·밀(봄여름)·옥수수(여름가을) 심기")
 
-	# 토마토: 6일 뒤 열리고 3일마다 다시
-	farm.get_tile(a).days_grown = 6
+	# 토마토: 다 자라면 열리고, 재수확 주기마다 다시
+	var ts := ItemDB.get_item("tomato_seed")
+	farm.get_tile(a).days_grown = ts.grow_days
 	var got := farm.harvest(a)
 	_check(got.get("id") == "tomato" and got.count >= 1 and got.count <= 3 and farm.get_tile(a).regrowing, "토마토 수확 (%d개), 포기 남음" % got.get("count", 0))
-	farm.get_tile(a).days_grown = 3
-	_check(farm.get_tile(a).is_mature(), "3일 뒤 다시 열림")
+	farm.get_tile(a).days_grown = ts.regrow_days
+	_check(farm.get_tile(a).is_mature(), "%d일 뒤 다시 열림" % ts.regrow_days)
 
 	# 옥수수는 여름 → 가을 살아남고, 가을 → 겨울에 시듦. 밀은 가을에 시듦
 	farm.change_season("autumn")
@@ -1585,7 +1603,8 @@ func _test_drag_and_tooltip(hud: HUD) -> void:
 	var tip := hud._item_tip
 	var texts := tip._body.get_children().map(func(l: Label) -> String: return l.text)
 	_check(tip.visible and tip._title.text == "토마토 씨앗", "마우스를 올리면 커서 옆 툴팁")
-	var need := ["성장 6일", "다시 열림: 3일마다", "수확량 1~3개", "계절: 여름", "씨앗 가격 90 G", "토마토 기본 판매가 38 G"]
+	var tsd := ItemDB.get_item("tomato_seed")
+	var need := ["성장 %d일" % tsd.grow_days, "다시 열림: %d일마다" % tsd.regrow_days, "수확량 %d~%d개" % [tsd.yield_min, tsd.yield_max], "계절: 여름", "씨앗 가격 %d G" % tsd.buy_price, "토마토 기본 판매가 %d G" % ItemDB.get_item("tomato").sell_price]
 	_check(need.all(func(t: String) -> bool: return t in texts), "씨앗 툴팁: 성장·다시 열림·수확량·계절·씨앗 가격·판매가 %s" % [texts])
 	var can_lines := ItemTooltip.lines(ItemDB.get_item("watering_can"), "", 5).map(func(l: Array) -> String: return l[0])
 	_check("등급 1" in can_lines and "물 5 / 12" in can_lines and "대장간에서 강화할 수 있어요" in can_lines, "도구 툴팁: 등급·물·강화 가능")
@@ -1594,7 +1613,8 @@ func _test_drag_and_tooltip(hud: HUD) -> void:
 	var crop_lines := ItemTooltip.lines(ItemDB.get_item("potato"), "gold").map(func(l: Array) -> String: return l[0])
 	_check("기준가 48 G" in crop_lines and "출하함 48 G · 광장 38 G" in crop_lines, "작물 툴팁: 품질 기준가·판매 방식별 가격")
 	var fert_lines := ItemTooltip.lines(ItemDB.get_item("premium_fertilizer")).map(func(l: Array) -> String: return l[0])
-	_check("수확 품질: 브론즈 15% · 실버 45% · 골드 40%" in fert_lines, "비료 툴팁: 품질 확률")
+	var pc: Dictionary = _econ().quality.harvest_chances.premium
+	_check("수확 품질: 브론즈 %d%% · 실버 %d%% · 골드 %d%%" % [int(pc.bronze), int(pc.silver), int(pc.gold)] in fert_lines, "비료 툴팁: 품질 확률")
 	Events.item_hover_changed.emit(null)
 	_check(not tip.visible, "칸에서 벗어나면 툴팁 숨김")
 	_check(CursorTooltip.position_for(Vector2(100, 100), Vector2(200, 80), Vector2(1280, 720)) == Vector2(122, 122) 			and CursorTooltip.position_for(Vector2(1260, 700), Vector2(200, 80), Vector2(1280, 720)) == Vector2(1038, 598), "화면 밖으로 나가면 반대쪽으로 뒤집기")
@@ -1963,7 +1983,7 @@ func _test_warehouse(world: FarmWorld, hud: HUD) -> void:
 	var player := world.player
 	var def := PlaceableDB.get_def("warehouse")
 	var wh_item := ItemDB.get_item("warehouse")
-	_check(def != null and def.size == Vector2i(4, 4) and def.machine_item() == wh_item and wh_item.buy_price == 1500 and wh_item.buy_materials == {"wood": 80, "stone": 40}, "창고 정의 (4x4, 기계상점 1500 G + 나무 80 + 돌 40)")
+	_check(def != null and def.size == Vector2i(4, 4) and def.machine_item() == wh_item and wh_item.buy_price == int(_econ().machines.warehouse) and wh_item.buy_materials == {"wood": 80, "stone": 40}, "창고 정의 (4x4, 기계상점 %d G + 나무 80 + 돌 40)" % wh_item.buy_price)
 
 	# 짓기: 4x4 + 앞에 설 한 줄이 비어 있는 자리
 	var origin := Vector2i(-1, -1)
@@ -2157,7 +2177,7 @@ func _test_processor(world: FarmWorld, hud: HUD) -> void:
 	var player := world.player
 	var def := PlaceableDB.get_def("manual_processor")
 	var mp_item := ItemDB.get_item("manual_processor")
-	_check(def != null and def.size == Vector2i(2, 2) and def.machine_item() == mp_item and mp_item.buy_price == 800 and mp_item.buy_materials == {"wood": 50, "stone": 30}, "수동 가공기 정의 (2x2, 기계상점 800 G + 나무 50 + 돌 30)")
+	_check(def != null and def.size == Vector2i(2, 2) and def.machine_item() == mp_item and mp_item.buy_price == int(_econ().machines.manual_processor) and mp_item.buy_materials == {"wood": 50, "stone": 30}, "수동 가공기 정의 (2x2, 기계상점 %d G + 나무 50 + 돌 30)" % mp_item.buy_price)
 
 	# 레시피 데이터 (§73): 지금 있는 작물로 만들 수 있는 20개, 기초 6개만 처음부터 앎
 	var recipes := RecipeDB.all()
@@ -2342,8 +2362,8 @@ func _test_power_and_electric(world: FarmWorld, hud: HUD) -> void:
 	var wh_def := PlaceableDB.get_def("warehouse")
 	var gen_item := ItemDB.get_item("small_generator")
 	var ep_item := ItemDB.get_item("electric_processor")
-	_check(gen_def != null and gen_def.size == Vector2i(2, 2) and gen_def.machine_item() == gen_item and gen_item.buy_price == 1200 and gen_item.buy_materials == {"wood": 40, "stone": 60}, "소형 발전기 정의 (2x2, 기계상점 1200 G + 나무 40 + 돌 60)")
-	_check(ep_def != null and ep_def.size == Vector2i(3, 3) and ep_def.machine_item() == ep_item and ep_item.buy_price == 2500 and ep_item.buy_materials == {"wood": 60, "stone": 80}, "전기 가공기 정의 (3x3, 기계상점 2500 G + 나무 60 + 돌 80)")
+	_check(gen_def != null and gen_def.size == Vector2i(2, 2) and gen_def.machine_item() == gen_item and gen_item.buy_price == int(_econ().machines.small_generator) and gen_item.buy_materials == {"wood": 40, "stone": 60}, "소형 발전기 정의 (2x2, 기계상점 %d G + 나무 40 + 돌 60)" % gen_item.buy_price)
+	_check(ep_def != null and ep_def.size == Vector2i(3, 3) and ep_def.machine_item() == ep_item and ep_item.buy_price == int(_econ().machines.electric_processor) and ep_item.buy_materials == {"wood": 60, "stone": 80}, "전기 가공기 정의 (3x3, 기계상점 %d G + 나무 60 + 돌 80)" % ep_item.buy_price)
 	var st0 := grid.power_status()
 	_check(st0.capacity == 0.0 and st0.demand == 0 and not hud._power_label.visible, "발전기가 없으면 전기 표시 숨김")
 
@@ -2591,7 +2611,8 @@ func _test_conveyor(world: FarmWorld, hud: HUD) -> void:
 	GameState.add_money(1000)
 	var money := GameState.money
 	hud._shop._buy("conveyor", 4)
-	_check(inv.count_of("conveyor") == 4 and GameState.money == money - 60, "컨베이어 4개 구매 (15 G씩)")
+	var belt_price := ItemDB.get_item("conveyor").buy_price
+	_check(inv.count_of("conveyor") == 4 and GameState.money == money - belt_price * 4, "컨베이어 4개 구매 (%d G씩)" % belt_price)
 	bm.start_place("conveyor")
 	_check(bm.place_belts(o + Vector2i(4, 2), o + Vector2i(5, 2)) == 2 and bm.place_belts(o + Vector2i(9, 2), o + Vector2i(10, 2)) == 2 and inv.count_of("conveyor") == 0, "끌어서 2칸씩 깔기 → 칸마다 1개 사용")
 	var b1 := grid.object_at(o + Vector2i(4, 2)) as Conveyor
@@ -2936,7 +2957,8 @@ func _test_farm_machines(world: FarmWorld, hud: HUD) -> void:
 	gen.produce(120.0)
 	var before := gen.energy
 	var got := hv.advance(40.0)
-	_check(got.size() == 4 and hv.output_count() == 4 and not hv.starved and absf((before - gen.energy) - 20.0) < 0.6, "40분에 4번 거둠 (10분씩, 시간당 30 → 전기 %.1f 사용)" % (before - gen.energy))
+	var picked := hv.output_count()
+	_check(got.size() == 4 and picked >= 4 and picked <= 12 and not hv.starved and absf((before - gen.energy) - 20.0) < 0.6, "40분에 4번 거둠 (당근 %d개, 10분씩, 시간당 30 → 전기 %.1f 사용)" % [picked, before - gen.energy])
 	_check(FarmArea.cells(center, {"shape": "plus", "radius": 1}).all(func(c: Vector2i) -> bool: return not farm.get_tile(c).has_crop()), "거둔 칸은 빈 밭 (한 번 거두는 작물)")
 	var e2 := gen.energy
 	hv.advance(30.0)
@@ -2951,7 +2973,7 @@ func _test_farm_machines(world: FarmWorld, hud: HUD) -> void:
 	world.build_mode.stop()
 	var belt := grid.object_at(center + Vector2i(0, 1)) as Conveyor
 	grid.conveyors.tick(1.0)
-	_check(belt.has_item() and belt.item.id == "carrot" and hv.output_count() == 3, "거둔 당근이 출구 벨트로 나감")
+	_check(belt.has_item() and belt.item.id == "carrot" and hv.output_count() == picked - 1, "거둔 당근이 출구 벨트로 나감")
 	grid.remove(belt)
 
 	# 안이 가득 차면 거두지 않음 (작물 보존)
@@ -2971,7 +2993,8 @@ func _test_farm_machines(world: FarmWorld, hud: HUD) -> void:
 	var report := {}
 	gen.produce(60.0)
 	grid.night_production(report, 30.0)
-	_check(int(report.get("night_production", {}).get("items", {}).get("carrot", 0)) == 1 and not farm.get_tile(center + Vector2i.LEFT).has_crop(), "야간 생산 동안 거둠 → 야간 요약에 당근")
+	var night_carrots := int(report.get("night_production", {}).get("items", {}).get("carrot", 0))
+	_check(night_carrots >= 1 and night_carrots <= 3 and not farm.get_tile(center + Vector2i.LEFT).has_crop(), "야간 생산 동안 거둠 → 야간 요약에 당근 %d개" % night_carrots)
 
 	# 상급: 5x5 범위
 	grid.remove(hv)
@@ -3535,17 +3558,17 @@ func _test_furnace_tools(world: FarmWorld) -> void:
 	for i in inv.size():
 		if inv.item_at(i) and inv.item_at(i).id == "copper_ore":
 			slot = i
-	_check(f.use_held_item(inv, slot) and f.is_working() and inv.count_of("copper_ore") == 2 and inv.count_of("coal") == 2, "광석을 들고 클릭 → 굽기 시작 (광석 5 · 석탄 1 빠짐)")
+	_check(f.use_held_item(inv, slot) and f.is_working() and inv.count_of("copper_ore") == 4 and inv.count_of("coal") == 2, "광석을 들고 클릭 → 굽기 시작 (광석 3 · 석탄 1 빠짐)")
 	_check(not f.start(inv, "copper_ore").is_empty(), "굽는 중엔 더 못 넣음 (한 번에 하나)")
-	f.on_time(29.0)
-	_check(f.output == 0 and f.is_working(), "구리 주괴: 게임 시계 29분엔 아직")
+	f.on_time(59.0)
+	_check(f.output == 0 and f.is_working(), "구리 주괴: 게임 시계 59분엔 아직")
 	f.on_time(1.0)
-	_check(f.output == 1 and f.output_id == "copper_bar" and not f.is_working() and f._icon.visible and f.prompt.contains("꺼내기"), "30분 → 구리 주괴 1 (위에 아이콘)")
+	_check(f.output == 1 and f.output_id == "copper_bar" and not f.is_working() and f._icon.visible and f.prompt.contains("꺼내기"), "60분 → 구리 주괴 1 (위에 아이콘)")
 	inv.add("iron_ore", 5)
 	_check(f.start(inv, "iron_ore").contains("먼저 꺼내"), "다른 주괴가 남아 있으면 먼저 꺼내야")
 	f.interact(world.player)
 	_check(inv.count_of("copper_bar") == 1 and f.output == 0, "[E] → 구리 주괴를 가방으로")
-	_check(f.start(inv, "iron_ore") == "" and is_equal_approx(f.minutes_left, 60.0), "철 주괴는 1시간")
+	_check(f.start(inv, "iron_ore") == "" and is_equal_approx(f.minutes_left, 90.0), "철 주괴는 90분")
 	# 밤사이: 굽던 것만 마저
 	var report := {}
 	f.on_night_production(world, report, 120.0)
@@ -3562,28 +3585,28 @@ func _test_furnace_tools(world: FarmWorld) -> void:
 	_check(f2.smelting == "gold_ore" and is_equal_approx(f2.minutes_left, 120.0), "굽던 상태 저장·불러오기 (금 주괴 2시간)")
 	f2.free()
 	var refund := f.contents().map(func(st: Dictionary) -> String: return "%s %d" % [st.id, st.count])
-	_check(refund == ["gold_ore 5", "coal 1"], "철거하면 굽던 광석·석탄을 돌려받음 %s" % [refund])
+	_check(refund == ["gold_ore 3", "coal 1"], "철거하면 굽던 광석·석탄을 돌려받음 %s" % [refund])
 	# 컨베이어 (사용자 결정: 이 용광로에 입구·출구): 광석·석탄을 받아 두고 모이면 알아서 굽고, 주괴를 내보냄
 	f.take_contents()
 	_check((f.def.data.get("ports", []) as Array).size() == 2 and f.def.rotatable, "용광로: 입구·출구 하나씩, 돌릴 수 있음")
 	_check(not f.accept_item("wheat", Quality.NONE) and f.accept_item("coal", Quality.NONE), "입구: 광석·석탄만 받음")
-	for i in 4:
+	for i in 2:
 		f.accept_item("iron_ore", Quality.NONE)
-	_check(not f.is_working() and f.ore_in_total() == 4, "광석 4개로는 아직 안 구움")
+	_check(not f.is_working() and f.ore_in_total() == 2, "광석 2개로는 아직 안 구움")
 	f.accept_item("iron_ore", Quality.NONE)
-	_check(f.is_working() and f.smelting == "iron_ore" and f.ore_in_total() == 0 and f.coal_in == 0, "5개 + 석탄 → 알아서 굽기 시작")
+	_check(f.is_working() and f.smelting == "iron_ore" and f.ore_in_total() == 0 and f.coal_in == 0, "3개 + 석탄 → 알아서 굽기 시작")
 	for i in 12:
 		f.accept_item("iron_ore", Quality.NONE)
 	_check(f.ore_in_total() == f.ore_buffer(), "받아 두는 광석은 %d개까지" % f.ore_buffer())
 	f.accept_item("coal", Quality.NONE)
-	f.on_time(60.0)
-	_check(f.output == 1 and f.is_working() and f.ore_in_total() == 5, "다 구우면 받아 둔 것으로 바로 다음 굽기")
+	f.on_time(90.0)
+	_check(f.output == 1 and f.is_working() and f.ore_in_total() == 7, "다 구우면 받아 둔 것으로 바로 다음 굽기")
 	var out := f.provide_item()
 	_check(out.get("id", "") == "iron_bar" and f.output == 0, "출구: 철 주괴를 내보냄")
 	var night := {}
 	f.accept_item("coal", Quality.NONE)
 	f.on_night_production(world, night, 300.0)
-	_check(f.output == 2 and f.ore_in_total() == 0, "밤사이 받아 둔 것도 이어서 구움 (%d)" % f.output)
+	_check(f.output == 2 and f.ore_in_total() == 4 and f.coal_in == 0, "밤사이 받아 둔 것도 이어서 구움, 석탄이 떨어지면 멈춤 (%d)" % f.output)
 	var st2 := f.save_state()
 	_check(st2.has("ore_in") and st2.has("coal_in"), "받아 둔 광석·석탄도 저장")
 	grid.remove(f)
@@ -3594,15 +3617,15 @@ func _test_furnace_tools(world: FarmWorld) -> void:
 	for t: String in ["hoe", "watering_can", "axe", "pickaxe"]:
 		var t2 := ItemDB.get_item(t + "_2")
 		var t3 := ItemDB.get_item(t + "_3")
-		chain_ok = chain_ok and ToolUpgrade.next_of(t2) == t3 and ToolUpgrade.materials_of(t2).keys() == ["iron_bar"] and int(ToolUpgrade.materials_of(t2).iron_bar) == 5 				and ToolUpgrade.next_of(t3) == ItemDB.get_item(t + "_4") and ToolUpgrade.materials_of(t3).keys() == ["gold_bar"] and int(ToolUpgrade.materials_of(t3).gold_bar) == 5 				and ToolUpgrade.next_of(ItemDB.get_item(t + "_4")) == null and t3.tier == 3 and ItemDB.get_item(t + "_4").tier == 4
-	_check(chain_ok, "강화 경로: 구리 → 철(철 주괴 5) → 금(금 주괴 5), 금이 최고")
+		chain_ok = chain_ok and ToolUpgrade.next_of(t2) == t3 and ToolUpgrade.materials_of(t2).keys() == ["iron_bar"] and int(ToolUpgrade.materials_of(t2).iron_bar) == 5 and ToolUpgrade.price_of(t2) == int(_econ().tools.upgrade_price[t][1]) 				and ToolUpgrade.next_of(t3) == ItemDB.get_item(t + "_4") and ToolUpgrade.materials_of(t3).keys() == ["gold_bar"] and int(ToolUpgrade.materials_of(t3).gold_bar) == 8 and ToolUpgrade.price_of(t3) == int(_econ().tools.upgrade_price[t][2]) 				and int(ToolUpgrade.materials_of(ItemDB.get_item(t)).copper_bar) == 3 and ToolUpgrade.price_of(ItemDB.get_item(t)) == int(_econ().tools.upgrade_price[t][0]) 				and ToolUpgrade.next_of(ItemDB.get_item(t + "_4")) == null and t3.tier == 3 and ItemDB.get_item(t + "_4").tier == 4
+	_check(chain_ok, "강화 경로: 구리(구리 주괴 3) → 철(철 주괴 5) → 금(금 주괴 8), 값은 경제 기준, 금이 최고")
 	inv.load_data([])
 	inv.add("hoe_2")
 	inv.add("iron_bar", 5)
-	inv.add("gold_bar", 5)
+	inv.add("gold_bar", 8)
 	GameState.money = 100000
-	_check(ToolUpgrade.apply(inv, 0) and inv.item_at(0).id == "hoe_3" and inv.count_of("iron_bar") == 0 and GameState.money == 98000, "구리 괭이 → 철 괭이 (2,000 G + 철 주괴 5)")
-	_check(ToolUpgrade.apply(inv, 0) and inv.item_at(0).id == "hoe_4" and inv.count_of("gold_bar") == 0 and GameState.money == 92000, "철 괭이 → 금 괭이 (6,000 G + 금 주괴 5)")
+	_check(ToolUpgrade.apply(inv, 0) and inv.item_at(0).id == "hoe_3" and inv.count_of("iron_bar") == 0 and GameState.money == 98200, "구리 괭이 → 철 괭이 (1,800 G + 철 주괴 5)")
+	_check(ToolUpgrade.apply(inv, 0) and inv.item_at(0).id == "hoe_4" and inv.count_of("gold_bar") == 0 and GameState.money == 91700, "철 괭이 → 금 괭이 (6,500 G + 금 주괴 8)")
 	# 넓은 범위: 철 괭이 5칸, 금 괭이 앞쪽 3x3
 	var area_free := func(origin: Vector2i, w: int, h: int) -> bool:
 		for y in h:
@@ -3670,7 +3693,7 @@ func _test_furnace_tools(world: FarmWorld) -> void:
 			for x in range(0, 3):
 				if farm.get_tile(origin + Vector2i(x, y)).watered:
 					watered += 1
-		_check(watered == 5 and ItemDB.get_item("watering_can_4").capacity == 45 and ItemDB.get_item("watering_can_3").capacity == 30, "금 물뿌리개 용량 45 · 철 30")
+		_check(watered == 5 and ItemDB.get_item("watering_can_4").capacity == 48 and ItemDB.get_item("watering_can_3").capacity == 32, "금 물뿌리개 용량 48 · 철 32 (경제 기준)")
 		# 플레이어: 꾹 누르기 (1초마다 한 단계, 떼면 씀, 바닥에 미리보기)
 		clear_tiles.call()
 		inv.load_data([])
@@ -3721,7 +3744,7 @@ func _test_mine(world: FarmWorld, hud: Node) -> void:
 	# 입구: 북쪽 숲길 맨 위 (길 칸 앞)
 	var front := world.world_to_cell(world.mine_entrance.interact_point())
 	_check(MapLayout.char_at(front) == "p" and front.y <= 4 and front.x >= 84 and front.x <= 86, "광산 입구: 북쪽 숲길 끝 %s" % front)
-	_check(ItemDB.get_item("coal") != null and ItemDB.get_item("copper_ore") != null and ItemDB.get_item("iron_ore") != null and ItemDB.get_item("iron_ore").sell_price < 30, "광석 아이템 3종 (그대로 팔면 쌈)")
+	_check(ItemDB.get_item("coal") != null and ItemDB.get_item("copper_ore") != null and ItemDB.get_item("iron_ore") != null and ItemDB.get_item("iron_ore").sell_price == int(_econ().materials.iron_ore) and ItemDB.get_item("iron_bar").sell_price > 3 * ItemDB.get_item("iron_ore").sell_price, "광석 3종 (주괴가 광석 3개보다 비쌈)")
 	_check(not Mine.rock_weights(1).has("mine_iron") and Mine.rock_weights(12).has("mine_iron") and Mine.rock_weights(10).has("mine_iron") and Mine.bottom() == 20, "깊이별 바위: 철은 10층부터, 1단계 바닥 20층")
 	_check(not Mine.view_rect().intersects(SkyIsland.view_rect()) and not Mine.view_rect().intersects(Interior.view_rect_of("machine")) and not Mine.view_rect().intersects(Rect2(Vector2.ZERO, Vector2(MapLayout.size() * FarmWorld.TILE))), "광산 자리가 농장·하늘섬·가게와 겹치지 않음")
 	# 들어가기 → 입구층
@@ -3820,7 +3843,7 @@ func _test_mid_processor(world: FarmWorld) -> void:
 	var mid_def := PlaceableDB.get_def("mid_processor")
 	var ep_def := PlaceableDB.get_def("electric_processor")
 	var item := ItemDB.get_item("mid_processor")
-	_check(mid_def != null and mid_def.size == Vector2i(3, 3) and mid_def.machine_item() == item and item.shop == "machine" and item.buy_price == 6000, "중급 가공기 정의 (3x3, 기계상점 6000 G + 재료)")
+	_check(mid_def != null and mid_def.size == Vector2i(3, 3) and mid_def.machine_item() == item and item.shop == "machine" and item.buy_price == int(_econ().machines.mid_processor), "중급 가공기 정의 (3x3, 기계상점 %d G + 재료)" % item.buy_price)
 	# 양배추 (봄) + 2급 레시피 4개
 	var cab := ItemDB.get_item("cabbage_seed")
 	_check(cab != null and cab.grows == "cabbage" and cab.seasons == ["spring"] and Calendar.crop_allowed(cab, "spring") and not Calendar.crop_allowed(cab, "summer"), "양배추 씨앗: 봄 작물")
@@ -4322,6 +4345,16 @@ func _shore_cell() -> Vector2i:
 			if MapLayout.char_at(Vector2i(x, y)) == "." and MapLayout.char_at(Vector2i(x, y + 1)) == "~":
 				return Vector2i(x, y)
 	return Vector2i.ZERO
+
+
+## 경제 기준값 (data/balance/economy_v1.json, tools/apply_economy.py 가 게임 데이터에 써 넣은 값과 같아야 함)
+var _econ_cache := {}
+
+
+func _econ() -> Dictionary:
+	if _econ_cache.is_empty():
+		_econ_cache = DataFile.load_dict("res://data/balance/economy_v1.json")
+	return _econ_cache
 
 
 func _check(ok: bool, label: String) -> void:

@@ -9,8 +9,8 @@
 		"tier": 1,
 		"upgrade": {
 			"to": "hoe_2",
-			"price": 400,
-			"materials": {"copper_bar": 5}
+			"price": 500,
+			"materials": {"copper_bar": 3}
 		},
 		"power": 1
 	},
@@ -25,8 +25,8 @@
 		"capacity": 12,
 		"upgrade": {
 			"to": "watering_can_2",
-			"price": 400,
-			"materials": {"copper_bar": 5}
+			"price": 550,
+			"materials": {"copper_bar": 3}
 		}
 	},
 	"axe": {
@@ -39,8 +39,8 @@
 		"icon": 8,
 		"upgrade": {
 			"to": "axe_2",
-			"price": 500,
-			"materials": {"copper_bar": 5}
+			"price": 600,
+			"materials": {"copper_bar": 3}
 		},
 		"power": 1
 	},
@@ -54,8 +54,8 @@
 		"icon": 9,
 		"upgrade": {
 			"to": "pickaxe_2",
-			"price": 500,
-			"materials": {"copper_bar": 5}
+			"price": 650,
+			"materials": {"copper_bar": 3}
 		},
 		"power": 1
 	},
@@ -63,15 +63,15 @@
 		"name": "당근 씨앗",
 		"kind": "seed",
 		"grows": "carrot",
-		"grow_days": 3,
+		"grow_days": 4,
 		"regrow_days": 0,
 		"yield_min": 1,
-		"yield_max": 1,
+		"yield_max": 3,
 		"seasons": [
 			"spring"
 		],
 		"buy_price": 20,
-		"description": "3일이면 자라는 당근 씨앗이에요. 처음 키우기 좋아요.",
+		"description": "4일이면 자라요. 한 번에 1~3개를 거둬요.",
 		"icon": 2,
 		"crop_row": 0
 	},
@@ -79,15 +79,15 @@
 		"name": "감자 씨앗",
 		"kind": "seed",
 		"grows": "potato",
-		"grow_days": 5,
+		"grow_days": 4,
 		"regrow_days": 0,
 		"yield_min": 1,
 		"yield_max": 3,
 		"seasons": [
 			"spring"
 		],
-		"buy_price": 45,
-		"description": "5일이면 자라요. 한 번에 1~3개를 캘 수 있어요.",
+		"buy_price": 18,
+		"description": "4일이면 자라요. 한 번에 1~3개를 거둬요.",
 		"icon": 3,
 		"crop_row": 1
 	},
@@ -96,35 +96,35 @@
 		"kind": "seed",
 		"grows": "strawberry",
 		"grow_days": 7,
-		"regrow_days": 3,
+		"regrow_days": 5,
 		"yield_min": 1,
 		"yield_max": 3,
 		"seasons": [
 			"spring"
 		],
-		"buy_price": 120,
-		"description": "7일이면 열리고, 거둔 뒤에도 3일마다 다시 열려요.",
+		"buy_price": 42,
+		"description": "7일이면 열리고, 거둔 뒤에도 5일마다 다시 열려요. 한 번에 1~3개씩.",
 		"icon": 4,
 		"crop_row": 2
 	},
 	"carrot": {
 		"name": "당근",
 		"kind": "crop",
-		"sell_price": 35,
+		"sell_price": 32,
 		"description": "아삭하고 달콤한 당근.",
 		"icon": 5
 	},
 	"potato": {
 		"name": "감자",
 		"kind": "crop",
-		"sell_price": 30,
+		"sell_price": 28,
 		"description": "포슬포슬한 감자.",
 		"icon": 6
 	},
 	"strawberry": {
 		"name": "딸기",
 		"kind": "crop",
-		"sell_price": 45,
+		"sell_price": 58,
 		"description": "달콤한 딸기.",
 		"icon": 7
 	},
@@ -150,7 +150,7 @@
 		"name": "컨베이어",
 		"kind": "material",
 		"_comment": "§56~§59. 건설 모드에서 끌어서 깔면 칸마다 1개씩 쓰고, 철거하면 돌려받는다. 값은 임시 밸런스",
-		"buy_price": 15,
+		"buy_price": 40,
 		"shop": "machine",
 		"icon": 63,
 		"description": "땅에 깔아 물건을 옮기는 벨트 한 칸. 건설 창에서 끌어서 깔아요."
@@ -160,7 +160,7 @@
 		"kind": "machine",
 		"shop": "machine",
 		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
-		"buy_price": 300,
+		"buy_price": 750,
 		"buy_materials": {
 			"stone": 10
 		},
@@ -173,7 +173,7 @@
 		"kind": "machine",
 		"shop": "machine",
 		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
-		"buy_price": 900,
+		"buy_price": 2500,
 		"buy_materials": {
 			"stone": 20,
 			"wood": 10
@@ -187,7 +187,7 @@
 		"kind": "machine",
 		"shop": "machine",
 		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
-		"buy_price": 2200,
+		"buy_price": 7500,
 		"buy_materials": {
 			"stone": 40,
 			"wood": 20
@@ -201,7 +201,7 @@
 		"kind": "machine",
 		"shop": "machine",
 		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
-		"buy_price": 700,
+		"buy_price": 2000,
 		"buy_materials": {
 			"wood": 20,
 			"stone": 20
@@ -215,7 +215,7 @@
 		"kind": "machine",
 		"shop": "machine",
 		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
-		"buy_price": 1800,
+		"buy_price": 6500,
 		"buy_materials": {
 			"wood": 40,
 			"stone": 40
@@ -229,7 +229,7 @@
 		"kind": "machine",
 		"shop": "machine",
 		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
-		"buy_price": 4000,
+		"buy_price": 18000,
 		"buy_materials": {
 			"wood": 80,
 			"stone": 80
@@ -243,7 +243,7 @@
 		"kind": "machine",
 		"shop": "machine",
 		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
-		"buy_price": 1500,
+		"buy_price": 450,
 		"buy_materials": {
 			"stone": 30,
 			"wood": 20
@@ -257,7 +257,7 @@
 		"kind": "machine",
 		"shop": "machine",
 		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
-		"buy_price": 1200,
+		"buy_price": 600,
 		"buy_materials": {
 			"wood": 60,
 			"stone": 40
@@ -271,7 +271,7 @@
 		"kind": "machine",
 		"shop": "machine",
 		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
-		"buy_price": 1500,
+		"buy_price": 1200,
 		"buy_materials": {
 			"wood": 80,
 			"stone": 40
@@ -285,7 +285,7 @@
 		"kind": "machine",
 		"shop": "machine",
 		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
-		"buy_price": 200,
+		"buy_price": 250,
 		"buy_materials": {
 			"wood": 10,
 			"stone": 5
@@ -299,7 +299,7 @@
 		"kind": "machine",
 		"shop": "machine",
 		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
-		"buy_price": 200,
+		"buy_price": 250,
 		"buy_materials": {
 			"wood": 10,
 			"stone": 5
@@ -313,7 +313,7 @@
 		"kind": "machine",
 		"shop": "machine",
 		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
-		"buy_price": 500,
+		"buy_price": 650,
 		"buy_materials": {
 			"wood": 10,
 			"stone": 10
@@ -327,7 +327,7 @@
 		"kind": "machine",
 		"shop": "machine",
 		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
-		"buy_price": 800,
+		"buy_price": 450,
 		"buy_materials": {
 			"wood": 50,
 			"stone": 30
@@ -341,7 +341,7 @@
 		"kind": "machine",
 		"shop": "machine",
 		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
-		"buy_price": 2500,
+		"buy_price": 1800,
 		"buy_materials": {
 			"wood": 60,
 			"stone": 80
@@ -355,7 +355,7 @@
 		"kind": "machine",
 		"shop": "machine",
 		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
-		"buy_price": 1200,
+		"buy_price": 1500,
 		"buy_materials": {
 			"wood": 40,
 			"stone": 60
@@ -398,7 +398,7 @@
 		"tier": 2,
 		"max_stack": 1,
 		"icon": 16,
-		"upgrade": {"to": "hoe_3", "price": 2000, "materials": {"iron_bar": 5}},
+		"upgrade": {"to": "hoe_3", "price": 1800, "materials": {"iron_bar": 5}},
 		"max_charge": 2,
 		"power": 1,
 		"description": "그냥 누르면 1칸, 1초 꾹 누르면 바라보는 방향으로 3칸을 갈아요."
@@ -422,7 +422,7 @@
 		"tier": 2,
 		"max_stack": 1,
 		"icon": 18,
-		"upgrade": {"to": "axe_3", "price": 2000, "materials": {"iron_bar": 5}},
+		"upgrade": {"to": "axe_3", "price": 2200, "materials": {"iron_bar": 5}},
 		"power": 2,
 		"description": "돌 도끼보다 2배 빨리 베어요."
 	},
@@ -433,7 +433,7 @@
 		"tier": 2,
 		"max_stack": 1,
 		"icon": 19,
-		"upgrade": {"to": "pickaxe_3", "price": 2000, "materials": {"iron_bar": 5}},
+		"upgrade": {"to": "pickaxe_3", "price": 2500, "materials": {"iron_bar": 5}},
 		"power": 2,
 		"description": "돌 곡괭이보다 2배 빨리 깨요."
 	},
@@ -441,23 +441,23 @@
 		"name": "밀 씨앗",
 		"kind": "seed",
 		"grows": "wheat",
-		"grow_days": 4,
+		"grow_days": 3,
 		"regrow_days": 0,
 		"yield_min": 1,
-		"yield_max": 1,
+		"yield_max": 3,
 		"seasons": [
 			"spring",
 			"summer"
 		],
-		"buy_price": 25,
-		"description": "봄·여름에 4일이면 자라요. 가공 재료로 쓰여요.",
+		"buy_price": 12,
+		"description": "봄·여름에 심어요. 3일이면 자라요. 한 번에 1~3개를 거둬요.",
 		"icon": 20,
 		"crop_row": 3
 	},
 	"wheat": {
 		"name": "밀",
 		"kind": "crop",
-		"sell_price": 35,
+		"sell_price": 18,
 		"description": "고소한 밀. 나중에 가루로 만들 수 있어요.",
 		"icon": 21
 	},
@@ -466,21 +466,21 @@
 		"kind": "seed",
 		"grows": "tomato",
 		"grow_days": 6,
-		"regrow_days": 3,
+		"regrow_days": 4,
 		"yield_min": 1,
 		"yield_max": 3,
 		"seasons": [
 			"summer"
 		],
-		"buy_price": 90,
-		"description": "6일이면 열리고, 그 뒤 3일마다 다시 열려요.",
+		"buy_price": 34,
+		"description": "6일이면 열리고, 거둔 뒤에도 4일마다 다시 열려요. 한 번에 1~3개씩.",
 		"icon": 22,
 		"crop_row": 4
 	},
 	"tomato": {
 		"name": "토마토",
 		"kind": "crop",
-		"sell_price": 38,
+		"sell_price": 48,
 		"description": "새빨간 토마토.",
 		"icon": 23
 	},
@@ -488,22 +488,22 @@
 		"name": "블루베리 씨앗",
 		"kind": "seed",
 		"grows": "blueberry",
-		"grow_days": 8,
-		"regrow_days": 4,
-		"yield_min": 2,
-		"yield_max": 4,
+		"grow_days": 9,
+		"regrow_days": 5,
+		"yield_min": 1,
+		"yield_max": 3,
 		"seasons": [
 			"summer"
 		],
-		"buy_price": 140,
-		"description": "8일이면 열리고, 4일마다 2~4개씩 다시 열려요.",
+		"buy_price": 48,
+		"description": "9일이면 열리고, 거둔 뒤에도 5일마다 다시 열려요. 한 번에 1~3개씩.",
 		"icon": 24,
 		"crop_row": 5
 	},
 	"blueberry": {
 		"name": "블루베리",
 		"kind": "crop",
-		"sell_price": 32,
+		"sell_price": 65,
 		"description": "새콤달콤한 블루베리.",
 		"icon": 25
 	},
@@ -511,23 +511,23 @@
 		"name": "옥수수 씨앗",
 		"kind": "seed",
 		"grows": "corn",
-		"grow_days": 9,
-		"regrow_days": 4,
+		"grow_days": 8,
+		"regrow_days": 5,
 		"yield_min": 1,
-		"yield_max": 2,
+		"yield_max": 3,
 		"seasons": [
 			"summer",
 			"autumn"
 		],
-		"buy_price": 110,
-		"description": "여름·가을에 자라요. 9일 뒤 열리고 4일마다 다시 열려요.",
+		"buy_price": 35,
+		"description": "여름·가을에 심어요. 8일이면 열리고, 거둔 뒤에도 5일마다 다시 열려요. 한 번에 1~3개씩.",
 		"icon": 26,
 		"crop_row": 6
 	},
 	"corn": {
 		"name": "옥수수",
 		"kind": "crop",
-		"sell_price": 60,
+		"sell_price": 52,
 		"description": "알이 꽉 찬 옥수수.",
 		"icon": 27
 	},
@@ -535,22 +535,22 @@
 		"name": "수박 씨앗",
 		"kind": "seed",
 		"grows": "watermelon",
-		"grow_days": 10,
-		"regrow_days": 5,
+		"grow_days": 9,
+		"regrow_days": 0,
 		"yield_min": 1,
-		"yield_max": 1,
+		"yield_max": 3,
 		"seasons": [
 			"summer"
 		],
-		"buy_price": 120,
-		"description": "10일이면 열리고, 5일마다 다시 열려요.",
+		"buy_price": 75,
+		"description": "9일이면 자라요. 한 번에 1~3개를 거둬요.",
 		"icon": 28,
 		"crop_row": 7
 	},
 	"watermelon": {
 		"name": "수박",
 		"kind": "crop",
-		"sell_price": 110,
+		"sell_price": 95,
 		"description": "시원한 수박.",
 		"icon": 29
 	},
@@ -565,15 +565,15 @@
 		"seasons": [
 			"autumn"
 		],
-		"buy_price": 65,
-		"description": "5일이면 자라요. 한 번에 1~3개를 캘 수 있어요.",
+		"buy_price": 24,
+		"description": "5일이면 자라요. 한 번에 1~3개를 거둬요.",
 		"icon": 30,
 		"crop_row": 8
 	},
 	"sweet_potato": {
 		"name": "고구마",
 		"kind": "crop",
-		"sell_price": 50,
+		"sell_price": 36,
 		"description": "달콤한 고구마.",
 		"icon": 31
 	},
@@ -582,21 +582,21 @@
 		"kind": "seed",
 		"grows": "eggplant",
 		"grow_days": 6,
-		"regrow_days": 3,
+		"regrow_days": 0,
 		"yield_min": 1,
-		"yield_max": 2,
+		"yield_max": 3,
 		"seasons": [
 			"autumn"
 		],
-		"buy_price": 100,
-		"description": "6일이면 열리고, 3일마다 다시 열려요.",
+		"buy_price": 30,
+		"description": "6일이면 자라요. 한 번에 1~3개를 거둬요.",
 		"icon": 32,
 		"crop_row": 9
 	},
 	"eggplant": {
 		"name": "가지",
 		"kind": "crop",
-		"sell_price": 60,
+		"sell_price": 46,
 		"description": "윤기 나는 가지.",
 		"icon": 33
 	},
@@ -604,22 +604,22 @@
 		"name": "호박 씨앗",
 		"kind": "seed",
 		"grows": "pumpkin",
-		"grow_days": 10,
+		"grow_days": 9,
 		"regrow_days": 0,
 		"yield_min": 1,
-		"yield_max": 1,
+		"yield_max": 3,
 		"seasons": [
 			"autumn"
 		],
-		"buy_price": 140,
-		"description": "10일이 걸리지만 아주 비싸게 팔려요.",
+		"buy_price": 70,
+		"description": "9일이면 자라요. 한 번에 1~3개를 거둬요.",
 		"icon": 34,
 		"crop_row": 10
 	},
 	"pumpkin": {
 		"name": "호박",
 		"kind": "crop",
-		"sell_price": 300,
+		"sell_price": 90,
 		"description": "커다란 호박.",
 		"icon": 35
 	},
@@ -630,19 +630,19 @@
 		"grow_days": 4,
 		"regrow_days": 0,
 		"yield_min": 1,
-		"yield_max": 1,
+		"yield_max": 3,
 		"seasons": [
 			"autumn"
 		],
-		"buy_price": 35,
-		"description": "4일이면 자라는 가을 무예요.",
+		"buy_price": 20,
+		"description": "4일이면 자라요. 한 번에 1~3개를 거둬요.",
 		"icon": 36,
 		"crop_row": 11
 	},
 	"radish": {
 		"name": "무",
 		"kind": "crop",
-		"sell_price": 60,
+		"sell_price": 30,
 		"description": "시원한 가을 무.",
 		"icon": 37
 	},
@@ -653,19 +653,19 @@
 		"grow_days": 4,
 		"regrow_days": 0,
 		"yield_min": 1,
-		"yield_max": 1,
+		"yield_max": 3,
 		"seasons": [
 			"winter"
 		],
-		"buy_price": 30,
-		"description": "4일이면 자라는 겨울 시금치예요. 온실에서 키워요.",
+		"buy_price": 22,
+		"description": "4일이면 자라요. 한 번에 1~3개를 거둬요. 겨울 작물이라 온실에서 키워요.",
 		"icon": 38,
 		"crop_row": 12
 	},
 	"spinach": {
 		"name": "시금치",
 		"kind": "crop",
-		"sell_price": 55,
+		"sell_price": 36,
 		"description": "추위를 견딘 달큰한 시금치.",
 		"icon": 39
 	},
@@ -673,22 +673,22 @@
 		"name": "브로콜리 씨앗",
 		"kind": "seed",
 		"grows": "broccoli",
-		"grow_days": 7,
-		"regrow_days": 3,
+		"grow_days": 6,
+		"regrow_days": 0,
 		"yield_min": 1,
-		"yield_max": 1,
+		"yield_max": 3,
 		"seasons": [
 			"winter"
 		],
-		"buy_price": 80,
-		"description": "7일이면 열리고, 거둔 뒤에도 3일마다 다시 열려요. 온실에서 키워요.",
+		"buy_price": 36,
+		"description": "6일이면 자라요. 한 번에 1~3개를 거둬요. 겨울 작물이라 온실에서 키워요.",
 		"icon": 40,
 		"crop_row": 13
 	},
 	"broccoli": {
 		"name": "브로콜리",
 		"kind": "crop",
-		"sell_price": 45,
+		"sell_price": 54,
 		"description": "송이송이 단단한 브로콜리.",
 		"icon": 41
 	},
@@ -696,22 +696,22 @@
 		"name": "사탕무 씨앗",
 		"kind": "seed",
 		"grows": "sugar_beet",
-		"grow_days": 8,
+		"grow_days": 5,
 		"regrow_days": 0,
 		"yield_min": 1,
-		"yield_max": 1,
+		"yield_max": 3,
 		"seasons": [
 			"winter"
 		],
-		"buy_price": 90,
-		"description": "8일이 걸리지만 비싸게 팔려요. 온실에서 키워요.",
+		"buy_price": 24,
+		"description": "5일이면 자라요. 한 번에 1~3개를 거둬요. 겨울 작물이라 온실에서 키워요.",
 		"icon": 42,
 		"crop_row": 14
 	},
 	"sugar_beet": {
 		"name": "사탕무",
 		"kind": "crop",
-		"sell_price": 160,
+		"sell_price": 40,
 		"description": "설탕을 만들 수 있는 하얀 사탕무.",
 		"icon": 43
 	},
@@ -786,7 +786,7 @@
 		"kind": "machine",
 		"shop": "machine",
 		"_comment": "§70 중급 (사용자 결정: 기계상점에서 새 기계로). 값·재료는 임시 밸런스",
-		"buy_price": 6000,
+		"buy_price": 5500,
 		"buy_materials": {
 			"wood": 80,
 			"stone": 120
@@ -806,14 +806,14 @@
 	"copper_ore": {
 		"name": "구리 광석",
 		"kind": "material",
-		"sell_price": 10,
+		"sell_price": 45,
 		"icon": 86,
 		"description": "광산 1층부터 나와요. 용광로에서 구리 주괴로 구워요."
 	},
 	"iron_ore": {
 		"name": "철 광석",
 		"kind": "material",
-		"sell_price": 18,
+		"sell_price": 85,
 		"icon": 87,
 		"description": "광산 10층부터 나와요. 용광로에서 철 주괴로 구워요."
 	},
@@ -829,8 +829,8 @@
 		"_comment": "도구 3·4단계 (사용자 결정: 돌→구리→철→금, 강화 재료는 용광로에서 구운 주괴, 수치는 임시)",
 		"upgrade": {
 			"to": "hoe_4",
-			"price": 6000,
-			"materials": {"gold_bar": 5}
+			"price": 6500,
+			"materials": {"gold_bar": 8}
 		},
 		"description": "그냥 1칸, 1초 꾹 누르면 앞으로 3칸, 2초 누르면 앞쪽 3x3을 갈아요."
 	},
@@ -842,13 +842,13 @@
 		"max_stack": 1,
 		"icon": 89,
 		"max_charge": 3,
-		"capacity": 30,
+		"capacity": 32,
 		"upgrade": {
 			"to": "watering_can_4",
-			"price": 6000,
-			"materials": {"gold_bar": 5}
+			"price": 7000,
+			"materials": {"gold_bar": 8}
 		},
-		"description": "물이 30번 들어가요. 1초 꾹 누르면 앞으로 3칸, 2초 누르면 앞쪽 3x3에 물을 줘요."
+		"description": "물이 32번 들어가요. 1초 꾹 누르면 앞으로 3칸, 2초 누르면 앞쪽 3x3에 물을 줘요."
 	},
 	"axe_3": {
 		"name": "철 도끼",
@@ -860,8 +860,8 @@
 		"power": 3,
 		"upgrade": {
 			"to": "axe_4",
-			"price": 6000,
-			"materials": {"gold_bar": 5}
+			"price": 8000,
+			"materials": {"gold_bar": 8}
 		},
 		"description": "돌 도끼보다 3배 빨리 베어요."
 	},
@@ -875,8 +875,8 @@
 		"power": 3,
 		"upgrade": {
 			"to": "pickaxe_4",
-			"price": 6000,
-			"materials": {"gold_bar": 5}
+			"price": 9000,
+			"materials": {"gold_bar": 8}
 		},
 		"description": "돌 곡괭이보다 3배 빨리 깨요."
 	},
@@ -899,8 +899,8 @@
 		"max_stack": 1,
 		"icon": 93,
 		"max_charge": 4,
-		"capacity": 45,
-		"description": "물이 45번 들어가요. 꾹 누르는 시간에 따라 3칸 · 3x3 · 5x5에 물을 줘요."
+		"capacity": 48,
+		"description": "물이 48번 들어가요. 꾹 누르는 시간에 따라 3칸 · 3x3 · 5x5에 물을 줘요."
 	},
 	"axe_4": {
 		"name": "금 도끼",
@@ -925,7 +925,7 @@
 	"gold_ore": {
 		"name": "금 광석",
 		"kind": "material",
-		"sell_price": 30,
+		"sell_price": 150,
 		"icon": 96,
 		"description": "광산 15층부터 나와요. 용광로에서 금 주괴로 구워요."
 	},
@@ -938,27 +938,27 @@
 		"buy_materials": {"stone": 30},
 		"max_stack": 20,
 		"icon": 97,
-		"description": "광석 5개 + 석탄 1개를 넣으면 주괴 1개를 구워요. 광석을 들고 클릭해서 넣어요."
+		"description": "광석 3개 + 석탄 1개를 넣으면 주괴 1개를 구워요. 광석을 들고 클릭해서 넣어요."
 	},
 	"copper_bar": {
 		"name": "구리 주괴",
 		"kind": "material",
-		"sell_price": 70,
+		"sell_price": 165,
 		"icon": 98,
-		"description": "용광로에서 구리 광석 5개를 구운 것. 구리 도구로 강화하는 데 써요."
+		"description": "용광로에서 구리 광석 3개를 구운 것. 구리 도구로 강화하는 데 써요."
 	},
 	"iron_bar": {
 		"name": "철 주괴",
 		"kind": "material",
-		"sell_price": 130,
+		"sell_price": 315,
 		"icon": 99,
-		"description": "용광로에서 철 광석 5개를 구운 것. 철 도구로 강화하는 데 써요."
+		"description": "용광로에서 철 광석 3개를 구운 것. 철 도구로 강화하는 데 써요."
 	},
 	"gold_bar": {
 		"name": "금 주괴",
 		"kind": "material",
-		"sell_price": 220,
+		"sell_price": 570,
 		"icon": 100,
-		"description": "용광로에서 금 광석 5개를 구운 것. 금 도구로 강화하는 데 써요."
+		"description": "용광로에서 금 광석 3개를 구운 것. 금 도구로 강화하는 데 써요."
 	}
 }
