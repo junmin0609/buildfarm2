@@ -9,6 +9,8 @@ extends RefCounted
 ##      넘기지 못하면 끝에서 기다린다 → 뒤 벨트도 차례로 막힌다 (§61). 아이템은 사라지지 않는다.
 ##   2. 시설 출구 앞 벨트가 비어 있으면 시설에서 1개를 꺼내 올린다 (provide_item)
 ## 앞 벨트부터 처리해서, 줄지어 선 물건들이 같은 순간에 함께 움직인다.
+## 칸마다 받는 방향·내보낼 방향은 Conveyor 의 훅(accepts_dir / can_take / exit_dirs / all_exit_dirs / on_sent)이 정한다.
+## 벨트는 앞으로 하나, 분배기·합류기·필터 분배기(Router, §62)는 이 훅을 덮어써서 갈래를 나누거나 합친다.
 ## 한 번에 반 칸 넘게 움직이지 않도록 잘게 나눈다 (야간 생산은 10분씩 들어온다).
 
 ## 벨트 무늬 한 바퀴(4장)가 도는 데 걸리는 이동 칸 수 (무늬 간격 8px = 반 칸)
@@ -52,24 +54,38 @@ func tiles_per_hour() -> float:
 
 # ---------- 연결 판정
 
-## 벨트 b 가 물건을 넘길 다음 벨트 (없으면 null). 마주 보는 벨트에는 넘기지 않는다
+## 벨트 b 가 앞으로 물건을 넘길 다음 칸(벨트·분배기·합류기). 받지 않는 모양이면 null (마주 보는 벨트 등)
 func next_belt(b: Conveyor) -> Conveyor:
 	var n := grid.object_at(b.cell + b.facing()) as Conveyor
-	if n == null or n.facing() == -b.facing():
+	if n == null or not n.accepts_dir(b.facing()):
 		return null
 	return n
 
 
-## 벨트 b 가 가리키는 칸이 어떤 시설의 입구면 그 시설 (아니면 null)
-func target_facility(b: Conveyor) -> Placeable:
-	var at := b.cell + b.facing()
+## b 가 물건을 넘길 수 있는 모든 다음 칸 (분배기는 여러 개). 순서 계산용
+func downstream(b: Conveyor) -> Array[Conveyor]:
+	var out: Array[Conveyor] = []
+	for d in b.all_exit_dirs():
+		var n := grid.object_at(b.cell + d) as Conveyor
+		if n != null and n.accepts_dir(d) and n not in out:
+			out.append(n)
+	return out
+
+
+## 칸 at 이 d 방향으로 들어오는 물건을 받는 시설 입구면 그 시설 (아니면 null)
+func _input_facility(at: Vector2i, d: Vector2i) -> Placeable:
 	var obj := grid.object_at(at)
 	if obj == null or obj is Conveyor:
 		return null
 	for p in obj.ports():
-		if p.type == "in" and p.cell == at and p.dir == -b.facing():
+		if p.type == "in" and p.cell == at and p.dir == -d:
 			return obj
 	return null
+
+
+## 벨트 b 가 가리키는 칸이 어떤 시설의 입구면 그 시설 (아니면 null)
+func target_facility(b: Conveyor) -> Placeable:
+	return _input_facility(b.cell + b.facing(), b.facing())
 
 
 ## 이 칸으로 물건을 넣어 주는 쪽이 side(이 칸에서 본 방향)에 있는가: 이 칸을 가리키는 벨트, 또는 이 칸이 바깥인 시설 출구
@@ -78,7 +94,7 @@ func _fed_from(b: Conveyor, side: Vector2i) -> bool:
 	if obj == null:
 		return false
 	if obj is Conveyor:
-		return obj.facing() == -side
+		return -side in obj.all_exit_dirs()
 	for p in obj.ports():
 		if p.type == "out" and p.outside == b.cell and p.dir == -side:
 			return true
@@ -105,10 +121,10 @@ func _rebuild() -> void:
 	var feeders := {}   # Conveyor -> [그 벨트로 넘기는 벨트들]
 	var heads: Array[Conveyor] = []
 	for b in all:
-		var n := next_belt(b)
-		if n == null:
+		var next := downstream(b)
+		if next.is_empty():
 			heads.append(b)
-		else:
+		for n in next:
 			if not feeders.has(n):
 				feeders[n] = []
 			feeders[n].append(b)
@@ -135,7 +151,8 @@ func _rebuild() -> void:
 			if p.type == "out":
 				_outputs.append({"obj": obj, "port": p})
 	for b in all:
-		b.set_shape(shape_of(b))
+		if not b is Router:
+			b.set_shape(shape_of(b))
 
 
 # ---------- 움직이기
@@ -169,27 +186,34 @@ func _step(dist: float) -> void:
 		if b.progress < 1.0:
 			b.queue_redraw()
 			continue
-		var leftover := b.progress - 1.0
-		var n := next_belt(b)
-		if n != null:
-			if not n.has_item():
-				n.put(b.item.id, b.item.quality, minf(leftover, 0.99))
+		var leftover := minf(b.progress - 1.0, 0.99)
+		var sent := false
+		for d in b.exit_dirs():
+			if _send(b, d, leftover):
+				b.on_sent(d)
 				b.clear_item()
-				continue
-		else:
-			var obj := target_facility(b)
-			if obj != null and obj.accept_item(str(b.item.id), str(b.item.quality)):
-				b.clear_item()
-				continue
-		b.progress = 1.0  # 넘기지 못해 끝에서 기다린다
-		b.queue_redraw()
+				sent = true
+				break
+		if not sent:
+			b.progress = 1.0  # 넘기지 못해 끝에서 기다린다
+			b.queue_redraw()
 	for o in _outputs:
 		var obj: Placeable = o.obj
 		if not is_instance_valid(obj):
 			continue
 		var belt := grid.object_at(o.port.outside) as Conveyor
-		if belt == null or belt.has_item() or belt.facing() == -o.port.dir:
+		if belt == null or not belt.can_take(o.port.dir, grid):
 			continue
 		var it := obj.provide_item()
 		if not it.is_empty():
-			belt.put(str(it.id), str(it.get("quality", Quality.NONE)), 0.0)
+			belt.put(str(it.id), str(it.get("quality", Quality.NONE)), 0.0, o.port.dir)
+
+
+## b 의 물건을 d 방향 칸(벨트·분배기·합류기 또는 시설 입구)으로 넘긴다. 넘겼으면 true
+func _send(b: Conveyor, d: Vector2i, leftover: float) -> bool:
+	var at := b.cell + d
+	var obj := grid.object_at(at)
+	if obj is Conveyor:
+		return obj.can_take(d, grid) and obj.put(str(b.item.id), str(b.item.quality), leftover, d)
+	var fac := _input_facility(at, d)
+	return fac != null and fac.accept_item(str(b.item.id), str(b.item.quality))

@@ -41,6 +41,9 @@ signal processor_requested(processor: Node)
 signal processor_changed
 ## 발전기 창 열기 요청 (generator: Generator) / 발전기 상태가 바뀜
 signal generator_requested(generator: Node)
+## 필터 분배기 [E] (§62) / 필터가 바뀜
+signal router_requested(router: Node)
+signal router_changed
 signal generator_changed
 ## 지역 전기가 바뀌었을 수 있음 (시설 설치·철거·켜고 끄기). HUD 전력 표시가 다시 계산한다
 signal power_changed

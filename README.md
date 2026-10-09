@@ -123,6 +123,16 @@ Godot 4.7로 만든 2D 픽셀 농장 게임의 기본 버전입니다. 16px 도�
 - 코드: `scripts/factory/conveyor.gd`(`Conveyor`, 칸 하나), `scripts/factory/conveyor_net.gd`(`ConveyorNet`, 지역 전체를 앞 벨트부터 한꺼번에 움직임, `BuildGrid.conveyors`), 끌어서 깔기는 `BuildMode.belt_path / place_belts`
 - 그림: `assets/art/conveyor.png` (줄: 직선/왼쪽 꺾임/오른쪽 꺾임, 칸: 무늬 4장, 회전 0 = 아래로 흐름)
 
+## 분배기 · 합류기 · 필터 분배기 (BUILD_FARM_PLAN §62)
+- 셋 다 **1칸**, 컨베이어처럼 물건 1개를 잠깐 들고 있다가 넘김. 전기 없음. R 로 방향. 건설 창 "물류"
+- 왼쪽·오른쪽은 **물건이 흐르는 방향 기준** (앞을 보고 선 사람의 왼손·오른손)
+- **분배기** (사용자 결정: 3갈래): 뒤에서만 받아 왼쪽 → 앞 → 오른쪽 차례로. 벨트가 없거나 막힌 쪽은 건너뜀 (두 곳만 이어지면 반반)
+- **합류기**: 뒤·왼쪽·오른쪽에서 받아 앞으로. 여러 쪽에서 기다리면 뒤 → 왼쪽 → 오른쪽 차례로 돌아가며 받음 (한쪽이 굶지 않음)
+- **필터 분배기** (사용자 결정): [E] → 왼쪽(하늘색)·오른쪽(분홍) 출구마다 보낼 물건 (작물만/씨앗만/재료만/가공품만/지정 아이템). 맞는 쪽으로(둘 다 맞으면 번갈아), 안 맞으면 앞으로. 정한 쪽이 막히면 섞이지 않게 기다림
+- 건설 모드에서 들어오는 쪽(초록)·나가는 쪽(주황) 화살표가 보임
+- 값 (임시): 분배기·합류기 200 G + 나무 10 + 돌 5, 필터 분배기 500 G + 나무 10 + 돌 10
+- 구조: `Router`(`scripts/factory/router.gd`)가 `Conveyor`를 상속. 연결 규칙 훅 `accepts_dir / can_take / exit_dirs / all_exit_dirs / on_sent`를 `ConveyorNet`이 씀 (벨트도 같은 훅). 창은 `scripts/ui/router_panel.gd`(`RouterPanel`). 그림 `make_routers` → `splitter_0~3.png` 등 (네 방향)
+
 ## 스프링클러 + 자동 수확기 (BUILD_FARM_PLAN §14, §66)
 - 둘 다 **1칸** 기계를 밭 사이에 놓음 (지나다닐 수 있음, 놓은 칸의 밭은 보통 땅이 됨). 건설 창 "농업"
 - **하급 · 중급 · 상급** 3단계, 범위 = **+ 모양 4칸 / 3x3 8칸 / 5x5 24칸** (사용자 결정, 둘이 같은 규칙). `placeables.json`의 `"area": {"shape": "plus"/"square", "radius"}` → `FarmArea.cells`

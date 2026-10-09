@@ -219,6 +219,9 @@ func _ready() -> void:
 	# ---------- 스프링클러 + 자동 수확기 (§14, §66)
 	await _test_farm_machines(world, hud)
 
+	# ---------- 분배기 · 합류기 · 필터 분배기 (§62)
+	await _test_routers(world, hud)
+
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
 
@@ -2962,6 +2965,170 @@ func _test_farm_machines(world: FarmWorld, hud: HUD) -> void:
 	GameState.day = saved_day
 	hud._close_panels()
 	await get_tree().process_frame
+
+
+func _test_routers(world: FarmWorld, hud: HUD) -> void:
+	var grid := world.build
+	var net := grid.conveyors
+	var belt := PlaceableDB.get_def("conveyor")
+	var R := 3  # 오른쪽을 보는 turns
+	var UP := 2
+	var DOWN := 0
+
+	# 자리: 10x13 빈 땅 (분배기 줄 y=2, 합류기 줄 y=6, 필터 분배기 줄 y=10)
+	var o := Vector2i(-1, -1)
+	var cells: Array = world.farm.farmable_cells.keys()
+	cells.sort()
+	for c: Vector2i in cells:
+		var ok := true
+		for y in 13:
+			for x in 10:
+				var fc := c + Vector2i(x, y)
+				if not grid.is_buildable_ground(fc) or grid.is_occupied(fc) or world.farm.tiles.has(fc):
+					ok = false
+		if ok:
+			o = c
+			break
+	_check(o.x >= 0, "분배기 점검 자리 %s" % o)
+	if o.x < 0:
+		return
+	for y in 13:
+		for x in 10:
+			world.obstacles.remove(o + Vector2i(x, y))
+	await get_tree().process_frame
+	world.player.global_position = world.cell_center(_find_char("s"))
+
+	# 분배기 (사용자 결정: 3갈래, 이어진 쪽으로 돌아가며)
+	var src := grid.place(belt, o + Vector2i(1, 2), R) as Conveyor
+	var sp := grid.place(PlaceableDB.get_def("splitter"), o + Vector2i(2, 2), R) as Router
+	var out_l := grid.place(belt, o + Vector2i(2, 1), UP) as Conveyor
+	var out_f := grid.place(belt, o + Vector2i(3, 2), R) as Conveyor
+	var out_r := grid.place(belt, o + Vector2i(2, 3), DOWN) as Conveyor
+	_check(sp != null and sp.kind() == "split" and sp.left_dir() == Vector2i.UP and sp.right_dir() == Vector2i.DOWN, "분배기: 오른쪽을 보면 흐름 기준 왼쪽 = 위, 오른쪽 = 아래")
+	_check(net.next_belt(src) == sp and not sp.accepts_dir(Vector2i.DOWN), "뒤에서만 받음 (옆에서는 안 받음)")
+	var outs := {out_l: "L", out_f: "F", out_r: "R"}
+	var route := func(n: int) -> String:
+		var seq := ""
+		for i in n:
+			src.put("wheat", "bronze", 0.9)
+			for k in 8:
+				net.tick(0.5)
+				var landed := ""
+				for b: Conveyor in outs:
+					if is_instance_valid(b) and b.has_item():
+						landed = outs[b]
+						b.clear_item()
+				if landed != "":
+					seq += landed
+					break
+		return seq
+	var seq: String = route.call(6)
+	_check(seq == "LFRLFR", "왼쪽 → 앞 → 오른쪽 돌아가며 (%s)" % seq)
+	out_l.put("stone", Quality.NONE, 1.0)  # 왼쪽이 막힘 (물건이 끝에서 기다림)
+	outs.erase(out_l)
+	var seq2: String = route.call(4)
+	_check(seq2 == "FRFR" and out_l.item.id == "stone", "막힌 쪽은 건너뜀 (%s)" % seq2)
+	out_l.clear_item()
+	outs[out_l] = "L"
+	grid.remove(out_f)
+	outs.erase(out_f)
+	await get_tree().process_frame
+	var seq3: String = route.call(4)
+	_check(seq3 == "LRLR" or seq3 == "RLRL", "이어진 쪽이 둘이면 반반 (%s)" % seq3)
+
+	# 합류기: 뒤·왼쪽·오른쪽 → 앞, 번갈아 받음
+	var mg := grid.place(PlaceableDB.get_def("merger"), o + Vector2i(5, 6), R) as Router
+	var in_b := grid.place(belt, o + Vector2i(4, 6), R) as Conveyor
+	var in_l := grid.place(belt, o + Vector2i(5, 5), DOWN) as Conveyor
+	var in_r := grid.place(belt, o + Vector2i(5, 7), UP) as Conveyor
+	var m_out := grid.place(belt, o + Vector2i(6, 6), R) as Conveyor
+	_check(mg.accepts_dir(Vector2i.RIGHT) and mg.accepts_dir(Vector2i.DOWN) and mg.accepts_dir(Vector2i.UP) and not mg.accepts_dir(Vector2i.LEFT), "합류기: 뒤·양옆에서 받고 앞에서는 안 받음")
+	var names := {in_b: "B", in_l: "L", in_r: "R"}
+	var arrivals := ""
+	for i in 9:
+		for b: Conveyor in names:
+			if not b.has_item():
+				b.put("carrot", "bronze", 1.0)  # 세 쪽 모두 늘 기다리는 물건이 있음
+		for k in 8:
+			net.tick(0.5)
+			if m_out.has_item():
+				break
+		m_out.clear_item()
+		arrivals += names[_last_into(mg, names)] if mg.last_in != Vector2i.ZERO else "?"
+	var fair := arrivals.count("B") >= 2 and arrivals.count("L") >= 2 and arrivals.count("R") >= 2
+	_check(fair and not ("BB" in arrivals or "LL" in arrivals or "RR" in arrivals), "세 쪽이 기다리면 번갈아 받음 (%s)" % arrivals)
+
+	# 필터 분배기 (사용자 결정): 정한 물건은 왼쪽·오른쪽, 나머지는 앞
+	var fsrc := grid.place(belt, o + Vector2i(1, 10), R) as Conveyor
+	var fs := grid.place(PlaceableDB.get_def("filter_splitter"), o + Vector2i(2, 10), R) as Router
+	var f_l := grid.place(belt, o + Vector2i(2, 9), UP) as Conveyor
+	var f_f := grid.place(belt, o + Vector2i(3, 10), R) as Conveyor
+	var f_r := grid.place(belt, o + Vector2i(2, 11), DOWN) as Conveyor
+	_check(fs.kind() == "filter" and fs.set_filter_mode("left", "items") and fs.add_filter_item("left", "tomato") and fs.set_filter_mode("right", "processed"), "필터: 왼쪽 = 토마토, 오른쪽 = 가공품")
+	var sort := func(id: String) -> String:
+		fsrc.put(id, Quality.NONE if not ItemDB.get_item(id).has_quality else "bronze", 0.9)
+		for k in 8:
+			net.tick(0.5)
+			for pair: Array in [[f_l, "L"], [f_f, "F"], [f_r, "R"]]:
+				var b: Conveyor = pair[0]
+				if b.has_item():
+					b.clear_item()
+					return pair[1]
+		return "-"
+	var sorted := [sort.call("tomato"), sort.call("flour"), sort.call("carrot"), sort.call("tomato")]
+	_check(sorted == ["L", "R", "F", "L"], "토마토 → 왼쪽, 밀가루 → 오른쪽, 당근 → 앞 %s" % [sorted])
+	f_l.put("stone", Quality.NONE, 1.0)
+	fsrc.put("tomato", "bronze", 0.9)
+	for k in 8:
+		net.tick(0.5)
+	_check(fs.has_item() and fs.item.id == "tomato" and not f_f.has_item(), "정한 쪽이 막히면 앞으로 새지 않고 기다림")
+	f_l.clear_item()
+	fs.clear_item()
+
+	# 창: [E] 로 필터 고르기
+	var inv := GameState.inventory
+	var saved_inv := inv.to_data()
+	inv.add("eggplant", 1)
+	hud.open_router(fs)
+	var panel := hud._router
+	_check(panel.visible and get_tree().paused and GameState.is_time_paused(), "필터 분배기 창 (게임·시간 멈춤)")
+	(panel._options["right"] as OptionButton).select(5)
+	(panel._options["right"] as OptionButton).item_selected.emit(5)
+	(panel._picks["right"] as Button).button_pressed = true
+	panel._on_bag_clicked(_slot_index(inv, "eggplant", ""))
+	_check(fs.filters.right.mode == "items" and fs.filters.right.items == ["eggplant"] and (panel._chips["right"] as HBoxContainer).get_child_count() == 1, "창에서 오른쪽 = 지정 아이템 가지")
+	hud._close_panels()
+	inv.load_data(saved_inv)
+
+	# 건설 모드 화살표: 들어오는 쪽·나가는 쪽
+	var sp_ports := BuildMode.router_ports(sp)
+	_check(sp_ports.filter(func(p: Dictionary) -> bool: return p.type == "in").size() == 1 and sp_ports.filter(func(p: Dictionary) -> bool: return p.type == "out").size() == 3, "분배기 화살표: 들어옴 1 · 나감 3")
+
+	# 저장 / 불러오기: 필터·차례·들고 있는 물건
+	fs.put("tomato", "silver", 0.5, Vector2i.RIGHT)
+	var fs_state := fs.save_state()
+	var sp_state := sp.save_state()
+	world.save_manager.save_game("manual")
+	fs.set_filter_mode("left", "none")
+	world.save_manager.load_game()
+	fs = grid.object_at(o + Vector2i(2, 10)) as Router
+	sp = grid.object_at(o + Vector2i(2, 2)) as Router
+	_check(fs != null and fs.save_state() == fs_state and fs.matches("left", ItemDB.get_item("tomato")) and sp.save_state() == sp_state, "저장·불러오기 (필터·차례·물건)")
+
+	# 정리
+	for obj in grid.objects().duplicate():
+		if Rect2i(o, Vector2i(10, 13)).has_point(obj.cell):
+			obj.take_contents()
+			grid.remove(obj)
+	await get_tree().process_frame
+
+
+## 합류기가 마지막으로 받은 쪽의 벨트 (names 의 키 중)
+func _last_into(m: Router, names: Dictionary) -> Conveyor:
+	for b: Conveyor in names:
+		if b.cell + m.last_in == m.cell:
+			return b
+	return names.keys()[0]
 
 
 ## 칸 형식 보관함에서 (id, quality) 가 든 첫 칸 번호 (없으면 -1). quality "" 면 품질은 보지 않는다

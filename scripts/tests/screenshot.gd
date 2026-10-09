@@ -442,6 +442,50 @@ func _ready() -> void:
 		await get_tree().create_timer(0.4).timeout
 		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_sprinkler_preview.png"))
 		world.build_mode.stop()
+	# 분배기·합류기·필터 분배기 (§62): 한 줄을 세 갈래로 나눴다가 다시 합침 / 건설 모드 화살표
+	for obj in world.build.objects().duplicate():
+		obj.take_contents()
+		world.build.remove(obj)
+	await get_tree().process_frame
+	if fspot.x >= 0:
+		for y in 7:
+			for x in 11:
+				world.farm.remove_crop(fspot + Vector2i(x, y))
+				world.farm.untill(fspot + Vector2i(x, y))
+		var bdef := PlaceableDB.get_def("conveyor")
+		var place_path := func(a: Vector2i, b: Vector2i) -> void:
+			for p in BuildMode.belt_path(fspot + a, fspot + b):
+				world.build.place(bdef, p.cell, int(p.turns))
+		place_path.call(Vector2i(0, 3), Vector2i(1, 3))
+		world.build.place(PlaceableDB.get_def("splitter"), fspot + Vector2i(2, 3), 3)
+		world.build.place(bdef, fspot + Vector2i(2, 2), 2)
+		world.build.place(bdef, fspot + Vector2i(2, 1), 3)
+		place_path.call(Vector2i(3, 1), Vector2i(6, 1))
+		place_path.call(Vector2i(7, 1), Vector2i(7, 2))
+		place_path.call(Vector2i(3, 3), Vector2i(6, 3))
+		world.build.place(bdef, fspot + Vector2i(2, 4), 0)
+		world.build.place(bdef, fspot + Vector2i(2, 5), 3)
+		place_path.call(Vector2i(3, 5), Vector2i(6, 5))
+		place_path.call(Vector2i(7, 5), Vector2i(7, 4))
+		world.build.place(PlaceableDB.get_def("merger"), fspot + Vector2i(7, 3), 3)
+		place_path.call(Vector2i(8, 3), Vector2i(10, 3))
+		var items := ["carrot", "potato", "strawberry", "wheat", "tomato", "flour"]
+		var k := 0
+		for obj in world.build.objects():
+			if obj is Conveyor and not obj is Router and k < 40:
+				if k % 3 == 0:
+					(obj as Conveyor).put(items[(k / 3) % items.size()], "silver", 0.5)
+				k += 1
+		world.player.global_position = world.cell_center(fspot + Vector2i(5, 6))
+		world.player.facing = Vector2i.UP
+		world.player.camera.reset_smoothing()
+		await get_tree().create_timer(0.6).timeout
+		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_routers.png"))
+		world.build_mode.start(BuildMode.Mode.MOVE)
+		await get_tree().create_timer(0.4).timeout
+		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_routers_build.png"))
+		world.build_mode.stop()
+
 	hud.open_build_panel()
 	await get_tree().create_timer(0.4).timeout
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_build_menu.png"))

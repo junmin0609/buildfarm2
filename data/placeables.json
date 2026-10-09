@@ -205,6 +205,51 @@
 			"tiles_per_hour": 60
 		}
 	},
+	"splitter": {
+		"name": "분배기",
+		"category": "물류",
+		"description": "뒤에서 받은 물건을 왼쪽·앞·오른쪽 중 이어진 쪽으로 번갈아 보내요.",
+		"_comment": "§62. 사용자 결정: 분배기 3갈래(왼쪽·앞·오른쪽 돌아가며), 필터 분배기 따로. 컨베이어처럼 전기를 쓰지 않음. 값·재료는 임시 밸런스",
+		"size": [1, 1],
+		"texture": "res://assets/art/splitter_0.png",
+		"rotated_textures": ["res://assets/art/splitter_0.png", "res://assets/art/splitter_1.png", "res://assets/art/splitter_2.png", "res://assets/art/splitter_3.png"],
+		"price": 200,
+		"materials": {"wood": 10, "stone": 5},
+		"solid": false,
+		"directional": true,
+		"script": "res://scripts/factory/router.gd",
+		"router": {"kind": "split"}
+	},
+	"merger": {
+		"name": "합류기",
+		"category": "물류",
+		"description": "뒤·왼쪽·오른쪽에서 들어온 물건을 번갈아 받아 앞으로 보내요.",
+		"_comment": "§62. 사용자 결정: 분배기 3갈래(왼쪽·앞·오른쪽 돌아가며), 필터 분배기 따로. 컨베이어처럼 전기를 쓰지 않음. 값·재료는 임시 밸런스",
+		"size": [1, 1],
+		"texture": "res://assets/art/merger_0.png",
+		"rotated_textures": ["res://assets/art/merger_0.png", "res://assets/art/merger_1.png", "res://assets/art/merger_2.png", "res://assets/art/merger_3.png"],
+		"price": 200,
+		"materials": {"wood": 10, "stone": 5},
+		"solid": false,
+		"directional": true,
+		"script": "res://scripts/factory/router.gd",
+		"router": {"kind": "merge"}
+	},
+	"filter_splitter": {
+		"name": "필터 분배기",
+		"category": "물류",
+		"description": "정한 물건은 왼쪽(하늘색)·오른쪽(분홍)으로, 나머지는 앞으로. [E]로 정해요.",
+		"_comment": "§62. 사용자 결정: 분배기 3갈래(왼쪽·앞·오른쪽 돌아가며), 필터 분배기 따로. 컨베이어처럼 전기를 쓰지 않음. 값·재료는 임시 밸런스",
+		"size": [1, 1],
+		"texture": "res://assets/art/filter_splitter_0.png",
+		"rotated_textures": ["res://assets/art/filter_splitter_0.png", "res://assets/art/filter_splitter_1.png", "res://assets/art/filter_splitter_2.png", "res://assets/art/filter_splitter_3.png"],
+		"price": 500,
+		"materials": {"wood": 10, "stone": 10},
+		"solid": false,
+		"directional": true,
+		"script": "res://scripts/factory/router.gd",
+		"router": {"kind": "filter"}
+	},
 	"manual_processor": {
 		"name": "수동 가공기",
 		"category": "가공",

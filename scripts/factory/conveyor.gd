@@ -23,6 +23,8 @@ const LAYER := "Belts"
 var item: Dictionary = {}
 var progress := 0.0
 var shape := Shape.STRAIGHT
+## 물건이 들어올 때 움직인 방향 (분배기·합류기가 어느 쪽에서 들어왔는지 그릴 때 쓴다)
+var came_dir := Vector2i.ZERO
 
 var _belt: Sprite2D
 var _frame := 0
@@ -80,14 +82,44 @@ func has_item() -> bool:
 	return not item.is_empty()
 
 
-## 물건을 올린다 (비어 있을 때만)
-func put(item_id: String, quality: String, at := 0.0) -> bool:
+## 물건을 올린다 (비어 있을 때만). from_dir = 들어오며 움직인 방향
+func put(item_id: String, quality: String, at := 0.0, from_dir := Vector2i.ZERO) -> bool:
 	if has_item() or not ItemDB.has_item(item_id):
 		return false
 	item = {"id": item_id, "quality": quality}
 	progress = clampf(at, 0.0, 1.0)
+	came_dir = from_dir
 	queue_redraw()
 	return true
+
+
+# ---------- 연결 규칙 (ConveyorNet 이 쓴다. 분배기·합류기(Router)가 덮어쓴다)
+
+## d 방향으로 움직여 온 물건을 이 칸이 받는 모양인가 (비었는지는 보지 않음). 벨트: 마주 보며 들어오는 것만 아니면
+func accepts_dir(d: Vector2i) -> bool:
+	return d != -facing()
+
+
+## 지금 d 방향으로 들어오는 물건을 받을 수 있는가
+func can_take(d: Vector2i, _grid: BuildGrid) -> bool:
+	return not has_item() and accepts_dir(d)
+
+
+## 지금 물건을 내보낼 방향들 (앞에서부터 시도). 벨트: 앞 하나
+func exit_dirs() -> Array[Vector2i]:
+	var out: Array[Vector2i] = [facing()]
+	return out
+
+
+## 내보낼 수 있는 모든 방향 (물건과 상관없이, 순서 계산·모양용)
+func all_exit_dirs() -> Array[Vector2i]:
+	var out: Array[Vector2i] = [facing()]
+	return out
+
+
+## d 방향으로 내보냈을 때 (분배기가 다음 차례를 정한다)
+func on_sent(_d: Vector2i) -> void:
+	pass
 
 
 func clear_item() -> void:

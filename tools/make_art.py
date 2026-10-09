@@ -1069,6 +1069,76 @@ def make_harvesters():
         c.save(f"harvester_{tier}.png")
 
 
+# ---------------------------------------------------------------- 분배기·합류기·필터 분배기 (1x1칸, §62)
+#   회전 0 = 앞이 아래. 뒤(위)에서 들어온다. 네 방향 그림을 돌려서 저장 (_0~_3, 게임의 turns 와 같은 순서)
+#   필터 분배기 출구 색: 흐름 기준 왼쪽 = 하늘색, 오른쪽 = 분홍 (회전 0 에서 왼쪽 출구는 화면 오른쪽)
+
+ROUTER_LEFT = hexc("7cc4e6")
+ROUTER_RIGHT = hexc("f29bb0")
+
+
+def rotated_cw(c):
+    out = Canvas(c.h, c.w)
+    for y in range(c.h):
+        for x in range(c.w):
+            out.set(c.h - 1 - y, x, c.px[y][x])
+    return out
+
+
+def router_base():
+    c = Canvas(T, T)
+    rrect(c, 1, 1, 14, 14, 3, P["wood"][1])
+    rrect(c, 2, 2, 12, 12, 2.5, BELT[0])
+    c.rect(3, 2, 10, 1, P["wood"][2])
+    return c
+
+
+def arrow(c, x, y, d, col):
+    """(x, y) 끝을 가진 작은 화살표. d = 'down'/'left'/'right'/'up'"""
+    pts = {"down": [(0, 0), (-1, -1), (1, -1), (-2, -2), (2, -2)], "up": [(0, 0), (-1, 1), (1, 1), (-2, 2), (2, 2)],
+           "left": [(0, 0), (1, -1), (1, 1), (2, -2), (2, 2)], "right": [(0, 0), (-1, -1), (-1, 1), (-2, -2), (-2, 2)]}[d]
+    for dx, dy in pts:
+        c.set(x + dx, y + dy, col)
+
+
+def make_routers():
+    mark = BELT_MARK
+    kinds = {}
+
+    def fork(c, left_col, right_col, down_col):
+        """위에서 들어와 가운데에서 세 갈래로 나가는 가는 선 + 바깥쪽 화살촉"""
+        c.rect(8, 3, 1, 5, mark)                   # 들어오는 줄기
+        c.rect(5, 8, 7, 1, mark)                   # 가로 막대
+        c.rect(8, 8, 1, 3, down_col)
+        arrow(c, 3, 8, "left", left_col)
+        arrow(c, 13, 8, "right", right_col)
+        arrow(c, 8, 12, "down", down_col)
+
+    # 분배기: 하나 들어와 세 갈래로
+    c = router_base()
+    fork(c, mark, mark, mark)
+    kinds["splitter"] = c
+    # 합류기: 세 쪽에서 안쪽을 가리키는 화살촉 → 가운데 → 아래로
+    c = router_base()
+    c.rect(8, 5, 1, 7, mark)                       # 위 → 가운데 → 아래
+    c.rect(5, 8, 7, 1, mark)                       # 왼·오른쪽 → 가운데
+    arrow(c, 8, 5, "down", mark)                   # 가장자리에서 안쪽을 가리키는 화살촉
+    arrow(c, 5, 8, "right", mark)
+    arrow(c, 11, 8, "left", mark)
+    c.rect(7, 12, 3, 1, mark); c.set(8, 13, mark)  # 아래로 나가는 굵은 끝
+    kinds["merger"] = c
+    # 필터 분배기: 분배기 + 출구 색 (흐름 왼쪽 = 화면 오른쪽 하늘색, 흐름 오른쪽 = 화면 왼쪽 분홍) + 가운데 깔때기
+    c = router_base()
+    fork(c, ROUTER_RIGHT, ROUTER_LEFT, mark)
+    c.rect(6, 4, 5, 1, hexc("f6e2a4")); c.rect(7, 5, 3, 1, hexc("f6e2a4"))
+    kinds["filter_splitter"] = c
+    for name, c in kinds.items():
+        c.outline(INK)
+        for turn in range(4):
+            c.save(f"{name}_{turn}.png")
+            c = rotated_cw(c)
+
+
 # ---------------------------------------------------------------- 컨베이어 (1x1칸, conveyor.png 64x48)
 #   줄: 0 직선 / 1 왼쪽에서 들어와 아래로 꺾임 / 2 오른쪽에서 들어와 아래로 꺾임. 칸: 무늬가 흐르는 4장
 #   모두 회전 0(아래로 흐름) 기준이고 게임에서 90°씩 돌려 쓴다. 양옆 나무 난간 + 가운데 짙은 벨트 + 흐르는 V 무늬
@@ -2341,6 +2411,7 @@ if __name__ == "__main__":
     make_greenhouse()
     make_compost_bin()
     make_conveyor()
+    make_routers()
     make_sprinklers()
     make_harvesters()
     make_warehouse()

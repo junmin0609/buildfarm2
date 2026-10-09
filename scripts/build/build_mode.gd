@@ -494,8 +494,21 @@ func _draw_path() -> void:
 ## 놓인 시설들의 입구·출구 (건설 모드에서만, §55)
 func _draw_all_ports() -> void:
 	for obj in _world().build.objects():
-		if not obj is Conveyor:
+		if obj is Router:
+			_draw_ports(router_ports(obj))
+		elif not obj is Conveyor:
 			_draw_ports(obj.ports())
+
+
+## 분배기·합류기도 시설 포트처럼 들어오는 쪽(초록)·나가는 쪽(주황)을 화살표로 보여 준다 (§62)
+static func router_ports(r: Router) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for s: Vector2i in Placeable.DIRS:
+		if r.accepts_dir(-s):
+			out.append({"type": "in", "cell": r.cell, "dir": s, "outside": r.cell + s})
+	for d in r.all_exit_dirs():
+		out.append({"type": "out", "cell": r.cell, "dir": d, "outside": r.cell + d})
+	return out
 
 
 ## 입구는 바깥에서 시설 안쪽을 가리키는 초록 화살표, 출구는 시설에서 바깥을 가리키는 주황 화살표 (포트 칸 가장자리에)
