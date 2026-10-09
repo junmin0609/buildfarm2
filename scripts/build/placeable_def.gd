@@ -83,8 +83,20 @@ static func cost_text_of(money: int, mats: Dictionary) -> String:
 	return " + ".join(parts)
 
 
+## 기계상점에서 사서 놓는 시설이면 그 아이템 (사용자 결정: 기계는 아이템으로 사서 설치). 아니면 null
+## (돈 없이 재료 하나만 드는데 그 재료가 기계·컨베이어 아이템인 경우)
+func machine_item() -> ItemDef:
+	if price > 0 or materials.size() != 1:
+		return null
+	var item := ItemDB.get_item(str(materials.keys()[0]))
+	return item if item and item.shop == "machine" else null
+
+
 ## 설치할 돈·재료가 있는지. 모자라면 이유, 충분하면 ""
 func afford_problem(inv: Inventory) -> String:
+	var machine := machine_item()
+	if machine and inv.count_of(machine.id) < 1:
+		return "가방에 %s이(가) 없어요. 기계상점에서 사 오세요." % machine.name
 	if GameState.money < price:
 		return "돈이 부족해요. (%d G 필요)" % price
 	for mat_id: String in materials:

@@ -35,7 +35,7 @@ func _ready() -> void:
 	box.add_child(header)
 
 	var hint := Label.new()
-	hint.text = "농장 땅 위에 시설을 놓아요. 장애물은 먼저 치워야 해요. 철거하면 값·재료를 모두 돌려받아요."
+	hint.text = "농장 땅 위에 시설을 놓아요. 기계는 기계상점에서 사서 가방에 있어야 놓을 수 있어요. 철거하면 모두 돌려받아요."
 	hint.add_theme_font_size_override("font_size", Art.FONT_SIZE_SMALL)
 	hint.add_theme_color_override("font_color", Color("9a7457"))
 	box.add_child(hint)
@@ -103,7 +103,12 @@ func _row(def: PlaceableDef) -> HBoxContainer:
 	info.add_child(desc)
 	row.add_child(info)
 	var price := Label.new()
-	price.text = def.cost_text()
+	var machine := def.machine_item()
+	# 기계는 값 대신 가방에 든 개수 (기계상점에서 사서 놓는다, 사용자 결정)
+	price.text = "가방에 %d개" % GameState.inventory.count_of(machine.id) if machine else def.cost_text()
+	if machine and GameState.inventory.count_of(machine.id) == 0:
+		price.text += "\n기계상점에서 사요"
+	price.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	price.add_theme_color_override("font_color", Color("c98a2e"))
 	row.add_child(price)
 	var btn := Button.new()

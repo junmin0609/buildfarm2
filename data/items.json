@@ -167,6 +167,215 @@
 		"icon": 63,
 		"description": "땅에 깔아 물건을 옮기는 벨트 한 칸. 건설 창에서 끌어서 깔아요."
 	},
+	"sprinkler_1": {
+		"name": "스프링클러 (하급)",
+		"kind": "machine",
+		"shop": "machine",
+		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
+		"buy_price": 300,
+		"buy_materials": {
+			"stone": 10
+		},
+		"max_stack": 20,
+		"icon": 64,
+		"description": "매일 아침 상하좌우 4칸 밭에 물을 줘요. (물탱크 물)"
+	},
+	"sprinkler_2": {
+		"name": "스프링클러 (중급)",
+		"kind": "machine",
+		"shop": "machine",
+		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
+		"buy_price": 900,
+		"buy_materials": {
+			"stone": 20,
+			"wood": 10
+		},
+		"max_stack": 20,
+		"icon": 65,
+		"description": "매일 아침 둘레 3x3 (8칸) 밭에 물을 줘요. (물탱크 물)"
+	},
+	"sprinkler_3": {
+		"name": "스프링클러 (상급)",
+		"kind": "machine",
+		"shop": "machine",
+		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
+		"buy_price": 2200,
+		"buy_materials": {
+			"stone": 40,
+			"wood": 20
+		},
+		"max_stack": 20,
+		"icon": 66,
+		"description": "매일 아침 둘레 5x5 (24칸) 밭에 물을 줘요. (물탱크 물)"
+	},
+	"harvester_1": {
+		"name": "자동 수확기 (하급)",
+		"kind": "machine",
+		"shop": "machine",
+		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
+		"buy_price": 700,
+		"buy_materials": {
+			"wood": 20,
+			"stone": 20
+		},
+		"max_stack": 20,
+		"icon": 67,
+		"description": "상하좌우 4칸의 다 자란 작물을 거둬 출구로 보내요. (전기)"
+	},
+	"harvester_2": {
+		"name": "자동 수확기 (중급)",
+		"kind": "machine",
+		"shop": "machine",
+		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
+		"buy_price": 1800,
+		"buy_materials": {
+			"wood": 40,
+			"stone": 40
+		},
+		"max_stack": 20,
+		"icon": 68,
+		"description": "둘레 3x3 (8칸)의 다 자란 작물을 거둬 출구로 보내요. (전기)"
+	},
+	"harvester_3": {
+		"name": "자동 수확기 (상급)",
+		"kind": "machine",
+		"shop": "machine",
+		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
+		"buy_price": 4000,
+		"buy_materials": {
+			"wood": 80,
+			"stone": 80
+		},
+		"max_stack": 20,
+		"icon": 69,
+		"description": "둘레 5x5 (24칸)의 다 자란 작물을 거둬 출구로 보내요. (전기)"
+	},
+	"pump": {
+		"name": "펌프",
+		"kind": "machine",
+		"shop": "machine",
+		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
+		"buy_price": 1500,
+		"buy_materials": {
+			"stone": 30,
+			"wood": 20
+		},
+		"max_stack": 20,
+		"icon": 70,
+		"description": "연못·개울 옆에 지어 물을 퍼 올려 물탱크에 채워요. 퍼 올리는 동안 전기를 써요."
+	},
+	"water_tank": {
+		"name": "물탱크",
+		"kind": "machine",
+		"shop": "machine",
+		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
+		"buy_price": 1200,
+		"buy_materials": {
+			"wood": 60,
+			"stone": 40
+		},
+		"max_stack": 20,
+		"icon": 71,
+		"description": "펌프가 퍼 올린 물을 담아 둬요. 스프링클러가 아침마다 이 물을 써요."
+	},
+	"warehouse": {
+		"name": "창고",
+		"kind": "machine",
+		"shop": "machine",
+		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
+		"buy_price": 1500,
+		"buy_materials": {
+			"wood": 80,
+			"stone": 40
+		},
+		"max_stack": 20,
+		"icon": 72,
+		"description": "물건을 칸 단위로 보관하는 4x4 창고. 받을 물건 종류를 정할 수 있고, 증축하면 칸이 늘어나요."
+	},
+	"splitter": {
+		"name": "분배기",
+		"kind": "machine",
+		"shop": "machine",
+		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
+		"buy_price": 200,
+		"buy_materials": {
+			"wood": 10,
+			"stone": 5
+		},
+		"max_stack": 20,
+		"icon": 73,
+		"description": "뒤에서 받은 물건을 왼쪽·앞·오른쪽 중 이어진 쪽으로 번갈아 보내요."
+	},
+	"merger": {
+		"name": "합류기",
+		"kind": "machine",
+		"shop": "machine",
+		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
+		"buy_price": 200,
+		"buy_materials": {
+			"wood": 10,
+			"stone": 5
+		},
+		"max_stack": 20,
+		"icon": 74,
+		"description": "뒤·왼쪽·오른쪽에서 들어온 물건을 번갈아 받아 앞으로 보내요."
+	},
+	"filter_splitter": {
+		"name": "필터 분배기",
+		"kind": "machine",
+		"shop": "machine",
+		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
+		"buy_price": 500,
+		"buy_materials": {
+			"wood": 10,
+			"stone": 10
+		},
+		"max_stack": 20,
+		"icon": 75,
+		"description": "정한 물건은 왼쪽(하늘색)·오른쪽(분홍)으로, 나머지는 앞으로. [E]로 정해요."
+	},
+	"manual_processor": {
+		"name": "수동 가공기",
+		"kind": "machine",
+		"shop": "machine",
+		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
+		"buy_price": 800,
+		"buy_materials": {
+			"wood": 50,
+			"stone": 30
+		},
+		"max_stack": 20,
+		"icon": 76,
+		"description": "레시피와 횟수를 정해 직접 돌리는 하급 가공기. 전기가 필요 없어요."
+	},
+	"electric_processor": {
+		"name": "전기 가공기",
+		"kind": "machine",
+		"shop": "machine",
+		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
+		"buy_price": 2500,
+		"buy_materials": {
+			"wood": 60,
+			"stone": 80
+		},
+		"max_stack": 20,
+		"icon": 77,
+		"description": "레시피를 정하고 켜 두면 맞닿은 창고에서 재료를 가져와 알아서 가공해요. 전력이 필요해요."
+	},
+	"small_generator": {
+		"name": "소형 발전기",
+		"kind": "machine",
+		"shop": "machine",
+		"_comment": "기계상점에서 사서 건설 모드로 설치, 철거하면 이 아이템으로 돌려받는다 (사용자 결정). 값·재료는 예전 건설비 그대로 (임시 밸런스)",
+		"buy_price": 1200,
+		"buy_materials": {
+			"wood": 40,
+			"stone": 60
+		},
+		"max_stack": 20,
+		"icon": 78,
+		"description": "식물 섬유·나무를 태워 전기를 만들어요. 만든 전기는 지역 전기 통에 모여 전기 기계들이 나눠 써요."
+	},
 	"basic_fertilizer": {
 		"name": "기본 비료",
 		"kind": "fertilizer",

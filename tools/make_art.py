@@ -2509,6 +2509,48 @@ def product_icon(c, item):
     c.outline(INK)
 
 
+# 기계 아이템 아이콘 (아이콘 64번부터): 기계상점에서 사서 가방에 드는 기계. 시설 그림을 16x16 안에 줄여 그린다
+MACHINE_ICONS = [("sprinkler_1", "sprinkler_1"), ("sprinkler_2", "sprinkler_2"), ("sprinkler_3", "sprinkler_3"),
+                 ("harvester_1", "harvester_1"), ("harvester_2", "harvester_2"), ("harvester_3", "harvester_3"),
+                 ("pump", "pump"), ("water_tank", "water_tank"), ("warehouse", "warehouse"),
+                 ("splitter", "splitter_0"), ("merger", "merger_0"), ("filter_splitter", "filter_splitter_0"),
+                 ("manual_processor", "processor"), ("electric_processor", "electric_processor"), ("small_generator", "generator")]
+
+
+def load_png(name):
+    """이 스크립트가 저장한 PNG (필터 0, RGBA) 를 다시 읽는다"""
+    data = (OUT / name).read_bytes()
+    pos, w, h, idat = 8, 0, 0, b""
+    while pos < len(data):
+        ln = struct.unpack(">I", data[pos:pos + 4])[0]
+        tag, body = data[pos + 4:pos + 8], data[pos + 8:pos + 8 + ln]
+        pos += 12 + ln
+        if tag == b"IHDR":
+            w, h = struct.unpack(">II", body[:8])
+        elif tag == b"IDAT":
+            idat += body
+    raw = zlib.decompress(idat)
+    c = Canvas(w, h)
+    stride = w * 4
+    for y in range(h):
+        row = raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)]
+        for x in range(w):
+            c.px[y][x] = tuple(row[x * 4:x * 4 + 4])
+    return c
+
+
+def shrink_icon(c, src):
+    """src 를 16x16 안(여백 1칸)에 비율 그대로 줄여 가운데 아래에 놓는다. 가장 가까운 칸을 고른다"""
+    s = min(14 / src.w, 15 / src.h, 1.0)
+    w, h = max(1, round(src.w * s)), max(1, round(src.h * s))
+    ox, oy = (T - w) // 2, T - h
+    for y in range(h):
+        for x in range(w):
+            px = src.get(min(src.w - 1, int((x + 0.5) / s)), min(src.h - 1, int((y + 0.5) / s)))
+            if px[3] > 128:
+                c.set(ox + x, oy + y, px[:3] + (255,))
+
+
 def make_items():
     order = ["hoe", "watering_can", "carrot_seed", "potato_seed", "strawberry_seed", "carrot", "potato", "strawberry",
              "axe", "pickaxe", "fiber", "wood", "stone",
@@ -2521,6 +2563,8 @@ def make_items():
         order += [kind + "_seed", kind]
     order += PRODUCTS  # 가공품 (아이콘 44번부터)
     order += ["conveyor"]  # 컨베이어 (아이콘 63번)
+    order += [item for item, _ in MACHINE_ICONS]  # 기계 (아이콘 64번부터)
+    machine_art = dict(MACHINE_ICONS)
     atlas = Canvas(len(order) * T, T)
     for col, item in enumerate(order):
         c, done = sub(atlas, col, 0)
@@ -2535,6 +2579,8 @@ def make_items():
             c.template(AXE, ICON_PAL)
         elif item == "pickaxe":
             c.template(PICKAXE, ICON_PAL)
+        elif item in machine_art:
+            shrink_icon(c, load_png(machine_art[item] + ".png"))
         elif item in ("fiber", "wood", "stone", "conveyor"):
             material_icon(c, item)
         elif item.endswith("_fertilizer"):

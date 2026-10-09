@@ -165,6 +165,17 @@ func _ready() -> void:
 		world.enter_interior(room_id)
 		await get_tree().create_timer(0.8).timeout
 		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_%s_inside.png" % room_id))
+	# 기계상점 [기계 사기] 창 → 가방에 기계를 산 뒤 건설 창
+	hud._open_shop("machine")
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_machine_shop.png"))
+	hud._close_panels()
+	GameState.inventory.add("sprinkler_1", 2)
+	GameState.inventory.add("warehouse", 1)
+	hud.open_build_panel()
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_build_machines.png"))
+	hud._close_panels()
 	world.exit_interior()
 
 	# 하늘시장 (§84~§90): 부서진 정류장·복구 창 → 복구한 정류장 → 하늘섬 → 가판대 창

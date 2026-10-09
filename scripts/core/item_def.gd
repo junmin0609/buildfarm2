@@ -3,9 +3,10 @@ extends RefCounted
 ## 아이템 한 종류의 정의. data/items.json 한 항목이 하나의 ItemDef가 된다.
 
 ## PROCESSED(가공품)는 가공기(§70)가 생기면 쓴다. 지금은 창고 필터(§68)의 "가공품만" 자리만 있다.
-enum Kind { TOOL, SEED, CROP, MATERIAL, FERTILIZER, PROCESSED }
+## MACHINE(기계): 기계상점에서 사서 건설 모드로 설치하는 공장·자동화 기계 (사용자 결정). 설치하면 가방에서 빠지고, 철거하면 돌려받는다.
+enum Kind { TOOL, SEED, CROP, MATERIAL, FERTILIZER, PROCESSED, MACHINE }
 
-const KIND_BY_NAME := {"tool": Kind.TOOL, "seed": Kind.SEED, "crop": Kind.CROP, "material": Kind.MATERIAL, "fertilizer": Kind.FERTILIZER, "processed": Kind.PROCESSED}
+const KIND_BY_NAME := {"tool": Kind.TOOL, "seed": Kind.SEED, "crop": Kind.CROP, "material": Kind.MATERIAL, "fertilizer": Kind.FERTILIZER, "processed": Kind.PROCESSED, "machine": Kind.MACHINE}
 
 var id := ""
 var name := ""

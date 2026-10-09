@@ -128,10 +128,10 @@ func _ready() -> void:
 	# 상점 창 열기/닫기
 	Events.shop_requested.emit("buy")
 	_check(hud._shop.visible and get_tree().paused, "상점 열면 일시정지")
-	_check(hud._shop._buy_list.get_parent().visible and not hud._shop._sell_list.get_parent().visible, "씨앗 상점은 사기만")
+	_check(hud._shop._buy_col.visible and not hud._shop._sell_list.get_parent().visible, "씨앗 상점은 사기만")
 	hud._close_panels()
 	Events.shop_requested.emit("sell")
-	_check(hud._shop._sell_list.get_parent().visible and not hud._shop._buy_list.get_parent().visible, "판매처는 팔기만")
+	_check(hud._shop._sell_list.get_parent().visible and not hud._shop._buy_col.visible, "판매처는 팔기만")
 	var stores := world.buildings.filter(func(b: Interactable) -> bool: return b is ShopBuilding)
 	_check(stores.size() == 2 and stores.any(func(b: ShopBuilding) -> bool: return b.room_id == "store") and stores.any(func(b: ShopBuilding) -> bool: return b.room_id == "machine") and not world.buildings.any(func(b: Interactable) -> bool: return b is ShopStall), "광장에 잡화점·기계상점 (작물 판매처는 잡화점으로 합침)")
 	hud._close_panels()
@@ -1954,7 +1954,8 @@ func _test_warehouse(world: FarmWorld, hud: HUD) -> void:
 	var saved_inv := inv.to_data()
 	var player := world.player
 	var def := PlaceableDB.get_def("warehouse")
-	_check(def != null and def.size == Vector2i(4, 4) and def.cost_text() == "1500 G + 나무 80 + 돌 40", "창고 정의 (4x4, %s)" % (def.cost_text() if def else ""))
+	var wh_item := ItemDB.get_item("warehouse")
+	_check(def != null and def.size == Vector2i(4, 4) and def.machine_item() == wh_item and wh_item.buy_price == 1500 and wh_item.buy_materials == {"wood": 80, "stone": 40}, "창고 정의 (4x4, 기계상점 1500 G + 나무 80 + 돌 40)")
 
 	# 짓기: 4x4 + 앞에 설 한 줄이 비어 있는 자리
 	var origin := Vector2i(-1, -1)
@@ -1978,11 +1979,11 @@ func _test_warehouse(world: FarmWorld, hud: HUD) -> void:
 	player.global_position = world.cell_center(_find_char("s"))
 	inv.remove("wood", inv.count_of("wood"))
 	inv.remove("stone", inv.count_of("stone"))
-	inv.add("wood", 80)
-	inv.add("stone", 40)
-	GameState.add_money(2000)
 	bm.start_place("warehouse")
-	_check(bm.try_place(origin) and inv.count_of("wood") == 0 and inv.count_of("stone") == 0, "창고 짓기 (나무 80 + 돌 40 사용)")
+	_check(not bm.try_place(origin), "가방에 창고가 없으면 못 놓음")
+	_buy_machine(hud, "warehouse")
+	_check(inv.count_of("wood") == 0 and inv.count_of("stone") == 0 and inv.count_of("warehouse") == 1, "기계상점에서 창고 사기 (나무 80 + 돌 40 사용)")
+	_check(bm.try_place(origin) and inv.count_of("warehouse") == 0, "가방의 창고를 설치")
 	bm.stop()
 	var wh := grid.object_at(origin) as Warehouse
 	_check(wh != null and wh.is_empty() and wh.slot_count() == 36 and wh.storage.size() == 36 and wh.filter_mode == "all", "창고: 처음 36칸, 필터 전체")
@@ -2131,8 +2132,8 @@ func _test_warehouse(world: FarmWorld, hud: HUD) -> void:
 	var tomato_before := 0
 	var money := GameState.money
 	_check(bm.try_remove(origin) and grid.object_at(origin) == null, "창고 철거")
-	var mats_back := inv.count_of("wood") == 80 + 60 + 120 and inv.count_of("stone") == 40 + 60 + 120
-	_check(inv.count_of("tomato", "gold") == tomato_before + 4 and mats_back and GameState.money == money + 1500 + 1000 + 2500, "철거하면 안의 물건 + 건설비 + 증축 비용 모두 돌려받음")
+	var mats_back := inv.count_of("wood") == 60 + 120 and inv.count_of("stone") == 60 + 120 and inv.count_of("warehouse") == 1
+	_check(inv.count_of("tomato", "gold") == tomato_before + 4 and mats_back and GameState.money == money + 1000 + 2500, "철거하면 안의 물건 + 창고 아이템 + 증축 비용 모두 돌려받음")
 	bm.stop()
 
 	inv.load_data(saved_inv)
@@ -2147,7 +2148,8 @@ func _test_processor(world: FarmWorld, hud: HUD) -> void:
 	var saved_inv := inv.to_data()
 	var player := world.player
 	var def := PlaceableDB.get_def("manual_processor")
-	_check(def != null and def.size == Vector2i(2, 2) and def.cost_text() == "800 G + 나무 50 + 돌 30", "수동 가공기 정의 (2x2, %s)" % (def.cost_text() if def else ""))
+	var mp_item := ItemDB.get_item("manual_processor")
+	_check(def != null and def.size == Vector2i(2, 2) and def.machine_item() == mp_item and mp_item.buy_price == 800 and mp_item.buy_materials == {"wood": 50, "stone": 30}, "수동 가공기 정의 (2x2, 기계상점 800 G + 나무 50 + 돌 30)")
 
 	# 레시피 데이터 (§73): 지금 있는 작물로 만들 수 있는 20개, 기초 6개만 처음부터 앎
 	var recipes := RecipeDB.all()
@@ -2180,11 +2182,9 @@ func _test_processor(world: FarmWorld, hud: HUD) -> void:
 	player.global_position = world.cell_center(_find_char("s"))
 	inv.remove("wood", inv.count_of("wood"))
 	inv.remove("stone", inv.count_of("stone"))
-	inv.add("wood", 50)
-	inv.add("stone", 30)
-	GameState.add_money(1000)
+	_buy_machine(hud, "manual_processor")
 	bm.start_place("manual_processor")
-	_check(bm.try_place(origin) and inv.count_of("wood") == 0 and inv.count_of("stone") == 0, "수동 가공기 짓기 (나무 50 + 돌 30 사용)")
+	_check(inv.count_of("wood") == 0 and bm.try_place(origin) and inv.count_of("manual_processor") == 0, "수동 가공기를 사서 설치 (나무 50 + 돌 30)")
 	bm.stop()
 	var pr := grid.object_at(origin) as Processor
 	_check(pr != null and pr.is_empty() and not pr.is_automatic() and pr.tier() == 1, "수동 가공기: 자동 아님, 1급")
@@ -2315,7 +2315,7 @@ func _test_processor(world: FarmWorld, hud: HUD) -> void:
 	inv.load_data([])
 	var money := GameState.money
 	_check(bm.try_remove(origin) and grid.object_at(origin) == null, "가공기 철거")
-	_check(inv.count_of("tomato") == 6 and inv.count_of("wood") == 50 and inv.count_of("stone") == 30 and GameState.money == money + 800, "철거하면 남은 재료(토마토 6) + 건설비 돌려받음")
+	_check(inv.count_of("tomato") == 6 and inv.count_of("manual_processor") == 1 and inv.count_of("wood") == 0 and GameState.money == money, "철거하면 남은 재료(토마토 6) + 수동 가공기 아이템 돌려받음")
 	bm.stop()
 
 	inv.load_data(saved_inv)
@@ -2332,8 +2332,10 @@ func _test_power_and_electric(world: FarmWorld, hud: HUD) -> void:
 	var gen_def := PlaceableDB.get_def("small_generator")
 	var ep_def := PlaceableDB.get_def("electric_processor")
 	var wh_def := PlaceableDB.get_def("warehouse")
-	_check(gen_def != null and gen_def.size == Vector2i(2, 2) and gen_def.cost_text() == "1200 G + 나무 40 + 돌 60", "소형 발전기 정의 (2x2)")
-	_check(ep_def != null and ep_def.size == Vector2i(3, 3) and ep_def.cost_text() == "2500 G + 나무 60 + 돌 80", "전기 가공기 정의 (3x3, %s)" % (ep_def.cost_text() if ep_def else ""))
+	var gen_item := ItemDB.get_item("small_generator")
+	var ep_item := ItemDB.get_item("electric_processor")
+	_check(gen_def != null and gen_def.size == Vector2i(2, 2) and gen_def.machine_item() == gen_item and gen_item.buy_price == 1200 and gen_item.buy_materials == {"wood": 40, "stone": 60}, "소형 발전기 정의 (2x2, 기계상점 1200 G + 나무 40 + 돌 60)")
+	_check(ep_def != null and ep_def.size == Vector2i(3, 3) and ep_def.machine_item() == ep_item and ep_item.buy_price == 2500 and ep_item.buy_materials == {"wood": 60, "stone": 80}, "전기 가공기 정의 (3x3, 기계상점 2500 G + 나무 60 + 돌 80)")
 	var st0 := grid.power_status()
 	_check(st0.capacity == 0.0 and st0.demand == 0 and not hud._power_label.visible, "발전기가 없으면 전기 표시 숨김")
 
@@ -2363,14 +2365,12 @@ func _test_power_and_electric(world: FarmWorld, hud: HUD) -> void:
 	var ep := grid.place(ep_def, origin + Vector2i(4, 0)) as Processor
 	_check(wh != null and ep != null and ep.is_automatic() and ep.warehouses().size() == 1 and ep.warehouses()[0] == wh, "전기 가공기가 맞닿은 창고를 찾음")
 
-	# 발전기 짓기 (돈 + 재료)
+	# 발전기: 기계상점에서 사서 설치
 	inv.remove("wood", inv.count_of("wood"))
 	inv.remove("stone", inv.count_of("stone"))
-	inv.add("wood", 40)
-	inv.add("stone", 60)
-	GameState.add_money(1200)
+	_buy_machine(hud, "small_generator")
 	bm.start_place("small_generator")
-	_check(bm.try_place(origin + Vector2i(7, 0)) and inv.count_of("stone") == 0, "소형 발전기 짓기 (나무 40 + 돌 60)")
+	_check(inv.count_of("stone") == 0 and bm.try_place(origin + Vector2i(7, 0)) and inv.count_of("small_generator") == 0, "소형 발전기를 사서 설치 (나무 40 + 돌 60)")
 	bm.stop()
 	var gen := grid.object_at(origin + Vector2i(7, 0)) as Generator
 	var st := grid.power_status()
@@ -2511,7 +2511,7 @@ func _test_power_and_electric(world: FarmWorld, hud: HUD) -> void:
 	inv.load_data([])
 	var fuel_left := gen.fuel_count()
 	bm.start(BuildMode.Mode.REMOVE)
-	_check(bm.try_remove(origin + Vector2i(7, 0)) and inv.count_of("wood") == 40 + fuel_left, "발전기 철거 → 남은 연료 + 건설 재료 돌려받음")
+	_check(bm.try_remove(origin + Vector2i(7, 0)) and inv.count_of("wood") == fuel_left and inv.count_of("small_generator") == 1, "발전기 철거 → 남은 연료 + 발전기 아이템 돌려받음")
 	bm.stop()
 
 	# 정리
@@ -3478,7 +3478,7 @@ func _test_interiors(world: FarmWorld, hud: HUD) -> void:
 	inv.add("carrot", 3, "silver")
 	player._interact()
 	hud._dialog.choose("sell")
-	_check(hud._shop.visible and hud._shop._sell_list.get_parent().visible and not hud._shop._buy_list.get_parent().visible and hud._shop._sell_list.get_child_count() >= 1, "[팔기] → 작물 팔기")
+	_check(hud._shop.visible and hud._shop._sell_list.get_parent().visible and not hud._shop._buy_col.visible and hud._shop._sell_list.get_child_count() >= 1, "[팔기] → 작물 팔기")
 	hud._close_panels()
 	player._interact()
 	hud._dialog.choose("")
@@ -3501,6 +3501,9 @@ func _test_interiors(world: FarmWorld, hud: HUD) -> void:
 	hud._dialog.choose("machine")
 	var mnames := hud._shop._buy_list.get_children().map(func(r: Node) -> String: return r.get_child(1).text)
 	_check(world.area == "machine" and hud._shop._title.text == "기계상점" and "컨베이어" in mnames and not "당근 씨앗" in mnames, "기계상점 [기계 사기] → 컨베이어 %s" % [mnames])
+	_check(mnames.size() == 16 and "창고" in mnames and "소형 발전기" in mnames and "펌프" in mnames, "기계상점에 기계 16종 (컨베이어 + 공장·자동화 15종, %d)" % mnames.size())
+	var build_names := PlaceableDB.all().filter(func(d: PlaceableDef) -> bool: return d.machine_item() == null).map(func(d: PlaceableDef) -> String: return d.id)
+	_check(build_names == ["scarecrow", "shed", "greenhouse", "compost_bin"], "돈으로 바로 짓는 건 허수아비·헛간·온실·퇴비통만 %s" % [build_names])
 	hud._close_panels()
 
 	# 실내에서 저장 → 불러오면 실내에서, 하루가 끝나면 집 앞
@@ -3512,6 +3515,15 @@ func _test_interiors(world: FarmWorld, hud: HUD) -> void:
 	_check(world.area == "farm" and player.global_position == world.home_position, "실내에서 하루가 끝나면 집 앞에서 깨어남")
 	inv.load_data(saved_inv)
 	await get_tree().process_frame
+
+
+## 기계상점에서 기계 하나를 산다 (돈·재료를 먼저 채워 주고 상점 창의 사기를 그대로 부른다)
+func _buy_machine(hud: HUD, item_id: String) -> void:
+	var item := ItemDB.get_item(item_id)
+	GameState.add_money(item.buy_price)
+	for mat_id: String in item.buy_materials:
+		GameState.inventory.add(mat_id, int(item.buy_materials[mat_id]))
+	hud._shop._buy(item_id, 1)
 
 
 ## 실제 시각으로 ms 만큼 기다린다 (프레임마다 확인)

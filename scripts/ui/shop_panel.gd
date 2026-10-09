@@ -13,6 +13,9 @@ var _money_label: Label
 var _title: Label
 var _mode := "all"
 var _buy_list: VBoxContainer
+## 사기 목록을 감싼 스크롤. 기계상점은 기계가 많아 기준 화면(720) 안에서 스크롤한다
+var _buy_scroll: ScrollContainer
+var _buy_col: VBoxContainer
 var _special_box: VBoxContainer
 var _sell_list: VBoxContainer
 
@@ -50,6 +53,13 @@ func _ready() -> void:
 	columns.add_theme_constant_override("separation", 24)
 	box.add_child(columns)
 	_buy_list = _column(columns, "씨앗·비료 사기")
+	_buy_col = _buy_list.get_parent() as VBoxContainer
+	_buy_scroll = ScrollContainer.new()
+	_buy_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_buy_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_buy_col.remove_child(_buy_list)
+	_buy_scroll.add_child(_buy_list)
+	_buy_col.add_child(_buy_scroll)
 	_sell_list = _column(columns, "작물 팔기")
 	var note := Label.new()
 	note.text = "바로 팔면 기준가의 %d%%만 받아요." % roundi(Pricing.channel_multiplier(CHANNEL) * 100)
@@ -82,9 +92,12 @@ func _column(parent: Container, heading: String) -> VBoxContainer:
 func open(mode := "all") -> void:
 	_mode = mode
 	_title.text = {"buy": "잡화점 · 사기", "sell": "잡화점 · 팔기", "machine": "기계상점"}.get(mode, "잡화점")
-	(_buy_list.get_parent().get_child(0) as Label).text = "기계 사기" if mode == "machine" else "씨앗·비료 사기"
-	_buy_list.get_parent().visible = mode != "sell"
-	_sell_list.get_parent().visible = mode != "buy"
+	(_buy_col.get_child(0) as Label).text = "기계 사기" if mode == "machine" else "씨앗·비료 사기"
+	_buy_col.visible = mode != "sell"
+	_sell_list.get_parent().visible = mode in ["sell", "all"]
+	# 기계상점만 목록이 길어 고정 높이 + 스크롤, 나머지는 목록 높이 그대로
+	_buy_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO if mode == "machine" else ScrollContainer.SCROLL_MODE_DISABLED
+	_buy_scroll.custom_minimum_size = Vector2(0, 470 if mode == "machine" else 0)
 	custom_minimum_size = Vector2(1040 if mode == "all" else 680, 0)
 	refresh()
 	show()
