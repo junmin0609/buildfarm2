@@ -367,6 +367,7 @@ scripts/
 - 확인용 장면: `scenes/tests/resolution_check.tscn` (창 크기를 바꿔 가며 user://res_*.png 와 배율 숫자를 남김)
 
 ## 그래픽
+- 아이템 아이콘 `items.png` 는 한 칸 32x32 (화면에는 예전처럼 16 크기로 그림, `Art.ICON`). 사용자 그림(바탕 화면 '이미지' 폴더)을 도트 격자대로 줄여 `assets/art_src/items/<아이템 id>.png` 에 두면 make_art.py 가 그것을 쓰고, 없는 아이템은 코드 그림을 2배로 키워 넣는다. 원래 도트 크기 그대로는 `assets/art_src/items_dots/` (철·금 도구 `*_3`·`*_4` 는 아직 없는 3·4단계용으로 보관). `assets/art_src` 는 `.gdignore` 로 Godot 가져오기에서 뺌
 - `mine_*.png` 광산 (입구 48x48 · 바닥/벽 타일 · 바위 4종 · 사다리 2종 · 엘리베이터 · 상자), 광석 아이콘 `items.png` 85~87번 (석탄·구리 광석·철 광석)
 - `medal_gold/silver/bronze.png` 작물 품질 메달 (사용자가 준 그림 mood/medal 의 금·은·동매달을 18x18 도트로 옮김, make_art.py 가 만들지 않음). 가방·핫바·상점 칸 오른쪽 위
 모든 그림은 외부 에셋 없이 `tools/make_art.py`가 픽셀 단위로 그립니다 (Python만 있으면 됨).

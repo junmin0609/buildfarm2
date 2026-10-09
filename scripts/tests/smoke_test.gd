@@ -1461,7 +1461,7 @@ func _test_seasonal_crops(world: FarmWorld, hud: HUD) -> void:
 	var art_ok := true
 	for id: String in plan:
 		var sd := ItemDB.get_item(id + "_seed")
-		art_ok = art_ok and not rows.has(sd.crop_row) and (sd.crop_row + 1) * Art.TILE <= Art.CROPS.get_height() 				and (ItemDB.get_item(id).icon + 1) * Art.TILE <= Art.ITEMS.get_width()
+		art_ok = art_ok and not rows.has(sd.crop_row) and (sd.crop_row + 1) * Art.TILE <= Art.CROPS.get_height() 				and (ItemDB.get_item(id).icon + 1) * Art.ICON <= Art.ITEMS.get_width()
 		rows[sd.crop_row] = true
 	_check(art_ok, "작물 그림 줄·아이콘이 그림 파일 안에 있음")
 

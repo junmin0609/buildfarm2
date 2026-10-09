@@ -234,7 +234,7 @@ func _ready() -> void:
 	_icon = Sprite2D.new()
 	_icon.texture = Art.ITEMS
 	_icon.region_enabled = true
-	_icon.scale = Vector2(0.75, 0.75)
+	_icon.scale = Vector2.ONE * 0.75 * Art.TILE / Art.ICON
 	_icon.z_index = 5
 	add_child(_icon)
 	_update_icon()

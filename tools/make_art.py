@@ -3231,29 +3231,52 @@ MACHINE_ICONS = [("sprinkler_1", "sprinkler_1"), ("sprinkler_2", "sprinkler_2"),
 # 그다음 새 아이템 (아이콘 80번부터): 봄 양배추 · 2급 가공품. 앞 번호를 밀지 않게 맨 뒤에 붙인다
 NEW_ICONS = ["cabbage_seed", "cabbage", "pickled_cabbage", "vegetable_pickle_set", "premium_jam"]
 NEW_PRODUCTS = ["pickled_cabbage", "vegetable_pickle_set", "premium_jam"]
+# 아이템 아이콘 한 칸 (items.png). 사용자 그림을 살리려고 16 → 32 (게임 화면 크기는 그대로)
+ICON = 32
+USER_ICONS = Path(__file__).resolve().parent.parent / "assets" / "art_src" / "items"
 # 광산 광석 (아이콘 85번부터)
 ORE_ICONS = ["coal", "copper_ore", "iron_ore"]
 
 
-def load_png(name):
-    """이 스크립트가 저장한 PNG (필터 0, RGBA) 를 다시 읽는다"""
-    data = (OUT / name).read_bytes()
-    pos, w, h, idat = 8, 0, 0, b""
+def load_png(name, folder=None):
+    """PNG (8비트 RGBA/RGB, 모든 필터) 를 읽는다. 이 스크립트가 저장한 것과 사용자 그림(assets/art_src) 둘 다"""
+    data = ((folder or OUT) / name).read_bytes()
+    pos, w, h, idat, ctype = 8, 0, 0, b"", 6
     while pos < len(data):
         ln = struct.unpack(">I", data[pos:pos + 4])[0]
         tag, body = data[pos + 4:pos + 8], data[pos + 8:pos + 8 + ln]
         pos += 12 + ln
         if tag == b"IHDR":
             w, h = struct.unpack(">II", body[:8])
+            ctype = body[9]
         elif tag == b"IDAT":
             idat += body
     raw = zlib.decompress(idat)
+    bpp = 4 if ctype == 6 else 3
+    stride = w * bpp
     c = Canvas(w, h)
-    stride = w * 4
+    prev = bytearray(stride)
     for y in range(h):
-        row = raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)]
+        ft = raw[y * (stride + 1)]
+        row = bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
+        for i in range(stride):
+            a = row[i - bpp] if i >= bpp else 0
+            b = prev[i]
+            cc = prev[i - bpp] if i >= bpp else 0
+            if ft == 1:
+                row[i] = (row[i] + a) & 255
+            elif ft == 2:
+                row[i] = (row[i] + b) & 255
+            elif ft == 3:
+                row[i] = (row[i] + (a + b) // 2) & 255
+            elif ft == 4:
+                p = a + b - cc
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - cc)
+                row[i] = (row[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else cc)) & 255
         for x in range(w):
-            c.px[y][x] = tuple(row[x * 4:x * 4 + 4])
+            px = tuple(row[x * bpp:x * bpp + bpp])
+            c.px[y][x] = px if bpp == 4 else px + (255,)
+        prev = row
     return c
 
 
@@ -3446,7 +3469,20 @@ def make_items():
                 produce(c, item, 8, 8.5, big=True)
             c.outline(INK)
         done()
-    atlas.save("items.png")
+    # 사용자 그림 (사용자 결정: 바탕 화면 '이미지' 폴더의 그림으로 아이콘 교체). 32x32 칸 아틀라스:
+    # assets/art_src/items/<아이템 id>.png 가 있으면 그것, 없으면 위에서 그린 16x16 을 2배로 키운다
+    hd = Canvas(len(order) * ICON, ICON)
+    for col, item in enumerate(order):
+        path = USER_ICONS / (item + ".png")
+        if path.exists():
+            hd.blit(load_png(path.name, USER_ICONS), col * ICON, 0)
+        else:
+            small = Canvas(T, T)
+            for y in range(T):
+                for x in range(T):
+                    small.px[y][x] = atlas.get(col * T + x, y)
+            hd.blit(small.scaled(ICON // T), col * ICON, 0)
+    hd.save("items.png")
 
 
 # ---------------------------------------------------------------- UI (3배로 키워 저장)

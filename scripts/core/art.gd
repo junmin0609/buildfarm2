@@ -11,6 +11,8 @@ const EDGE_CORNERS := preload("res://assets/art/edge_corners.png")
 const DETAILS := preload("res://assets/art/details.png")
 const CROPS := preload("res://assets/art/crops.png")
 const ITEMS := preload("res://assets/art/items.png")
+## items.png 한 칸 (사용자 그림 아이콘 32x32). 화면에는 지금처럼 16 크기로 그린다 (TILE / ICON 배)
+const ICON := 32
 ## 작물 품질 메달 (사용자가 준 그림: mood/medal 의 금·은·동매달을 18x18 도트로 옮김). 가방 칸 오른쪽 위에 그린다
 const MEDALS := {
 	"gold": preload("res://assets/art/medal_gold.png"),
@@ -58,7 +60,7 @@ static func sign_label(text: String, rect: Rect2, origin: Vector2) -> Label:
 
 
 static func item_region(item: ItemDef) -> Rect2:
-	return Rect2(item.icon * TILE, 0, TILE, TILE)
+	return Rect2(item.icon * ICON, 0, ICON, ICON)
 
 
 static func tile_region(coords: Vector2i) -> Rect2:
