@@ -26,6 +26,9 @@ const ARROW := Color(1.0, 0.98, 0.9, 0.95)
 const ARROW_OUTLINE := Color(0.36, 0.23, 0.16, 0.9)
 const PORT_IN := Color("9fdc8a")
 const PORT_OUT := Color("f5b65a")
+## 스프링클러(물) / 자동 수확기 범위 미리보기 색
+const AREA_WATER := Color("7cc4e6")
+const AREA_HARVEST := Color("f2c443")
 
 var mode := Mode.OFF
 var place_def: PlaceableDef
@@ -130,7 +133,8 @@ func _update_hint() -> void:
 		Mode.PLACE when is_belt(place_def):
 			text = "%s 깔기 · 끌어서 길게%s · 우클릭/Esc 끝내기" % [place_def.name, rotate_hint]
 		Mode.PLACE:
-			text = "%s 배치 (%s) · 클릭 설치%s · 우클릭/Esc 끝내기" % [place_def.name, place_def.cost_text(), rotate_hint]
+			# 값은 건설 창에 보이므로 여기서는 빼서 안내 줄이 화면 밖으로 넘치지 않게 한다
+			text = "%s 배치 · 클릭 설치%s · 우클릭/Esc 끝내기" % [place_def.name, rotate_hint]
 		Mode.MOVE:
 			text = ("%s 옮기는 중 · 클릭 내려놓기%s · 우클릭 취소" % [moving.def.name, rotate_hint]) if moving else "옮길 시설을 클릭 · 우클릭/Esc 끝내기"
 		Mode.REMOVE:
@@ -472,6 +476,12 @@ func _draw_ghost(def: PlaceableDef, origin: Vector2i) -> void:
 		var center := Vector2(origin * Art.TILE) + Vector2(s * Art.TILE) / 2.0
 		_draw_arrow(center, Vector2(Placeable.DIRS[turns]))
 	_draw_ports(Placeable.ports_of(def, origin, turns))
+	# 스프링클러·자동 수확기: 일하는 범위 (§14, §66)
+	if def.data.has("area"):
+		var area_color := AREA_HARVEST if def.data.has("harvester") else AREA_WATER
+		for c in FarmArea.cells(origin, def.data.area):
+			draw_rect(Rect2(Vector2(c * Art.TILE), Vector2(Art.TILE, Art.TILE)).grow(-2), Color(area_color, 0.28))
+			draw_rect(Rect2(Vector2(c * Art.TILE), Vector2(Art.TILE, Art.TILE)).grow(-2), Color(area_color, 0.8), false, 1.0)
 
 
 ## 끌어서 까는 컨베이어 길: 칸마다 놓을 수 있으면 초록, 막혔거나 가진 개수를 넘으면 빨강 + 방향 화살표

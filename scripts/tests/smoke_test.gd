@@ -216,6 +216,9 @@ func _ready() -> void:
 	# ---------- 레시피 상점 (셰프, §71)
 	await _test_recipe_shop(world, hud)
 
+	# ---------- 스프링클러 + 자동 수확기 (§14, §66)
+	await _test_farm_machines(world, hud)
+
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
 
@@ -2807,6 +2810,157 @@ func _test_recipe_shop(world: FarmWorld, hud: HUD) -> void:
 	GameState.unlocks = saved_unlocks
 	GameState.money = money0
 	inv.load_data(saved_inv)
+	await get_tree().process_frame
+
+
+func _test_farm_machines(world: FarmWorld, hud: HUD) -> void:
+	var grid := world.build
+	var farm := world.farm
+	var inv := GameState.inventory
+	var saved_inv := inv.to_data()
+	var saved_day := GameState.day
+	var player := world.player
+	# 당근(봄 작물)을 심고 하루를 넘겨도 계절이 바뀌지 않게 봄 2일로 둔다
+	GameState.day = 2
+
+	# 범위 규칙 (사용자 결정: 하급 + / 중급 3x3 / 상급 5x5, 스프링클러·수확기 같은 규칙)
+	var counts := []
+	for id in ["sprinkler_1", "sprinkler_2", "sprinkler_3", "harvester_1", "harvester_2", "harvester_3"]:
+		var def := PlaceableDB.get_def(id)
+		counts.append(FarmArea.cells(Vector2i(10, 10), def.data.get("area")).size() if def else -1)
+	_check(counts == [4, 8, 24, 4, 8, 24], "범위: 하급 4칸 · 중급 8칸 · 상급 24칸 %s" % [counts])
+	_check(FarmArea.cells(Vector2i(10, 10), {"shape": "plus", "radius": 1}).has(Vector2i(10, 9)) and not FarmArea.cells(Vector2i(10, 10), {"shape": "plus", "radius": 1}).has(Vector2i(11, 9)), "+ 모양은 대각선 제외")
+	_check(not PlaceableDB.get_def("sprinkler_1").solid and not PlaceableDB.get_def("harvester_1").solid and PlaceableDB.get_def("harvester_1").directional, "1칸 기계는 지나다닐 수 있고, 수확기는 방향(출구)이 있음")
+
+	# 자리: 7x7 빈 밭 땅 (가운데에 기계)
+	var origin := Vector2i(-1, -1)
+	var cells: Array = farm.farmable_cells.keys()
+	cells.sort()
+	for c: Vector2i in cells:
+		var ok := true
+		for y in 9:
+			for x in 9:
+				var fc := c + Vector2i(x, y)
+				if not grid.is_buildable_ground(fc) or grid.is_occupied(fc) or farm.tiles.has(fc):
+					ok = false
+		if ok:
+			origin = c
+			break
+	_check(origin.x >= 0, "농사 기계 점검 자리 %s" % origin)
+	if origin.x < 0:
+		return
+	for y in 9:
+		for x in 9:
+			world.obstacles.remove(origin + Vector2i(x, y))
+	await get_tree().process_frame
+	player.global_position = world.cell_center(_find_char("s"))
+	var center := origin + Vector2i(4, 4)
+	var ring := FarmArea.cells(center, {"shape": "square", "radius": 2})
+	for c in ring:
+		farm.till(c)
+	_check(ring.all(func(c: Vector2i) -> bool: return farm.get_tile(c) != null and not farm.get_tile(c).watered), "5x5 밭 갈기 (마른 상태)")
+
+	# 스프링클러: 매일 아침 범위 안 밭에 물
+	var sp3 := grid.place(PlaceableDB.get_def("sprinkler_3"), center) as Sprinkler
+	_check(sp3 != null, "상급 스프링클러 설치")
+	grid.start_day()
+	_check(ring.all(func(c: Vector2i) -> bool: return farm.get_tile(c).watered), "아침에 5x5 24칸 모두 물")
+	grid.remove(sp3)
+	for c in ring:
+		farm.get_tile(c).watered = false
+	var sp1 := grid.place(PlaceableDB.get_def("sprinkler_1"), center) as Sprinkler
+	_check(sp1.water_area(world) == 4 and farm.get_tile(center + Vector2i.UP).watered and not farm.get_tile(center + Vector2i(1, 1)).watered, "하급은 상하좌우 4칸만")
+	for c in ring:
+		farm.get_tile(c).watered = false
+	GameState.set_clock(9 * 60)
+	GameState.sleep()
+	hud._close_panels()
+	_check(farm.get_tile(center + Vector2i.LEFT).watered and not farm.get_tile(center + Vector2i(-2, -2)).watered, "하루가 넘어가면 아침에 저절로 물 (하루 마감 wake_up 단계)")
+	grid.remove(sp1)
+
+	# 자동 수확기: 다 자란 작물 심기 (+ 모양 4칸)
+	var carrot_seed := ItemDB.get_item("carrot_seed")
+	var plant_ripe := func(c: Vector2i) -> void:
+		farm.plant(c, carrot_seed)
+		farm.get_tile(c).days_grown = carrot_seed.grow_days
+	for c in FarmArea.cells(center, {"shape": "plus", "radius": 1}):
+		plant_ripe.call(c)
+	await get_tree().process_frame
+	var hv := grid.place(PlaceableDB.get_def("harvester_1"), center) as AutoHarvester
+	_check(hv != null and hv.next_target() != AutoHarvester.NO_CELL, "하급 자동 수확기 설치 (다 자란 작물 발견)")
+	hv.advance(30.0)
+	_check(hv.output.is_empty() and hv.starved and hv.status_text().begins_with("전기가 없어서") and farm.get_tile(center + Vector2i.UP).is_mature(), "전기가 없으면 거두지 않고 작물은 밭에 그대로")
+
+	# 발전기 + 연료 → 거두는 동안에만 전기
+	var gen := grid.place(PlaceableDB.get_def("small_generator"), origin) as Generator
+	inv.add("wood", 5)
+	gen.deposit(inv, "wood", 5)
+	gen.produce(120.0)
+	var before := gen.energy
+	var got := hv.advance(40.0)
+	_check(got.size() == 4 and hv.output_count() == 4 and not hv.starved and absf((before - gen.energy) - 20.0) < 0.6, "40분에 4번 거둠 (10분씩, 시간당 30 → 전기 %.1f 사용)" % (before - gen.energy))
+	_check(FarmArea.cells(center, {"shape": "plus", "radius": 1}).all(func(c: Vector2i) -> bool: return not farm.get_tile(c).has_crop()), "거둔 칸은 빈 밭 (한 번 거두는 작물)")
+	var e2 := gen.energy
+	hv.advance(30.0)
+	_check(absf(gen.energy - e2) < 0.01 and hv.power_demand() == 0, "거둘 게 없으면 전기를 안 씀")
+	_check(farm.get_tile(center + Vector2i(1, 1)) != null and not farm.get_tile(center + Vector2i(1, 1)).has_crop(), "하급은 대각선 칸에 손대지 않음")
+
+	# 출구 → 컨베이어 (§66: 창고로 순간이동하지 않음)
+	inv.add("conveyor", 1)
+	world.build_mode.start_place("conveyor")
+	world.build_mode.turns = 0
+	_check(world.build_mode.try_place(center + Vector2i(0, 1)), "수확기 출구(아래) 앞에 벨트")
+	world.build_mode.stop()
+	var belt := grid.object_at(center + Vector2i(0, 1)) as Conveyor
+	grid.conveyors.tick(1.0)
+	_check(belt.has_item() and belt.item.id == "carrot" and hv.output_count() == 3, "거둔 당근이 출구 벨트로 나감")
+	grid.remove(belt)
+
+	# 안이 가득 차면 거두지 않음 (작물 보존)
+	hv.output = [{"id": "carrot", "count": hv.max_output(), "quality": "bronze"}] as Array[Dictionary]
+	plant_ripe.call(center + Vector2i.LEFT)
+	hv.advance(30.0)
+	_check(farm.get_tile(center + Vector2i.LEFT).is_mature() and hv.status_text().begins_with("안이 가득"), "안이 가득 차면 거두지 않고 작물은 밭에 그대로")
+
+	# [E] 로 꺼내기
+	inv.load_data([])
+	player.global_position = hv.interact_point()
+	await get_tree().physics_frame
+	player._interact()
+	_check(inv.count_of("carrot") == hv.max_output() and hv.output.is_empty(), "[E] 로 거둔 것을 가방에 꺼냄")
+
+	# 야간 생산: 밤에도 거두고 아침 요약에 나옴
+	var report := {}
+	gen.produce(60.0)
+	grid.night_production(report, 30.0)
+	_check(int(report.get("night_production", {}).get("items", {}).get("carrot", 0)) == 1 and not farm.get_tile(center + Vector2i.LEFT).has_crop(), "야간 생산 동안 거둠 → 야간 요약에 당근")
+
+	# 상급: 5x5 범위
+	grid.remove(hv)
+	var hv3 := grid.place(PlaceableDB.get_def("harvester_3"), center) as AutoHarvester
+	plant_ripe.call(center + Vector2i(2, -2))
+	_check(hv3.next_target() == center + Vector2i(2, -2), "상급은 5x5 모서리 칸도 거둠")
+
+	# 저장 / 불러오기
+	hv3.advance(5.0)
+	var state := hv3.save_state()
+	world.save_manager.save_game("manual")
+	hv3.take_contents()
+	world.save_manager.load_game()
+	hv3 = grid.object_at(center) as AutoHarvester
+	_check(hv3 != null and hv3.save_state() == state and absf(hv3.progress - 5.0) < 0.01, "수확기 저장·불러오기 (진행 %.1f분)" % (hv3.progress if hv3 else -1.0))
+
+	# 정리
+	for obj in grid.objects().duplicate():
+		if Rect2i(origin, Vector2i(9, 9)).has_point(obj.cell):
+			obj.take_contents()
+			grid.remove(obj)
+	for c in ring:
+		farm.remove_crop(c)
+		farm.untill(c)
+	inv.load_data(saved_inv)
+	GameState.day = saved_day
+	hud._close_panels()
 	await get_tree().process_frame
 
 

@@ -5,12 +5,15 @@ extends PanelContainer
 
 signal close_requested
 
+## 기준 화면 1280x720 안에 창 전체(제목·안내·목록·옮기기/철거 버튼)가 들어가는 높이
+const LIST_HEIGHT := 440
+
 var _list: VBoxContainer
 var _money: Label
 
 
 func _ready() -> void:
-	custom_minimum_size = Vector2(720, 0)
+	custom_minimum_size = Vector2(1100, 0)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
 	add_child(box)
@@ -37,9 +40,15 @@ func _ready() -> void:
 	hint.add_theme_color_override("font_color", Color("9a7457"))
 	box.add_child(hint)
 
+	# 시설이 많아져 화면을 넘지 않도록 목록은 스크롤
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size = Vector2(0, LIST_HEIGHT)
 	_list = VBoxContainer.new()
+	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_list.add_theme_constant_override("separation", 8)
-	box.add_child(_list)
+	scroll.add_child(_list)
+	box.add_child(scroll)
 
 	var tools := HBoxContainer.new()
 	tools.add_theme_constant_override("separation", 12)
@@ -75,7 +84,7 @@ func _row(def: PlaceableDef) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 14)
 	var thumb := TextureRect.new()
-	thumb.texture = def.texture
+	thumb.texture = def.texture if def.texture else thumbnail_of(def)
 	thumb.custom_minimum_size = Vector2(64, 64)
 	thumb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	thumb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -88,6 +97,7 @@ func _row(def: PlaceableDef) -> HBoxContainer:
 	info.add_child(name_label)
 	var desc := Label.new()
 	desc.text = def.description
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART  # 설명이 길어도 창이 화면 밖으로 넓어지지 않게
 	desc.add_theme_font_size_override("font_size", Art.FONT_SIZE_SMALL)
 	desc.add_theme_color_override("font_color", Color("9a7457"))
 	info.add_child(desc)
@@ -102,6 +112,18 @@ func _row(def: PlaceableDef) -> HBoxContainer:
 	btn.pressed.connect(_choose.bind("place", def.id))
 	row.add_child(btn)
 	return row
+
+
+## 그림이 없는 시설(컨베이어: 바닥 벨트라 노드가 직접 그림)은 재료 아이템 아이콘으로 보여 준다
+static func thumbnail_of(def: PlaceableDef) -> Texture2D:
+	for mat_id: String in def.materials:
+		var item := ItemDB.get_item(mat_id)
+		if item:
+			var tex := AtlasTexture.new()
+			tex.atlas = Art.ITEMS
+			tex.region = Art.item_region(item)
+			return tex
+	return null
 
 
 func _choose(what: String, def_id: String) -> void:

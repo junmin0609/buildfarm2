@@ -57,6 +57,114 @@
 			"max_output": 30
 		}
 	},
+	"sprinkler_1": {
+		"name": "스프링클러 (하급)",
+		"category": "농업",
+		"description": "매일 아침 상하좌우 4칸 밭에 물을 줘요.",
+		"_comment": "§14. 사용자 결정: 하급 + 모양 / 중급 3x3 / 상급 5x5, 놓아두기만 하면 매일 아침 물. 값·재료는 임시 밸런스",
+		"size": [1, 1],
+		"texture": "res://assets/art/sprinkler_1.png",
+		"price": 300,
+		"materials": {"stone": 10},
+		"solid": false,
+		"rotatable": false,
+		"script": "res://scripts/farm/sprinkler.gd",
+		"area": {"shape": "plus", "radius": 1}
+	},
+	"sprinkler_2": {
+		"name": "스프링클러 (중급)",
+		"category": "농업",
+		"description": "매일 아침 둘레 3x3 (8칸) 밭에 물을 줘요.",
+		"_comment": "§14. 사용자 결정: 하급 + 모양 / 중급 3x3 / 상급 5x5, 놓아두기만 하면 매일 아침 물. 값·재료는 임시 밸런스",
+		"size": [1, 1],
+		"texture": "res://assets/art/sprinkler_2.png",
+		"price": 900,
+		"materials": {"stone": 20, "wood": 10},
+		"solid": false,
+		"rotatable": false,
+		"script": "res://scripts/farm/sprinkler.gd",
+		"area": {"shape": "square", "radius": 1}
+	},
+	"sprinkler_3": {
+		"name": "스프링클러 (상급)",
+		"category": "농업",
+		"description": "매일 아침 둘레 5x5 (24칸) 밭에 물을 줘요.",
+		"_comment": "§14. 사용자 결정: 하급 + 모양 / 중급 3x3 / 상급 5x5, 놓아두기만 하면 매일 아침 물. 값·재료는 임시 밸런스",
+		"size": [1, 1],
+		"texture": "res://assets/art/sprinkler_3.png",
+		"price": 2200,
+		"materials": {"stone": 40, "wood": 20},
+		"solid": false,
+		"rotatable": false,
+		"script": "res://scripts/farm/sprinkler.gd",
+		"area": {"shape": "square", "radius": 2}
+	},
+	"harvester_1": {
+		"name": "자동 수확기 (하급)",
+		"category": "농업",
+		"description": "상하좌우 4칸의 다 자란 작물을 거둬 출구로 보내요. (전기)",
+		"_comment": "§66. 사용자 결정: 하급 + 모양 / 중급 3x3 / 상급 5x5, 거두는 동안에만 전기 사용. minutes = 한 번 거두는 데 드는 게임 분, power = 거두는 동안 시간당 전기, max_output = 안에 쌓아 둘 수 있는 개수. 값·수치는 임시 밸런스",
+		"size": [1, 1],
+		"texture": "res://assets/art/harvester_1.png",
+		"price": 700,
+		"materials": {"wood": 20, "stone": 20},
+		"solid": false,
+		"directional": true,
+		"script": "res://scripts/farm/auto_harvester.gd",
+		"ports": [
+			{"type": "out", "cell": [0, 0], "side": "down"}
+		],
+		"area": {"shape": "plus", "radius": 1},
+		"harvester": {
+			"minutes": 10,
+			"power": 30,
+			"max_output": 30
+		}
+	},
+	"harvester_2": {
+		"name": "자동 수확기 (중급)",
+		"category": "농업",
+		"description": "둘레 3x3 (8칸)의 다 자란 작물을 거둬 출구로 보내요. (전기)",
+		"_comment": "§66. 사용자 결정: 하급 + 모양 / 중급 3x3 / 상급 5x5, 거두는 동안에만 전기 사용. minutes = 한 번 거두는 데 드는 게임 분, power = 거두는 동안 시간당 전기, max_output = 안에 쌓아 둘 수 있는 개수. 값·수치는 임시 밸런스",
+		"size": [1, 1],
+		"texture": "res://assets/art/harvester_2.png",
+		"price": 1800,
+		"materials": {"wood": 40, "stone": 40},
+		"solid": false,
+		"directional": true,
+		"script": "res://scripts/farm/auto_harvester.gd",
+		"ports": [
+			{"type": "out", "cell": [0, 0], "side": "down"}
+		],
+		"area": {"shape": "square", "radius": 1},
+		"harvester": {
+			"minutes": 10,
+			"power": 30,
+			"max_output": 30
+		}
+	},
+	"harvester_3": {
+		"name": "자동 수확기 (상급)",
+		"category": "농업",
+		"description": "둘레 5x5 (24칸)의 다 자란 작물을 거둬 출구로 보내요. (전기)",
+		"_comment": "§66. 사용자 결정: 하급 + 모양 / 중급 3x3 / 상급 5x5, 거두는 동안에만 전기 사용. minutes = 한 번 거두는 데 드는 게임 분, power = 거두는 동안 시간당 전기, max_output = 안에 쌓아 둘 수 있는 개수. 값·수치는 임시 밸런스",
+		"size": [1, 1],
+		"texture": "res://assets/art/harvester_3.png",
+		"price": 4000,
+		"materials": {"wood": 80, "stone": 80},
+		"solid": false,
+		"directional": true,
+		"script": "res://scripts/farm/auto_harvester.gd",
+		"ports": [
+			{"type": "out", "cell": [0, 0], "side": "down"}
+		],
+		"area": {"shape": "square", "radius": 2},
+		"harvester": {
+			"minutes": 10,
+			"power": 30,
+			"max_output": 30
+		}
+	},
 	"warehouse": {
 		"name": "창고",
 		"category": "물류",

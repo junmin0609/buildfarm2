@@ -396,6 +396,57 @@ func _ready() -> void:
 		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_conveyor_build.png"))
 		world.build_mode.stop()
 
+	# 스프링클러·자동 수확기 (§14, §66): 밭 사이 기계 / 놓을 때 범위 미리보기 / 건설 창
+	for obj in world.build.objects().duplicate():
+		obj.take_contents()
+		world.build.remove(obj)
+	await get_tree().process_frame
+	var fspot := Vector2i(-1, -1)
+	for c: Vector2i in cells:
+		var ok := true
+		for y in 7:
+			for x in 11:
+				var fc := c + Vector2i(x, y)
+				ok = ok and world.build.is_buildable_ground(fc) and (world.farm.get_tile(fc) == null or not world.farm.get_tile(fc).has_crop())
+		if ok:
+			fspot = c
+			break
+	if fspot.x >= 0:
+		for y in 7:
+			for x in 11:
+				world.obstacles.remove(fspot + Vector2i(x, y))
+		var field_seeds := ["carrot_seed", "potato_seed", "strawberry_seed"]
+		for y in range(1, 6):
+			for x in range(1, 10):
+				var fc := fspot + Vector2i(x, y)
+				world.farm.till(fc)
+				if Vector2i(x, y) in [Vector2i(3, 3), Vector2i(7, 3)]:
+					continue
+				world.farm.plant(fc, ItemDB.get_item(field_seeds[(x + y) % 3]))
+				world.farm.get_tile(fc).days_grown = 1 + (x * 3 + y) % 6
+		world.build.place(PlaceableDB.get_def("sprinkler_2"), fspot + Vector2i(3, 3))
+		var fh := world.build.place(PlaceableDB.get_def("harvester_1"), fspot + Vector2i(7, 3)) as AutoHarvester
+		if fh:
+			fh.output = [{"id": "carrot", "count": 3, "quality": "silver"}] as Array[Dictionary]
+			fh._update_icon()
+		world.build.start_day()
+		world.player.global_position = world.cell_center(fspot + Vector2i(5, 6))
+		world.player.facing = Vector2i.UP
+		world.player.camera.reset_smoothing()
+		await get_tree().create_timer(0.8).timeout
+		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_farm_machines.png"))
+		world.build_mode.start_place("sprinkler_3")
+		world.build_mode._use_mouse = false
+		world.player.global_position = world.cell_center(fspot + Vector2i(5, 1))
+		world.player.facing = Vector2i.DOWN
+		await get_tree().create_timer(0.4).timeout
+		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_sprinkler_preview.png"))
+		world.build_mode.stop()
+	hud.open_build_panel()
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_build_menu.png"))
+	hud._close_panels()
+
 	# 아침 야간 생산 요약 (§98)
 	hud._night.open(GameState.day, {"items": {"flour": 24, "bread": 10, "basic_fertilizer": 2}, "energy": 300.0})
 	hud._center(hud._night)

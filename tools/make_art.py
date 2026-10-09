@@ -1007,6 +1007,68 @@ def make_compost_bin():
     c.save("compost_bin.png")
 
 
+# ---------------------------------------------------------------- 스프링클러·자동 수확기 (1x1칸, 하급·중급·상급)
+#   단계 색: 하급 구리 / 중급 은 / 상급 금. 밭 사이에 놓이는 작은 기계
+
+TIER_METAL = {
+    1: (hexc("d98c4f"), hexc("a8643a"), hexc("f2b98a")),   # 구리
+    2: (hexc("c9d3dc"), hexc("94a3b2"), hexc("eef3f7")),   # 은
+    3: (hexc("f2c443"), hexc("c9922a"), hexc("fbe39a")),   # 금
+}
+
+
+def make_sprinklers():
+    """16x20: 나무 말뚝 위 둥근 분사 머리 + 물방울"""
+    w = P["wood"]
+    for tier, (m, md, ml) in TIER_METAL.items():
+        c = Canvas(T, 20)
+        c.ellipse(8, 18.5, 5, 1.3, SOFT_SHADOW)
+        c.rect(7, 11, 2, 8, w[1])
+        c.rect(7, 11, 1, 8, w[2])
+        rrect(c, 3, 7, 10, 5, 2, m)
+        c.rect(4, 10, 8, 1, md)
+        c.rect(5, 8, 3, 1, ml)
+        rrect(c, 6, 4, 4, 4, 1, m)
+        c.set(7, 5, ml)
+        # 단계만큼 노즐 (하급 1 · 중급 2 · 상급 3)
+        for k in range(tier):
+            x = 8 - tier + 2 * k
+            c.set(x, 3, md); c.set(x, 2, md)
+        c.outline(INK)
+        for x, y in ((1, 2), (14, 3), (2, 6), (13, 7)):
+            c.set(x, y, hexc("7cc4e6"))
+        c.set(1, 3, hexc("c2ecfa")); c.set(14, 4, hexc("c2ecfa"))
+        c.save(f"sprinkler_{tier}.png")
+
+
+def make_harvesters():
+    """16x22: 초록 몸통 + 단계 색 집게 팔 + 앞(아래)쪽 배출구"""
+    green, green_d, green_l = hexc("7fb069"), hexc("5f9050"), hexc("a6cf8c")
+    for tier, (m, md, ml) in TIER_METAL.items():
+        c = Canvas(T, 22)
+        c.ellipse(8, 20.5, 6.5, 1.4, SOFT_SHADOW)
+        rrect(c, 2, 9, 12, 11, 2, green)
+        c.rect(3, 18, 10, 1, green_d)
+        c.rect(4, 10, 6, 1, green_l)
+        # 창 (안에 거둔 작물이 보이는 느낌)
+        rrect(c, 5, 12, 6, 4, 1, hexc("fbeccf"))
+        c.set(6, 13, hexc("e0715f")); c.set(8, 14, hexc("f2c443")); c.set(9, 13, hexc("7fb069"))
+        # 배출구 (앞쪽)
+        rrect(c, 6, 18, 4, 3, 1, md)
+        # 집게 팔
+        c.rect(7, 3, 2, 7, md)
+        c.rect(7, 3, 1, 7, m)
+        rrect(c, 3, 1, 10, 3, 1, m)
+        c.rect(4, 1, 7, 1, ml)
+        for x in (3, 12):
+            c.rect(x, 3, 1, 3, md)
+        # 단계 별 (하급 1 · 중급 2 · 상급 3)
+        for k in range(tier):
+            c.set(4 + k * 2, 16, m)
+        c.outline(INK)
+        c.save(f"harvester_{tier}.png")
+
+
 # ---------------------------------------------------------------- 컨베이어 (1x1칸, conveyor.png 64x48)
 #   줄: 0 직선 / 1 왼쪽에서 들어와 아래로 꺾임 / 2 오른쪽에서 들어와 아래로 꺾임. 칸: 무늬가 흐르는 4장
 #   모두 회전 0(아래로 흐름) 기준이고 게임에서 90°씩 돌려 쓴다. 양옆 나무 난간 + 가운데 짙은 벨트 + 흐르는 V 무늬
@@ -2279,6 +2341,8 @@ if __name__ == "__main__":
     make_greenhouse()
     make_compost_bin()
     make_conveyor()
+    make_sprinklers()
+    make_harvesters()
     make_warehouse()
     make_processor()
     make_generator()
