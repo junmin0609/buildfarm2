@@ -356,6 +356,7 @@ scripts/
 - 확인용 장면: `scenes/tests/resolution_check.tscn` (창 크기를 바꿔 가며 user://res_*.png 와 배율 숫자를 남김)
 
 ## 그래픽
+- `medal_gold/silver/bronze.png` 작물 품질 메달 (사용자가 준 그림 mood/medal 의 금·은·동매달을 18x18 도트로 옮김, make_art.py 가 만들지 않음). 가방·핫바·상점 칸 오른쪽 위
 모든 그림은 외부 에셋 없이 `tools/make_art.py`가 픽셀 단위로 그립니다 (Python만 있으면 됨).
 스타일: 둥글고 따뜻한 톤. 외곽선은 검정 대신 갈색(`INK`), 모서리는 둥글게, 회색 대신 모래·크림색. 색은 파일 위쪽 `P` 팔레트에서 한 번에 바꿀 수 있습니다.
 ```

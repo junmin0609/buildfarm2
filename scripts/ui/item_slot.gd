@@ -1,7 +1,7 @@
 class_name ItemSlot
 extends Control
 ## 아이템 한 칸. 도트 테두리 + 3배 확대한 아이콘 + 개수.
-## 품질이 있으면 오른쪽 위에 품질 색 보석, 물뿌리개는 아래에 남은 물 막대.
+## 품질이 있으면 오른쪽 위에 품질 메달(금·은·동, Art.MEDALS), 물뿌리개는 아래에 남은 물 막대.
 ## draggable 이면 가방(GameState.inventory)의 index 칸으로 다뤄 끌어다 놓을 수 있다 (가방 창 ↔ 핫바 모두).
 ## 마우스를 올리면 Events.item_hover_changed 로 알려 커서 옆 툴팁(ItemTooltip)이 뜬다.
 
@@ -128,7 +128,7 @@ func _draw() -> void:
 	if count > 1:
 		_text(font, Vector2(0, size.y - 7), str(count), Art.FONT_SIZE_SMALL, HORIZONTAL_ALIGNMENT_RIGHT, TEXT, size.x - 8)
 	if quality != Quality.NONE:
-		_draw_quality_gem(Vector2(size.x - 14, 14), Quality.color_of(quality))
+		_draw_quality_medal(quality)
 	if water >= 0:
 		# 남은 물: 갈색 테두리 + 크림색 빈 칸 + 파란 물
 		var bar := Rect2(9, size.y - 16, size.x - 18, 8)
@@ -139,13 +139,12 @@ func _draw() -> void:
 		draw_rect(fill, Color("5aa3cc"))
 
 
-## 마름모 보석 (품질 색). 아이콘 위에 겹쳐도 보이게 진한 테두리를 두른다.
-func _draw_quality_gem(center: Vector2, color: Color) -> void:
-	var outer := PackedVector2Array([center + Vector2(0, -10), center + Vector2(10, 0), center + Vector2(0, 10), center + Vector2(-10, 0)])
-	var inner := PackedVector2Array([center + Vector2(0, -6), center + Vector2(6, 0), center + Vector2(0, 6), center + Vector2(-6, 0)])
-	draw_colored_polygon(outer, Color("5b3a29"))
-	draw_colored_polygon(inner, color)
-	draw_rect(Rect2(center + Vector2(-3, -3), Vector2(3, 3)), Color(1, 1, 1, 0.75))
+## 품질 메달 (사용자 그림: 금·은·동매달). 칸 오른쪽 위, 도트가 고르게 보이도록 원래 크기(18px)로. 그림이 없는 품질이면 그리지 않는다
+func _draw_quality_medal(q: String) -> void:
+	var tex: Texture2D = Art.MEDALS.get(q)
+	if tex == null:
+		return
+	draw_texture(tex, Vector2(size.x - tex.get_width() - 4, 4))
 
 
 func _text(font: Font, pos: Vector2, text: String, font_size: int, align: HorizontalAlignment, color: Color, width := -1.0) -> void:

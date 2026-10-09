@@ -11,6 +11,12 @@ const EDGE_CORNERS := preload("res://assets/art/edge_corners.png")
 const DETAILS := preload("res://assets/art/details.png")
 const CROPS := preload("res://assets/art/crops.png")
 const ITEMS := preload("res://assets/art/items.png")
+## 작물 품질 메달 (사용자가 준 그림: mood/medal 의 금·은·동매달을 18x18 도트로 옮김). 가방 칸 오른쪽 위에 그린다
+const MEDALS := {
+	"gold": preload("res://assets/art/medal_gold.png"),
+	"silver": preload("res://assets/art/medal_silver.png"),
+	"bronze": preload("res://assets/art/medal_bronze.png"),
+}
 
 ## Neo둥근모 (SIL OFL 1.1): 획 끝이 둥근 16px 한글 도트 폰트. 16의 배수 크기에서 선명하다.
 const FONT := preload("res://assets/fonts/neodgm.ttf")
