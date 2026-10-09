@@ -20,6 +20,13 @@ const DATA_PATH := "res://data/player.json"
 var facing := Vector2i.DOWN
 ## 마우스로 고를 수 있는 거리 (칸)
 var reach := int(DataFile.load_dict(DATA_PATH).get("reach_tiles", 2))
+## 도구를 한 번 쓴 뒤 다음에 쓸 수 있을 때까지 (초, 사용자 결정: 0.5초). 연타는 이 간격에 한 번,
+## 누르고 있으면 이 간격마다 계속 쓴다 (data/player.json 의 tool_cooldown)
+var tool_cooldown := float(DataFile.load_dict(DATA_PATH).get("tool_cooldown", 0.5))
+## 다음에 도구를 쓸 수 있는 시각 (Time.get_ticks_msec 기준 — 프레임 속도와 상관없이 실제 0.5초)
+var _next_use_ms := 0
+## 월드에서 도구 버튼을 누른 채 있는가 (창 위에서 누른 건 세지 않는다)
+var _holding := false
 var _anim_time := 0.0
 var _swing := 0.0
 var _swing_item: ItemDef = null
@@ -45,6 +52,11 @@ func _physics_process(delta: float) -> void:
 	_swing = maxf(_swing - delta, 0.0)
 	_bubble_time += delta
 	_update_sprite(dir != Vector2.ZERO)
+	# 도구: 누르고 있으면 딜레이마다 계속 쓴다
+	if _holding and not Input.is_action_pressed("use_tool"):
+		_holding = false
+	if _holding and Time.get_ticks_msec() >= _next_use_ms and not GameState.is_input_locked() and not (_world() and _world().build_mode.is_active()):
+		try_use_tool()
 
 	var world := _world()
 	if world:
@@ -125,11 +137,29 @@ func _unhandled_input(event: InputEvent) -> void:
 	if GameState.is_input_locked():
 		return  # 가방 창이 열려 있는 동안 (시간은 흐른다)
 	if event.is_action_pressed("use_tool"):
-		_use_selected()
+		_holding = true
+		try_use_tool()
 		get_viewport().set_input_as_handled()
+	elif event.is_action_released("use_tool"):
+		_holding = false
 	elif event.is_action_pressed("interact"):
 		_interact()
 		get_viewport().set_input_as_handled()
+
+
+## 딜레이가 끝났으면 손에 든 것을 쓴다. 썼으면 true (딜레이 중이면 무시하고 false)
+func try_use_tool() -> bool:
+	var now := Time.get_ticks_msec()
+	if now < _next_use_ms:
+		return false
+	_next_use_ms = now + roundi(tool_cooldown * 1000.0)
+	tool_uses += 1
+	_use_selected()
+	return true
+
+
+## 지금까지 도구를 쓴 횟수 (점검용)
+var tool_uses := 0
 
 
 func _use_selected() -> void:

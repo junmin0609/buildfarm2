@@ -1,4 +1,5 @@
 {
-	"_comment": "플레이어 조작 (BUILD_FARM_PLAN §9). reach_tiles: 마우스로 고를 수 있는 거리(칸). 그 밖이면 바라보는 방향 바로 앞 칸을 쓴다.",
-	"reach_tiles": 2
+	"_comment": "플레이어 조작 (BUILD_FARM_PLAN §9). reach_tiles: 마우스로 고를 수 있는 거리(칸). 그 밖이면 바라보는 방향 바로 앞 칸을 쓴다. tool_cooldown: 도구를 한 번 쓴 뒤 다음에 쓸 수 있을 때까지(초, 사용자 결정 0.5초) — 연타는 이 간격에 한 번, 누르고 있으면 이 간격마다 계속",
+	"reach_tiles": 2,
+	"tool_cooldown": 0.5
 }

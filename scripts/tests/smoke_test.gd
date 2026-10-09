@@ -228,6 +228,9 @@ func _ready() -> void:
 	# ---------- 펌프 + 물탱크 + 스프링클러 물 (§14)
 	await _test_water(world, hud)
 
+	# ---------- 도구 딜레이 0.5초 (사용자 결정)
+	await _test_tool_cooldown(world)
+
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
 
@@ -3388,6 +3391,48 @@ func _test_water(world: FarmWorld, hud: HUD) -> void:
 	inv.load_data(saved_inv)
 	GameState.day = saved_day
 	await get_tree().process_frame
+
+
+func _test_tool_cooldown(world: FarmWorld) -> void:
+	var player := world.player
+	var inv := GameState.inventory
+	var saved_inv := inv.to_data()
+	inv.load_data([])  # 빈손으로 휘둘러서 밭·장애물에 영향이 없게
+	GameState.select_slot(0)
+	player.global_position = world.home_position
+	player._next_use_ms = 0
+	_check(player.tool_cooldown == 0.5, "도구 딜레이 0.5초 (player.json)")
+	var uses := player.tool_uses
+	_check(player.try_use_tool() and not player.try_use_tool() and player.tool_uses == uses + 1, "바로 다시 누르면 무시")
+	await _wait_real(600)  # 헤드리스에서는 게임 시간이 실제보다 조금 빨리 가서 타이머 대신 실제 시각으로 기다린다
+	_check(player.try_use_tool() and player.tool_uses == uses + 2, "0.5초가 지나면 다시 씀")
+
+	# 누르고 있으면 0.5초마다 계속 (실제 입력: Space 누른 채 1.1초)
+	await _wait_real(600)
+	uses = player.tool_uses
+	var space := InputEventKey.new()
+	space.physical_keycode = KEY_SPACE
+	space.pressed = true
+	Input.parse_input_event(space)
+	get_viewport().push_input(space, true)
+	await _wait_real(1100)
+	var release := space.duplicate()
+	release.pressed = false
+	Input.parse_input_event(release)
+	get_viewport().push_input(release, true)
+	await get_tree().physics_frame
+	var held := player.tool_uses - uses
+	_check(held == 3, "누르고 있으면 0.5초마다 계속 (1.1초에 %d번)" % held)
+	await _wait_real(600)
+	_check(player.tool_uses - uses == held, "떼면 멈춤")
+	inv.load_data(saved_inv)
+
+
+## 실제 시각으로 ms 만큼 기다린다 (프레임마다 확인)
+func _wait_real(ms: int) -> void:
+	var until := Time.get_ticks_msec() + ms
+	while Time.get_ticks_msec() < until:
+		await get_tree().process_frame
 
 
 ## 합류기가 마지막으로 받은 쪽의 벨트 (names 의 키 중)
