@@ -3557,6 +3557,11 @@ func _test_plaza(world: FarmWorld) -> void:
 	var farm_pos := [10.0 * FarmWorld.TILE, 20.0 * FarmWorld.TILE]
 	var kept: Dictionary = world.save_manager._migrate({"version": 1, "sections": {"player": {"position": farm_pos.duplicate()}}})
 	_check(moved.version == SaveManager.VERSION and Vector2(moved.sections.player.position[0], moved.sections.player.position[1]) == world.home_position and kept.sections.player.position == farm_pos, "예전 저장: 광장에 있었으면 집 앞, 농장이면 그대로")
+	var in_room: Dictionary = world.save_manager._migrate({"version": 2, "sections": {"player": {"position": [165.0 * FarmWorld.TILE, 20.0 * FarmWorld.TILE]}}})
+	_check(Vector2(in_room.sections.player.position[0], in_room.sections.player.position[1]) == world.home_position, "버전 2 저장: 옛 가게 실내 자리에 있었으면 집 앞 (방 자리 바뀜)")
+	_check(Interior.door_cell("store") == Vector2i(5, 8) and Interior.SIZE == Vector2i(12, 9), "실내 12x9, 문은 아래 가운데")
+	var r0 := Interior.view_rect_of("store")
+	_check(not r0.intersects(Interior.view_rect_of("smith")) and not Interior.view_rect_of("smith").intersects(Interior.view_rect_of("machine")), "방끼리 카메라 범위가 겹치지 않음")
 
 
 func _test_interiors(world: FarmWorld, hud: HUD) -> void:
@@ -3604,7 +3609,7 @@ func _test_interiors(world: FarmWorld, hud: HUD) -> void:
 	_check(not hud._dialog.visible and not get_tree().paused, "[나가기] → 대화 닫힘")
 
 	# 문 칸을 밟으면 밖으로
-	player.global_position = world.cell_center(Interior.origin_of("store") + Vector2i(4, 6))
+	player.global_position = world.cell_center(Interior.origin_of("store") + Interior.door_cell("store"))
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	_check(world.area == "farm" and player.global_position.distance_to(store.interact_point()) < 24.0 and cam.limit_left == 0, "문을 밟으면 잡화점 앞으로 (카메라 농장 범위)")

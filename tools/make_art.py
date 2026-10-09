@@ -1983,6 +1983,220 @@ def make_mood_props():
     c.save("duck.png")
 
 
+# ---------------------------------------------------------------- 가게 실내 (무드 개편: 12x9칸 방 그림 한 장씩, 192x144)
+#   나무 마루 + 크림 회벽(나무 징두리) + 벽등 + 가게마다 다른 가구. 칸 배치는 scripts/world/interior.gd 의 rows 와 같다
+#   (가구 칸은 못 지나가고, NPC 는 (6,1) 계산대 뒤, 문은 맨 아래 줄 (5,8)(6,8))
+
+ROOM_W, ROOM_H = 12, 9
+
+
+def room_base(c, wall_col, wall_d):
+    fl = [hexc("a8693a"), hexc("b8784a"), hexc("c48654"), hexc("8a5530")]
+    for y in range(T, ROOM_H * T - T):                                   # 나무 마루 (가로 판자, 이음매 엇갈림)
+        band = (y - T) // 4
+        for x in range(T, ROOM_W * T - T):
+            col = fl[(band * 5 + x // 23) % 3]
+            if (y - T) % 4 == 3:
+                col = fl[3]
+            elif (x + band * 11) % 24 == 0:
+                col = fl[3]
+            c.set(x, y, col)
+    c.rect(0, 0, ROOM_W * T, T + 6, wall_col)                             # 뒷벽 (크림 회벽 + 나무 징두리)
+    c.rect(0, T, ROOM_W * T, 6, WOOD_WALL[1])
+    c.rect(0, T, ROOM_W * T, 1, WOOD_WALL[3])
+    c.rect(0, T + 6, ROOM_W * T, 2, SOFT_SHADOW)
+    for x in range(0, ROOM_W * T, 32):
+        c.rect(x, 0, 2, T, wall_d)
+    c.rect(0, 0, T - 4, ROOM_H * T, WOOD_WALL[0])                         # 옆벽·앞벽
+    c.rect(ROOM_W * T - T + 4, 0, T - 4, ROOM_H * T, WOOD_WALL[0])
+    c.rect(T - 4, 0, 2, ROOM_H * T, WOOD_WALL[1]); c.rect(ROOM_W * T - T + 2, 0, 2, ROOM_H * T, WOOD_WALL[1])
+    c.rect(0, ROOM_H * T - T + 4, ROOM_W * T, T - 4, WOOD_WALL[0])
+    c.rect(5 * T, ROOM_H * T - T + 4, 2 * T, T - 4, hexc("6a4428"))      # 문 자리
+    c.rect(5 * T, ROOM_H * T - T + 4, 2 * T, 2, hexc("4a2e1e"))
+    for x in (4 * T + 8, 7 * T + 4):                                     # 문 옆 등불 (안쪽)
+        lantern(c, x, ROOM_H * T - T - 6)
+
+
+def wall_lamp(c, x, y):
+    c.rect(x + 1, y, 1, 3, hexc("3a2e28"))
+    rrect(c, x - 1, y + 3, 5, 5, 1.2, GLOW[1]); c.set(x + 1, y + 4, GLOW[2])
+
+
+def counter(c, x0, x1, y):
+    rrect(c, x0, y + 2, x1 - x0, T - 1, 1.5, WOOD_WALL[0])
+    rrect(c, x0, y + 2, x1 - x0, 5, 1.5, WOOD_WALL[3])
+    c.rect(x0 + 1, y + 7, x1 - x0 - 2, 1, WOOD_WALL[1])
+    for x in range(x0 + 6, x1 - 4, 10):
+        c.rect(x, y + 8, 1, T - 8, WOOD_WALL[1])
+
+
+def rug(c, x, y, w, h, col, col_d, emblem):
+    rrect(c, x, y, w, h, 2, col_d); rrect(c, x + 2, y + 2, w - 4, h - 4, 1.5, col)
+    for xx in range(x + 3, x + w - 3, 3):
+        c.set(xx, y, col_d); c.set(xx, y + h - 1, col_d)
+    emblem(c, x + w // 2, y + h // 2)
+
+
+def plant_pot(c, x, y):
+    rrect(c, x + 3, y + 9, 10, 7, 1.5, hexc("b8653a")); c.rect(x + 3, y + 9, 10, 1, hexc("d9875a"))
+    c.ellipse(x + 8, y + 6, 6, 5, P["leaf"][1]); c.ellipse(x + 6, y + 4, 3.5, 3, P["leaf"][2])
+    c.set(x + 10, y + 3, FLOWERS[1]); c.set(x + 5, y + 7, FLOWERS[0])
+
+
+def barrel(c, x, y, top=None):
+    rrect(c, x + 2, y + 1, 12, 15, 2.5, WOOD_WALL[1])
+    c.rect(x + 2, y + 5, 12, 1, hexc("5b3a29")); c.rect(x + 2, y + 11, 12, 1, hexc("5b3a29"))
+    c.ellipse(x + 8, y + 2.5, 5.5, 2, top or WOOD_WALL[2])
+
+
+def sprout(c, x, y, col=None):
+    col = col or hexc("f6ead2")
+    c.set(x, y + 1, col); c.set(x, y + 2, col); c.set(x - 1, y, col); c.set(x + 1, y, col); c.set(x - 2, y - 1, col); c.set(x + 2, y - 1, col)
+
+
+def gear_mark(c, x, y, col=None):
+    col = col or hexc("f6ead2")
+    c.ellipse(x, y, 3, 3, col); c.set(x, y, hexc("4f7a4a"))
+    for dx, dy in ((0, -4), (0, 4), (-4, 0), (4, 0)):
+        c.set(x + dx, y + dy, col)
+
+
+def anvil_mark(c, x, y, col=None):
+    col = col or hexc("f6ead2")
+    c.rect(x - 4, y - 2, 8, 2, col); c.rect(x - 1, y, 3, 2, col); c.rect(x - 3, y + 2, 7, 1, col)
+
+
+def make_interiors():
+    W, H = ROOM_W * T, ROOM_H * T
+    # ---- 잡화점: 씨앗 봉투 선반 · 장작 난로 · 새싹 깔개 · 모종 진열대 · 씨앗 자루 · 화분
+    c = Canvas(W, H)
+    room_base(c, hexc("eadbbd"), hexc("dccaa6"))
+    pk = [hexc("f3e7c8"), hexc("d9eac0"), hexc("f0d0a0"), hexc("f0c0c8")]
+    for sx in (T, 8 * T):                                                # 씨앗 선반 (x1~4, x8)
+        sw = 4 * T if sx == T else T
+        rrect(c, sx, 2, sw, 2 * T - 2, 1, WOOD_WALL[0])
+        for row, yy in enumerate((5, 17)):
+            c.rect(sx + 1, yy + 9, sw - 2, 2, WOOD_WALL[3])
+            for k in range(sw // 7):
+                px = sx + 2 + k * 7
+                rrect(c, px, yy, 6, 9, 0.8, pk[(k + row) % 4])
+                c.set(px + 2, yy + 3, (hexc("7fb069"), hexc("e0715f"), hexc("f3d36b"), hexc("b49be0"))[(k * 3 + row) % 4])
+                c.set(px + 3, yy + 4, hexc("7fb069"))
+    rrect(c, 9 * T + 2, 4, 2 * T - 4, 2 * T - 6, 2, hexc("2f2f33"))      # 장작 난로 (x9~10)
+    c.rect(9 * T + 12, 0, 6, 6, hexc("2f2f33"))
+    rrect(c, 9 * T + 8, 14, 14, 9, 1.5, hexc("1f1f22")); c.ellipse(9 * T + 15, 19, 5, 3, hexc("ff9a3c")); c.ellipse(9 * T + 15, 20, 2.5, 1.5, GLOW[2])
+    rrect(c, 6 * T - 4, 1, 22, 13, 1, hexc("f6ead2")); sprout(c, 6 * T + 7, 6, hexc("5f9a5d"))   # 새싹 액자
+    wall_lamp(c, 5 * T + 4, 1); wall_lamp(c, 8 * T + 10, 1)
+    counter(c, 4 * T, 9 * T, 2 * T)                                       # 계산대 (x4~8) + 장부·종·화분
+    rrect(c, 5 * T, 2 * T + 1, 12, 6, 0.5, hexc("fbf6ec")); c.rect(5 * T + 6, 2 * T + 1, 1, 6, hexc("d9c9a8"))
+    c.ellipse(7 * T + 8, 2 * T + 3, 2.5, 2, hexc("d6a83a"))
+    plant_pot(c, 8 * T, 2 * T - 9)
+    rug(c, 4 * T, 3 * T + 4, 4 * T, 10, hexc("5f9a5d"), hexc("3f6e4c"), lambda cv, x, y: sprout(cv, x, y - 1))
+    rrect(c, 4 * T, 4 * T + 2, 4 * T, 2 * T - 4, 1.5, WOOD_WALL[0])       # 모종·씨앗 진열대 (x4~7, y4~5)
+    rrect(c, 4 * T, 4 * T + 2, 4 * T, 5, 1.5, WOOD_WALL[3])
+    for k in range(7):
+        px = 4 * T + 3 + k * 8
+        rrect(c, px, 4 * T, 6, 8, 0.8, pk[k % 4]); c.set(px + 2, 4 * T + 3, (hexc("e0715f"), hexc("7fb069"), hexc("b49be0"))[k % 3])
+    for k in range(4):
+        px = 4 * T + 3 + k * 15
+        rrect(c, px, 5 * T + 2, 12, 6, 1, WOOD_WALL[1])
+        for j in range(3):
+            c.set(px + 2 + j * 4, 5 * T + 1, P["leaf"][3]); c.set(px + 2 + j * 4, 5 * T + 2, P["leaf"][2])
+    for k, yy in enumerate((4 * T, 5 * T)):                              # 씨앗 자루 (x1)
+        rrect(c, T + 1, yy + 1, 14, 15, 3, hexc("e6d3a8")); c.rect(T + 4, yy + 6, 8, 4, hexc("d9c39a")); sprout(c, T + 8, yy + 8, hexc("5f9a5d"))
+    barrel(c, 10 * T, 4 * T); barrel(c, 10 * T, 5 * T, hexc("f3d36b"))
+    plant_pot(c, T, 7 * T); plant_pot(c, 10 * T, 7 * T)
+    rrect(c, 5 * T + 4, 7 * T + 6, 2 * T - 8, 8, 1, hexc("5f9a5d"))       # 문 앞 깔개
+    c.outline(INK)
+    c.save("interior_store.png")
+
+    # ---- 대장간: 화덕 · 광석 선반 · 공구 걸이 · 모루 · 주괴 탁자 · 석탄 통 · 숫돌 · 모루 깔개
+    c = Canvas(W, H)
+    room_base(c, hexc("cdbfae"), hexc("b5a696"))
+    rrect(c, T, 2, 3 * T, 2 * T - 2, 1, WOOD_WALL[0])                     # 광석·주괴 선반 (x1~3)
+    ore = [hexc("9aa0a8"), hexc("d6a83a"), hexc("c46a3a"), hexc("6f6f74")]
+    for row, yy in enumerate((5, 17)):
+        c.rect(T + 1, yy + 9, 3 * T - 2, 2, WOOD_WALL[3])
+        for k in range(6):
+            c.ellipse(T + 5 + k * 7, yy + 6, 3, 2.5, ore[(k + row) % 4])
+    stone = [hexc("7d6f63"), hexc("9a8b7d"), hexc("b5a696")]
+    rrect(c, 8 * T, 0, 3 * T, 2 * T, 2, stone[1])                        # 화덕 (x8~10)
+    for yy in range(3, 2 * T, 5):
+        c.rect(8 * T + 1, yy, 3 * T - 2, 1, stone[0])
+    c.rect(9 * T + 2, 0, T - 4, 6, hexc("3a3a3a"))
+    rrect(c, 8 * T + 8, 12, 2 * T, 16, 3, hexc("2a1a12"))
+    c.ellipse(9 * T + 8, 22, 12, 5, hexc("ff8a2c")); c.ellipse(9 * T + 8, 23, 7, 3, hexc("ffd36b")); c.ellipse(9 * T + 8, 24, 3, 1.5, GLOW[2])
+    rrect(c, 4 * T + 4, 1, 26, 12, 1, hexc("f6ead2")); anvil_mark(c, 5 * T + 1, 6, hexc("5b3a29"))   # 모루 그림
+    for x in range(5 * T + 12, 7 * T + 12, 6):                            # 벽에 건 망치·집게
+        c.rect(x, 2, 1, 10, WOOD_WALL[0]); c.rect(x - 1, 2, 3, 2, hexc("5a5a62"))
+    wall_lamp(c, 4 * T, 1); wall_lamp(c, 7 * T + 12, 1)
+    counter(c, 4 * T, 9 * T, 2 * T)
+    c.rect(5 * T + 2, 2 * T + 2, 10, 2, hexc("5a5a62")); c.rect(5 * T + 5, 2 * T + 4, 2, 4, WOOD_WALL[0])   # 계산대 위 망치·도면
+    rrect(c, 7 * T, 2 * T + 1, 12, 7, 0.5, hexc("fbf6ec"))
+    c.rect(10 * T + 1, 3 * T + 7, 14, 4, hexc("4a4d55")); c.rect(10 * T + 4, 3 * T + 11, 8, 4, hexc("4a4d55"))  # 모루 (x10, y3)
+    c.rect(10 * T + 2, 3 * T + 7, 12, 1, hexc("7a7e88"))
+    rrect(c, T, 4 * T, 14, 3 * T, 1, WOOD_WALL[0])                        # 공구 걸이 (x1, y4~6)
+    for k in range(6):
+        y = 4 * T + 4 + k * 7
+        c.rect(T + 3, y, 9, 1, hexc("9aa0a8")); c.rect(T + 3, y + 1, 2, 3, hexc("5a5a62"))
+    rug(c, 4 * T, 3 * T + 4, 4 * T, 10, hexc("a85a46"), hexc("7a3a2e"), lambda cv, x, y: anvil_mark(cv, x, y))
+    rrect(c, 4 * T, 4 * T + 2, 4 * T, 2 * T - 4, 1.5, WOOD_WALL[0])       # 주괴 탁자 (x4~7, y4~5)
+    rrect(c, 4 * T, 4 * T + 2, 4 * T, 5, 1.5, WOOD_WALL[3])
+    for k, col in enumerate((hexc("e3c04a"), hexc("c9ccd1"), hexc("c46a3a"), hexc("c9ccd1"), hexc("e3c04a"))):
+        rrect(c, 4 * T + 4 + k * 12, 4 * T + 9, 9, 5, 1, col); c.rect(4 * T + 5 + k * 12, 4 * T + 9, 7, 1, hexc("ffffff"))
+    for yy in (4 * T, 5 * T):                                            # 석탄 통 (x10, y4~5)
+        barrel(c, 10 * T, yy, hexc("1f1f22"))
+    barrel(c, T, 7 * T)
+    c.ellipse(10 * T + 8, 7 * T + 8, 6, 6, hexc("b5a696")); c.ellipse(10 * T + 8, 7 * T + 8, 2, 2, hexc("7d6f63"))   # 숫돌
+    c.rect(10 * T + 2, 7 * T + 13, 12, 2, WOOD_WALL[0])
+    rrect(c, 5 * T + 4, 7 * T + 6, 2 * T - 8, 8, 1, hexc("a85a46"))
+    c.outline(INK)
+    c.save("interior_smith.png")
+
+    # ---- 기계상점: 작은 보일러 · 설계도·톱니 · 부품 선반 · 기계 진열대 · 전시용 미니 컨베이어 · 기계 상자
+    c = Canvas(W, H)
+    room_base(c, hexc("e2d6bc"), hexc("cfc1a3"))
+    rrect(c, T + 2, 2, 2 * T - 4, 2 * T - 2, 3, hexc("4a4a50"))           # 보일러 (x1~2)
+    c.rect(2 * T - 2, 0, 5, 6, hexc("3a3a3a"))
+    rrect(c, T + 7, 15, 18, 10, 2, hexc("2a2a2e")); c.ellipse(2 * T, 20, 6, 3, hexc("ff9a3c")); c.ellipse(2 * T, 21, 3, 1.5, GLOW[2])
+    c.rect(T + 4, 6, 24, 1, hexc("a8653a"))
+    for k, x in enumerate((3 * T + 6, 5 * T + 10)):                       # 설계도 둘
+        rrect(c, x, 1, 26, 14, 1, hexc("e8dcc0"))
+        gear_mark(c, x + 8, 7, hexc("5a6a7a")); c.rect(x + 15, 4, 8, 1, hexc("5a6a7a")); c.rect(x + 15, 8, 6, 1, hexc("5a6a7a"))
+    rrect(c, 8 * T, 2, 3 * T, 2 * T - 2, 1, WOOD_WALL[0])                 # 부품 선반 (x8~10)
+    parts = [hexc("9aa0a8"), hexc("6f7a86"), hexc("c46a3a"), hexc("5f8a6a")]
+    for row, yy in enumerate((5, 17)):
+        c.rect(8 * T + 1, yy + 9, 3 * T - 2, 2, WOOD_WALL[3])
+        for k in range(5):
+            rrect(c, 8 * T + 3 + k * 9, yy + 2, 7, 7, 1, parts[(k + row) % 4]); c.set(8 * T + 6 + k * 9, yy + 5, hexc("e8e8d8"))
+    wall_lamp(c, 3 * T, 1); wall_lamp(c, 7 * T + 12, 1)
+    counter(c, 4 * T, 9 * T, 2 * T)
+    rrect(c, 6 * T, 2 * T + 6, 2 * T, 10, 1, hexc("5f8a5a")); gear_mark(c, 7 * T, 2 * T + 11)   # 계산대 앞 톱니 판
+    rrect(c, 4 * T + 6, 2 * T + 1, 12, 6, 0.5, hexc("fbf6ec")); c.ellipse(8 * T + 6, 2 * T + 3, 2.5, 2, hexc("d6a83a"))
+    rug(c, 4 * T, 3 * T + 4, 4 * T, 10, hexc("5f8a5a"), hexc("3c574d"), lambda cv, x, y: gear_mark(cv, x, y))
+    rrect(c, 4 * T, 4 * T + 2, 4 * T, 2 * T - 4, 1.5, WOOD_WALL[0])       # 기계 진열대 (x4~7, y4~5)
+    rrect(c, 4 * T, 4 * T + 2, 4 * T, 5, 1.5, WOOD_WALL[3])
+    for k, col in enumerate((hexc("c46a3a"), hexc("6f7a86"), hexc("5f8a6a"))):
+        bx = 4 * T + 3 + k * 20
+        rrect(c, bx, 4 * T - 4, 16, 14, 1.5, col); rrect(c, bx + 3, 4 * T - 1, 7, 5, 1, GLOW[1])
+        c.rect(bx + 11, 4 * T - 6, 3, 4, hexc("4a4a50"))
+    for k in range(5):
+        c.ellipse(4 * T + 7 + k * 12, 5 * T + 7, 3, 3, parts[k % 4])
+    rrect(c, 10 * T + 2, 3 * T, 12, 5 * T, 1, hexc("3a3a40"))             # 미니 컨베이어 (x10, y3~7)
+    for yy in range(3 * T + 2, 8 * T, 5):
+        c.rect(10 * T + 3, yy, 10, 1, hexc("5a5a62"))
+    for yy in (4 * T + 2, 6 * T + 4):
+        rrect(c, 10 * T + 4, yy, 8, 6, 1, hexc("e3c04a"))
+    for k in range(3):                                                    # 기계 상자 (x1, y4~6)
+        yy = 4 * T + k * T
+        rrect(c, T + 1, yy + 1, 14, 14, 1, WOOD_WALL[1]); c.rect(T + 1, yy + 1, 14, 2, WOOD_WALL[3])
+        c.ellipse(T + 8, yy + 9, 3, 3, parts[k]); c.set(T + 8, yy + 9, hexc("4a4d55"))
+    plant_pot(c, T, 7 * T)
+    rrect(c, 5 * T + 4, 7 * T + 6, 2 * T - 8, 8, 1, hexc("5f8a5a"))
+    c.outline(INK)
+    c.save("interior_machine.png")
+
+
 def npc(c, skin, hair, top, top_d, apron=None, extra=None):
     """16x24 정면 서 있는 사람"""
     c.ellipse(8, 22.5, 5, 1.2, SOFT_SHADOW)
@@ -2997,6 +3211,7 @@ if __name__ == "__main__":
     make_shop_decor()
     make_plaza_props()
     make_mood_props()
+    make_interiors()
     make_placeables()
     make_greenhouse()
     make_compost_bin()

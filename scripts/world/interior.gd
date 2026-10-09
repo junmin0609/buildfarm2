@@ -4,50 +4,50 @@ extends Node2D
 ## 하늘섬처럼 농장 맵 바깥에 따로 그려 두고, 문으로 들어가면 플레이어를 옮기고 카메라 범위만 바꾼다 (FarmWorld.enter_interior).
 ## 걸을 때는 시간이 흐르고, NPC와 대화·거래하는 동안에는 멈춘다 (사용자 결정, 대화 창·상점 창이 멈춤).
 ##
-## 방 (10x7칸, rows 글자):  W 벽 · C 계산대 · S 선반 · F 화덕 · D 문(밟으면 밖으로) · 나머지 바닥
+## 방 (12x9칸, 무드 개편): 그림은 방마다 한 장 (assets/art/interior_*.png, tools/make_art.py 의 make_interiors).
+## rows 글자는 충돌만 정한다:  W 벽 · D 문(밟으면 밖으로) · . 바닥 · 그 밖의 글자는 가구(못 지나감)
 ##   NPC 는 계산대 뒤(npc 칸)에 서 있고, 플레이어는 계산대 바로 아래 칸에서 [E] 로 말을 건다.
 ## 대화에서 고를 수 있는 것은 options: [화면 이름, 하는 일] — 하는 일은 HUD 가 처리 ("buy" · "sell" · "machine" · "smith" · "" 나가기)
 
 const TILE := Art.TILE
-const SIZE := Vector2i(10, 7)
-## 카메라가 볼 여백 (방보다 화면이 넓어서 바깥은 어둡게 칠한다)
+const SIZE := Vector2i(12, 9)
+## 카메라가 볼 여백 (방보다 화면이 넓어서 바깥은 어둡게 칠한다). 방끼리 카메라 범위가 겹치지 않게 origin 을 띄운다
 const MARGIN := Vector2i(6, 4)
 
 const ROOMS := {
 	"store": {
 		"origin": Vector2i(160, 4),
 		"name": "잡화점",
-		"rows": ["WWWWWWWWWW", "WSSS..SSSW", "W..CCCC..W", "W........W", "W........W", "W........W", "WWWWDDWWWW"],
-		"npc": {"cell": Vector2i(5, 1), "name": "잡화점 주인 하나", "texture": "res://assets/art/npc_store.png",
+		"texture": "res://assets/art/interior_store.png",
+		# S 씨앗 선반 · K 난로 · C 계산대 · A 씨앗 자루 · T 모종 진열대 · B 통 · P 화분
+		"rows": ["WWWWWWWWWWWW", "WSSSS...SKKW", "W...CCCCC..W", "W..........W", "WA..TTTT..BW", "WA..TTTT..BW", "W..........W", "WP........PW", "WWWWWDDWWWWW"],
+		"npc": {"cell": Vector2i(6, 1), "name": "잡화점 주인 하나", "texture": "res://assets/art/npc_store.png",
 			"greet": "어서 오세요! 씨앗도 팔고, 작물도 사요.",
 			"options": [["씨앗·비료 사기", "buy"], ["작물·가공품 팔기", "sell"], ["나가기", ""]]},
-		"wall": Color("c9a27e"), "accent": Color("7fb069"),
 	},
 	"smith": {
-		"origin": Vector2i(160, 16),
+		"origin": Vector2i(160, 22),
 		"name": "대장간",
-		"rows": ["WWWWWWWWWW", "WSS....SSW", "W..CCCC..W", "W........W", "WF.......W", "W........W", "WWWWDDWWWW"],
-		"npc": {"cell": Vector2i(5, 1), "name": "대장장이 철수", "texture": "res://assets/art/npc_smith.png",
+		"texture": "res://assets/art/interior_smith.png",
+		# R 광석 선반 · F 화덕 · C 계산대 · N 모루 · T 공구 걸이 · I 주괴 탁자 · X 석탄 통 · B 통 · G 숫돌
+		"rows": ["WWWWWWWWWWWW", "WRRR....FFFW", "W...CCCCC..W", "W.........NW", "WT..IIII..XW", "WT..IIII..XW", "WT.........W", "WB........GW", "WWWWWDDWWWWW"],
+		"npc": {"cell": Vector2i(6, 1), "name": "대장장이 철수", "texture": "res://assets/art/npc_smith.png",
 			"greet": "도구를 맡기면 바로 고쳐 주지!",
 			"options": [["도구 강화", "smith"], ["나가기", ""]]},
-		"wall": Color("a99782"), "accent": Color("f29b50"),
 	},
 	"machine": {
-		"origin": Vector2i(160, 28),
+		"origin": Vector2i(160, 40),
 		"name": "기계상점",
-		"rows": ["WWWWWWWWWW", "WSSS..SSSW", "W..CCCC..W", "W........W", "W........W", "W........W", "WWWWDDWWWW"],
-		"npc": {"cell": Vector2i(5, 1), "name": "기계상점 미나", "texture": "res://assets/art/npc_machine.png",
+		"texture": "res://assets/art/interior_machine.png",
+		# B 보일러 · S 부품 선반 · C 계산대 · V 미니 컨베이어 · X 기계 상자 · M 기계 진열대 · P 화분
+		"rows": ["WWWWWWWWWWWW", "WBB.....SSSW", "W...CCCCC..W", "W.........VW", "WX..MMMM..VW", "WX..MMMM..VW", "WX........VW", "WP........VW", "WWWWWDDWWWWW"],
+		"npc": {"cell": Vector2i(6, 1), "name": "기계상점 미나", "texture": "res://assets/art/npc_machine.png",
 			"greet": "자동화 기계는 여기서! 사면 가방에 넣어 드려요.",
 			"options": [["기계 사기", "machine"], ["나가기", ""]]},
-		"wall": Color("8fa3b8"), "accent": Color("f2c443"),
 	},
 }
 
-const FLOOR := [Color("e6c99a"), Color("d9b98a")]
-const FLOOR_LINE := Color("c9a273")
-const COUNTER := [Color("a8714a"), Color("e6b77f"), Color("7a4e32")]
-const OUTSIDE := Color("2e2119")
-const GOODS := [Color("e0715f"), Color("f2c443"), Color("7fb069"), Color("5a64b8"), Color("f6e6c4")]
+const OUTSIDE := Color("1c130c")
 
 var id := ""
 var world: FarmWorld
@@ -74,9 +74,19 @@ static func room_at(pos: Vector2) -> String:
 	return ""
 
 
-## 들어오면 서는 곳 (문 바로 안쪽)
+## 문 칸 (방 왼쪽 위 기준, 두 칸 중 왼쪽)
+static func door_cell(room_id: String) -> Vector2i:
+	var rows: Array = room(room_id).get("rows", [])
+	for y in rows.size():
+		var x := str(rows[y]).find("D")
+		if x >= 0:
+			return Vector2i(x, y)
+	return Vector2i.ZERO
+
+
+## 들어오면 서는 곳 (문 바로 안쪽, 두 문 칸 사이)
 static func arrive_position(room_id: String) -> Vector2:
-	var c := origin_of(room_id) + Vector2i(4, 5)
+	var c := origin_of(room_id) + door_cell(room_id) + Vector2i(0, -1)
 	return Vector2(c * TILE) + Vector2(TILE, TILE / 2.0)
 
 
@@ -97,6 +107,11 @@ func build(farm_world: FarmWorld, room_id: String) -> void:
 	id = room_id
 	name = "Interior_" + id
 	z_index = -1
+	var picture := Sprite2D.new()
+	picture.texture = load(str(room(id).get("texture", "")))
+	picture.centered = false
+	picture.position = Vector2(origin_of(id) * TILE)
+	add_child(picture)
 	_add_walls()
 	var n: Dictionary = room(id).npc
 	npc = Npc.new()
@@ -107,7 +122,7 @@ func build(farm_world: FarmWorld, room_id: String) -> void:
 	queue_redraw()
 
 
-## 벽·계산대·선반·화덕 칸과 문 바깥 줄을 막는다
+## 벽·가구 칸과 문 바깥 줄을 막는다
 func _add_walls() -> void:
 	var body := StaticBody2D.new()
 	for y in SIZE.y + 1:
@@ -123,51 +138,6 @@ func _add_walls() -> void:
 	add_child(body)
 
 
+## 방 둘레(카메라 여백)는 어둡게. 방 그림은 build 에서 Sprite2D 로 얹는다
 func _draw() -> void:
-	var r: Dictionary = room(id)
 	draw_rect(view_rect_of(id), OUTSIDE)
-	var wall: Color = r.get("wall", Color("c9a27e"))
-	var accent: Color = r.get("accent", Color("7fb069"))
-	for y in SIZE.y:
-		for x in SIZE.x:
-			var local := Vector2i(x, y)
-			var at := Vector2((origin_of(id) + local) * TILE)
-			var cell_rect := Rect2(at, Vector2(TILE, TILE))
-			match char_at(local):
-				"W":
-					draw_rect(cell_rect, wall)
-					draw_rect(Rect2(at + Vector2(0, TILE - 4), Vector2(TILE, 4)), wall.darkened(0.25))
-					if y == 0:
-						draw_rect(Rect2(at + Vector2(2, 5), Vector2(TILE - 4, 2)), wall.lightened(0.2))
-				"D":
-					_floor(at, local)
-					draw_rect(Rect2(at + Vector2(1, 4), Vector2(TILE - 2, TILE - 4)), Color("8a5a3a"))
-					draw_rect(Rect2(at + Vector2(3, 7), Vector2(TILE - 6, TILE - 9)), accent.darkened(0.1))
-				"C":
-					_floor(at, local)
-					draw_rect(Rect2(at + Vector2(0, 2), Vector2(TILE, TILE - 2)), COUNTER[0])
-					draw_rect(Rect2(at + Vector2(0, 2), Vector2(TILE, 3)), COUNTER[1])
-					draw_rect(Rect2(at + Vector2(0, TILE - 2), Vector2(TILE, 2)), COUNTER[2])
-				"S":
-					draw_rect(cell_rect, wall)
-					draw_rect(Rect2(at + Vector2(1, 3), Vector2(TILE - 2, TILE - 4)), COUNTER[2])
-					for k in 3:
-						draw_rect(Rect2(at + Vector2(2 + k * 4, 5), Vector2(3, 4)), GOODS[(x + y + k) % GOODS.size()])
-						draw_rect(Rect2(at + Vector2(2 + k * 4, 11), Vector2(3, 3)), GOODS[(x * 2 + k) % GOODS.size()])
-				"F":
-					_floor(at, local)
-					draw_rect(Rect2(at + Vector2(1, 1), Vector2(TILE - 2, TILE - 2)), Color("7d6f63"))
-					draw_circle(at + Vector2(8, 9), 4.5, Color("f29b50"))
-					draw_circle(at + Vector2(8, 9), 2.5, Color("ffd27a"))
-				_:
-					_floor(at, local)
-	# 문 앞 깔개
-	var mat := Vector2((origin_of(id) + Vector2i(4, 5)) * TILE)
-	draw_rect(Rect2(mat + Vector2(2, 9), Vector2(TILE * 2 - 4, 6)), accent)
-	draw_rect(Rect2(mat + Vector2(3, 10), Vector2(TILE * 2 - 6, 1)), accent.lightened(0.3))
-
-
-func _floor(at: Vector2, local: Vector2i) -> void:
-	draw_rect(Rect2(at, Vector2(TILE, TILE)), FLOOR[(local.x + local.y) % 2])
-	draw_rect(Rect2(at + Vector2(0, 7), Vector2(TILE, 1)), FLOOR_LINE)
-	draw_rect(Rect2(at + Vector2(5 + (local.y % 2) * 6, 0), Vector2(1, 7)), FLOOR_LINE)

@@ -14,7 +14,8 @@ extends Node
 ## 쓸 때는 임시 파일에 먼저 쓰고 바꿔치기한다. 이전 저장은 .bak 으로 하나 남긴다.
 
 ## 2: 메인 광장을 넓힘 (맵 64x44 → 112x64, 하늘섬·가게 실내 자리도 옮김)
-const VERSION := 2
+## 3: 가게 실내를 12x9 로 키우며 방 자리를 옮김 (무드 개편)
+const VERSION := 3
 
 ## 세이브 파일 위치 (점검·화면 확인 스크립트는 다른 파일을 쓰도록 바꾼다)
 static var slot_path := "user://save_slot_1.json"
@@ -143,6 +144,11 @@ func _migrate(data: Dictionary) -> Dictionary:
 		var player: Variant = data.sections.get("player")
 		if player is Dictionary and player.get("position") is Array and player.position.size() == 2 and float(player.position[0]) >= 38 * FarmWorld.TILE:
 			player.position = [world.home_position.x, world.home_position.y]
+	if int(data.version) < 3:
+		# 가게 실내(x 160~)에 서 있던 저장은 방 자리가 바뀌었으므로 집 앞에서 시작한다
+		var p2: Variant = data.sections.get("player")
+		if p2 is Dictionary and p2.get("position") is Array and p2.position.size() == 2 and float(p2.position[0]) >= 150 * FarmWorld.TILE:
+			p2.position = [world.home_position.x, world.home_position.y]
 	data.version = VERSION
 	return data
 
