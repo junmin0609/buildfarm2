@@ -74,8 +74,9 @@ func cost_text() -> String:
 	return cost_text_of(price, materials)
 
 
+## 돈 없이 재료만 드는 시설(컨베이어: "컨베이어 1")은 "0 G" 를 빼고 보여 준다
 static func cost_text_of(money: int, mats: Dictionary) -> String:
-	var parts := ["%d G" % money]
+	var parts := ["%d G" % money] if money > 0 or mats.is_empty() else []
 	for mat_id: String in mats:
 		var mat := ItemDB.get_item(mat_id)
 		parts.append("%s %d" % [mat.name if mat else mat_id, mats[mat_id]])

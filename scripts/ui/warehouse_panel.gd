@@ -4,6 +4,7 @@ extends PanelContainer
 ##   칸 클릭 = 한 묶음 옮기기, 우클릭 = 1개만 옮기기 (창고 ↔ 가방)
 ##   받을 물건(필터)은 위쪽에서 고른다. "지정 아이템"이면 [가방에서 고르기] 를 누른 뒤 가방 칸을 클릭해 추가하고,
 ##   추가된 아이콘을 누르면 뺀다. 필터에 맞지 않는 가방 물건은 흐리게 보인다.
+##   내보낼 물건(출구 필터, 컨베이어 §55)도 같은 방식으로 고른다. 기본은 "안 내보냄".
 ## 출하함처럼 열려 있는 동안 게임과 시간이 멈춘다 (HUD 가 처리).
 
 signal close_requested
@@ -14,11 +15,16 @@ const COLUMNS := 9
 var warehouse: Warehouse
 ## true 면 가방 칸 클릭이 "지정 아이템 필터에 추가"가 된다
 var picking := false
+## 고르는 중인 필터: "in" 받을 물건 / "out" 내보낼 물건
+var pick_target := "in"
 
 var _title: Label
 var _filter: OptionButton
 var _chips: HBoxContainer
 var _pick: Button
+var _out_filter: OptionButton
+var _out_chips: HBoxContainer
+var _out_pick: Button
 var _scroll: ScrollContainer
 var _store_grid: GridContainer
 var _store_slots: Array[ItemSlot] = []
@@ -64,11 +70,32 @@ func _ready() -> void:
 	_pick.text = "가방에서 고르기"
 	_pick.tooltip_text = "누른 뒤 가방 칸을 클릭하면 받을 물건에 추가돼요. 위 아이콘을 누르면 빠져요."
 	_pick.add_theme_font_size_override("font_size", Art.FONT_SIZE_SMALL)
-	_pick.toggled.connect(func(on: bool) -> void:
-		picking = on
-		refresh())
+	_pick.toggled.connect(func(on: bool) -> void: _set_picking(on, "in"))
 	filter_row.add_child(_pick)
 	box.add_child(filter_row)
+
+	# 내보낼 물건 줄 (출구 컨베이어)
+	var out_row := HBoxContainer.new()
+	out_row.add_theme_constant_override("separation", 10)
+	out_row.add_child(_small_label("내보낼 물건 (출구)", Color("c98a2e")))
+	_out_filter = OptionButton.new()
+	_out_filter.add_theme_font_size_override("font_size", Art.FONT_SIZE_SMALL)
+	for mode: String in Warehouse.OUTPUT_FILTERS:
+		_out_filter.add_item(Warehouse.OUTPUT_FILTERS[mode])
+		_out_filter.set_item_metadata(_out_filter.item_count - 1, mode)
+	_out_filter.item_selected.connect(func(i: int) -> void: warehouse.set_output_mode(str(_out_filter.get_item_metadata(i))))
+	out_row.add_child(_out_filter)
+	_out_chips = HBoxContainer.new()
+	_out_chips.add_theme_constant_override("separation", 4)
+	out_row.add_child(_out_chips)
+	_out_pick = Button.new()
+	_out_pick.toggle_mode = true
+	_out_pick.text = "가방에서 고르기"
+	_out_pick.tooltip_text = "누른 뒤 가방 칸을 클릭하면 내보낼 물건에 추가돼요. 위 아이콘을 누르면 빠져요."
+	_out_pick.add_theme_font_size_override("font_size", Art.FONT_SIZE_SMALL)
+	_out_pick.toggled.connect(func(on: bool) -> void: _set_picking(on, "out"))
+	out_row.add_child(_out_pick)
+	box.add_child(out_row)
 
 	# 창고 칸 (단계가 오르면 칸이 늘어나므로 스크롤)
 	_scroll = ScrollContainer.new()
@@ -131,8 +158,7 @@ func _small_label(text: String, color: Color) -> Label:
 
 func open(target: Warehouse) -> void:
 	warehouse = target
-	picking = false
-	_pick.set_pressed_no_signal(false)
+	_set_picking(false, "in")
 	_scroll.scroll_vertical = 0
 	refresh()
 	show()
@@ -151,16 +177,31 @@ func refresh() -> void:
 			_filter.select(i)
 	var items_mode := wh.filter_mode == "items"
 	_pick.visible = items_mode
-	if not items_mode and picking:
-		picking = false
-		_pick.set_pressed_no_signal(false)
+	if not items_mode and picking and pick_target == "in":
+		_set_picking(false, "in")
 	_pick.disabled = wh.filter_items.size() >= wh.max_filter_items() and not picking
 	_clear(_chips)
 	if items_mode:
 		for id in wh.filter_items:
-			_chips.add_child(_chip(ItemDB.get_item(id)))
+			_chips.add_child(_chip(ItemDB.get_item(id), wh.remove_filter_item))
 		if wh.filter_items.is_empty():
 			_chips.add_child(_small_label("(아직 없음 · 아무것도 안 받아요)", Color("9a7457")))
+
+	# 내보낼 물건
+	for i in _out_filter.item_count:
+		if _out_filter.get_item_metadata(i) == wh.output_mode:
+			_out_filter.select(i)
+	var out_items := wh.output_mode == "items"
+	_out_pick.visible = out_items
+	if not out_items and picking and pick_target == "out":
+		_set_picking(false, "out")
+	_out_pick.disabled = wh.output_items.size() >= wh.max_filter_items() and not (picking and pick_target == "out")
+	_clear(_out_chips)
+	if out_items:
+		for id in wh.output_items:
+			_out_chips.add_child(_chip(ItemDB.get_item(id), wh.remove_output_item))
+		if wh.output_items.is_empty():
+			_out_chips.add_child(_small_label("(아직 없음 · 아무것도 안 내보내요)", Color("9a7457")))
 
 	# 창고 칸 (단계가 바뀌면 칸 수를 맞춘다)
 	while _store_slots.size() < wh.storage.size():
@@ -182,6 +223,8 @@ func refresh() -> void:
 		_bag_slots[i].set_slot(GameState.inventory.get_slot(i))
 		var item := GameState.inventory.item_at(i)
 		_bag_slots[i].modulate.a = 1.0 if item == null or picking or wh.accepts(item) else 0.35
+	_pick.set_pressed_no_signal(picking and pick_target == "in")
+	_out_pick.set_pressed_no_signal(picking and pick_target == "out")
 
 	# 증축
 	var next := wh.next_upgrade()
@@ -197,11 +240,20 @@ func refresh() -> void:
 
 
 ## 지정 아이템 필터의 아이콘 칸 (누르면 뺀다, 올리면 아이템 툴팁)
-func _chip(item: ItemDef) -> ItemSlot:
+func _chip(item: ItemDef, remove: Callable) -> ItemSlot:
 	var chip := ItemSlot.new()
 	chip.set_slot({"id": item.id, "count": 1, "quality": Quality.NONE})
-	chip.clicked.connect(func(_i: int) -> void: warehouse.remove_filter_item(item.id))
+	chip.clicked.connect(func(_i: int) -> void: remove.call(item.id))
 	return chip
+
+
+## 가방에서 고르기를 켜고 끈다. target: "in" 받을 물건 / "out" 내보낼 물건 (한 번에 하나만)
+func _set_picking(on: bool, target: String) -> void:
+	if not on and picking and pick_target != target:
+		return
+	picking = on
+	pick_target = target
+	refresh()
 
 
 func _on_filter_selected(i: int) -> void:
@@ -213,7 +265,9 @@ func _on_bag_clicked(index: int) -> void:
 	if item == null:
 		return
 	if picking:
-		if not warehouse.add_filter_item(item.id) and item.id not in warehouse.filter_items:
+		var added := warehouse.add_output_item(item.id) if pick_target == "out" else warehouse.add_filter_item(item.id)
+		var list := warehouse.output_items if pick_target == "out" else warehouse.filter_items
+		if not added and item.id not in list:
 			Events.toast.emit("지정 아이템은 %d개까지예요." % warehouse.max_filter_items())
 		return
 	_deposit(index, -1)

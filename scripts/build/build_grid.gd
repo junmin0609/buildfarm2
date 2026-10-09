@@ -12,12 +12,15 @@ extends Node
 signal changed
 
 var world: FarmWorld
+## 이 지역의 컨베이어 전체 (§56~§61). 게임 시계·야간 생산 때 시설 다음에 움직인다
+var conveyors := ConveyorNet.new(self)
 var _cells: Dictionary = {}          # Vector2i -> Placeable
 var _objects: Array[Placeable] = []
 
 
 func _ready() -> void:
 	changed.connect(func() -> void: Events.power_changed.emit())
+	changed.connect(conveyors.refresh)
 	Events.time_advanced.connect(_on_time)
 
 
@@ -210,9 +213,10 @@ func _on_time(minutes: float) -> void:
 	for obj in _ordered():
 		if is_instance_valid(obj):
 			obj.on_time(minutes)
+	conveyors.tick(minutes)
 
 
-## 하루 마감의 night_production 단계 (§97): 야간 생산 시간을 잘게 나눠, 매번 발전기 먼저 → 기계 순서로 일한다
+## 하루 마감의 night_production 단계 (§97): 야간 생산 시간을 잘게 나눠, 매번 발전기 먼저 → 기계 → 컨베이어 순서로 일한다
 const NIGHT_SLICE := 10.0
 
 func night_production(report: Dictionary, minutes: float) -> void:
@@ -221,6 +225,7 @@ func night_production(report: Dictionary, minutes: float) -> void:
 		var step := minf(NIGHT_SLICE, left)
 		for obj in _ordered():
 			obj.on_night_production(world, report, step)
+		conveyors.tick(step)
 		left -= step
 
 

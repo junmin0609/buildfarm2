@@ -158,6 +158,14 @@
 		"description": "돌을 깨서 얻은 석재. 시설과 건물 재료예요.",
 		"icon": 12
 	},
+	"conveyor": {
+		"name": "컨베이어",
+		"kind": "material",
+		"_comment": "§56~§59. 건설 모드에서 끌어서 깔면 칸마다 1개씩 쓰고, 철거하면 돌려받는다. 값은 임시 밸런스",
+		"buy_price": 15,
+		"icon": 63,
+		"description": "땅에 깔아 물건을 옮기는 벨트 한 칸. 건설 창에서 끌어서 깔아요."
+	},
 	"basic_fertilizer": {
 		"name": "기본 비료",
 		"kind": "fertilizer",

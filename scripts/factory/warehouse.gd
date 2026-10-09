@@ -11,8 +11,10 @@ extends Placeable
 ##     필터는 넣을 때만 본다. 필터를 바꿔도 이미 든 물건은 그대로 두고 꺼낼 수 있다 (아이템을 버리지 않음 §105)
 ##   - 철거하면 안의 물건 + 건설비 + 증축 비용을 모두 돌려준다. 가방 자리가 없으면 철거를 막는다 (§64, §106)
 ##
-## 확장: 컨베이어·자동 수확기(§66)는 insert(아이템, 개수, 품질)를 부르면 된다 (필터를 지키고, 못 넣은 개수를 돌려줌).
-## 입출력 포트(§55)는 이 시설에 포트 정보를 붙이면 된다 (지금은 플레이어가 [E] 로만 넣고 뺀다).
+## 컨베이어 (§55, 사용자 결정): 입구로 들어온 물건은 받을 물건 필터를 지켜 넣는다 (못 받으면 벨트에서 기다림).
+##   출구로는 "내보낼 물건"(출구 필터)에 맞는 물건을 앞 칸부터 1개씩 내보낸다. 정하지 않으면("안 내보냄") 내보내지 않는다.
+##   출구 필터 종류는 받을 물건 필터와 같다 (전체 / 작물만 / ... / 지정 아이템).
+## 자동 수확기(§66)도 insert(아이템, 개수, 품질)를 부르면 된다 (필터를 지키고, 못 넣은 개수를 돌려줌).
 
 const REACH := 18.0
 ## 필터 종류 (저장값) → 화면 이름
@@ -31,12 +33,26 @@ const FILTER_KINDS := {
 	"processed": ItemDef.Kind.PROCESSED,
 }
 
+## 출구 필터 종류 (저장값) → 화면 이름. "none" = 안 내보냄 (기본)
+const OUTPUT_FILTERS := {
+	"none": "안 내보냄",
+	"all": "전체",
+	"crop": "작물만",
+	"seed": "씨앗만",
+	"material": "재료만",
+	"processed": "가공품만",
+	"items": "지정 아이템",
+}
+
 var prompt := "[E] 창고"
 ## 증축 단계 (0 = 처음 지은 상태)
 var level := 0
 var filter_mode := "all"
 ## filter_mode == "items" 일 때 받는 아이템 id
 var filter_items: Array[String] = []
+## 출구로 내보낼 물건 (컨베이어)
+var output_mode := "none"
+var output_items: Array[String] = []
 var storage: Inventory
 
 
@@ -142,14 +158,23 @@ func extra_cost() -> Dictionary:
 # ---------- 필터
 
 func accepts(item: ItemDef) -> bool:
+	return _matches(item, filter_mode, filter_items)
+
+
+## 출구로 내보낼 물건인가
+func sends(item: ItemDef) -> bool:
+	return output_mode != "none" and _matches(item, output_mode, output_items)
+
+
+static func _matches(item: ItemDef, mode: String, items: Array[String]) -> bool:
 	if item == null:
 		return false
-	match filter_mode:
+	match mode:
 		"all":
 			return true
 		"items":
-			return item.id in filter_items
-	return FILTER_KINDS.has(filter_mode) and item.kind == FILTER_KINDS[filter_mode]
+			return item.id in items
+	return FILTER_KINDS.has(mode) and item.kind == FILTER_KINDS[mode]
 
 
 func set_filter_mode(mode: String) -> bool:
@@ -178,8 +203,41 @@ func remove_filter_item(item_id: String) -> void:
 func filter_text() -> String:
 	if filter_mode != "items":
 		return FILTERS[filter_mode]
+	return _items_text(filter_items)
+
+
+func set_output_mode(mode: String) -> bool:
+	if not OUTPUT_FILTERS.has(mode):
+		return false
+	output_mode = mode
+	_changed()
+	return true
+
+
+## 출구 지정 아이템에 추가 (최대 max_filter_items 개)
+func add_output_item(item_id: String) -> bool:
+	if not ItemDB.has_item(item_id) or item_id in output_items or output_items.size() >= max_filter_items():
+		return false
+	output_items.append(item_id)
+	_changed()
+	return true
+
+
+func remove_output_item(item_id: String) -> void:
+	if item_id in output_items:
+		output_items.erase(item_id)
+		_changed()
+
+
+func output_text() -> String:
+	if output_mode != "items":
+		return OUTPUT_FILTERS[output_mode]
+	return _items_text(output_items)
+
+
+static func _items_text(ids: Array[String]) -> String:
 	var names: Array[String] = []
-	for id in filter_items:
+	for id in ids:
 		names.append(ItemDB.get_item(id).name)
 	return "지정: " + (", ".join(names) if not names.is_empty() else "없음")
 
@@ -213,6 +271,24 @@ func insert(item_id: String, count: int, quality := Quality.NONE) -> int:
 	if not accepts(ItemDB.get_item(item_id)):
 		return count
 	return storage.add(item_id, count, quality)
+
+
+## 컨베이어 입구 (§55): 받을 물건 필터를 지켜 1개 넣는다
+func accept_item(item_id: String, quality: String) -> bool:
+	return insert(item_id, 1, quality) == 0
+
+
+## 컨베이어 출구: 출구 필터에 맞는 물건을 앞 칸부터 1개 꺼낸다
+func provide_item() -> Dictionary:
+	if output_mode == "none":
+		return {}
+	for i in storage.size():
+		var slot: Variant = storage.get_slot(i)
+		if slot != null and sends(ItemDB.get_item(slot.id)):
+			var it := {"id": slot.id, "quality": slot.get("quality", Quality.NONE)}
+			storage.remove_at(i, 1)
+			return it
+	return {}
 
 
 func used_slots() -> int:
@@ -252,7 +328,8 @@ func take_contents() -> void:
 
 
 func save_state() -> Dictionary:
-	return {"level": level, "filter": {"mode": filter_mode, "items": filter_items.duplicate()}, "slots": storage.to_data()}
+	return {"level": level, "filter": {"mode": filter_mode, "items": filter_items.duplicate()},
+			"output": {"mode": output_mode, "items": output_items.duplicate()}, "slots": storage.to_data()}
 
 
 func load_state(data: Dictionary) -> void:
@@ -268,6 +345,15 @@ func load_state(data: Dictionary) -> void:
 			for id: Variant in items:
 				if ItemDB.has_item(str(id)) and str(id) not in filter_items and filter_items.size() < max_filter_items():
 					filter_items.append(str(id))
+	var out: Variant = data.get("output")
+	if out is Dictionary:
+		output_mode = str(out.get("mode", "none")) if OUTPUT_FILTERS.has(str(out.get("mode", ""))) else "none"
+		output_items.clear()
+		var items: Variant = out.get("items", [])
+		if items is Array:
+			for id: Variant in items:
+				if ItemDB.has_item(str(id)) and str(id) not in output_items and output_items.size() < max_filter_items():
+					output_items.append(str(id))
 	if data.get("slots") is Array:
 		storage.load_data(data.slots)
 	_changed()

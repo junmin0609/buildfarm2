@@ -43,6 +43,10 @@
 		"solid": true,
 		"rotatable": false,
 		"script": "res://scripts/farm/compost_bin.gd",
+		"ports": [
+			{"type": "in", "cell": [0, 0], "side": "left"},
+			{"type": "out", "cell": [1, 0], "side": "right"}
+		],
 		"compost": {
 			"inputs": {"fiber": 1, "wheat": 2, "potato": 2, "carrot": 2},
 			"batch_points": 10,
@@ -63,8 +67,12 @@
 		"price": 1500,
 		"materials": {"wood": 80, "stone": 40},
 		"solid": true,
-		"rotatable": false,
+		"rotatable": true,
 		"script": "res://scripts/factory/warehouse.gd",
+		"ports": [
+			{"type": "in", "cell": [0, 1], "side": "left"},
+			{"type": "out", "cell": [3, 2], "side": "right"}
+		],
 		"storage": {
 			"levels": [
 				{"slots": 36},
@@ -72,6 +80,21 @@
 				{"slots": 72, "price": 2500, "materials": {"wood": 120, "stone": 120}}
 			],
 			"max_filter_items": 9
+		}
+	},
+	"conveyor": {
+		"name": "컨베이어",
+		"category": "물류",
+		"description": "물건을 화살표 방향으로 옮기는 벨트. 끌어서 길게 깔고, 시설의 입구·출구 칸에 이어요.",
+		"_comment": "§56~§61. 사용자 결정: 시설마다 정해진 입구·출구 칸, 게임 시계 기준으로 움직임(시계가 멈추면 멈추고 야간 생산 때도 돎). 칸마다 컨베이어 아이템 1개를 쓰고 철거하면 돌려받는다. 한 칸에 물건 1개. tiles_per_hour = 물건이 한 시간(게임 시계)에 지나가는 칸 수 — 임시 밸런스. 전기는 쓰지 않음(임시)",
+		"size": [1, 1],
+		"price": 0,
+		"materials": {"conveyor": 1},
+		"solid": false,
+		"directional": true,
+		"script": "res://scripts/factory/conveyor.gd",
+		"conveyor": {
+			"tiles_per_hour": 60
 		}
 	},
 	"manual_processor": {
@@ -104,11 +127,16 @@
 		"price": 2500,
 		"materials": {"wood": 60, "stone": 80},
 		"solid": true,
-		"rotatable": false,
+		"rotatable": true,
 		"script": "res://scripts/factory/processor.gd",
+		"ports": [
+			{"type": "in", "cell": [0, 1], "side": "left"},
+			{"type": "out", "cell": [2, 1], "side": "right"}
+		],
 		"processor": {
 			"tier": 1,
 			"automatic": true,
+			"input_runs": 2,
 			"power": 40,
 			"max_output": 30
 		}
@@ -123,8 +151,11 @@
 		"price": 1200,
 		"materials": {"wood": 40, "stone": 60},
 		"solid": true,
-		"rotatable": false,
+		"rotatable": true,
 		"script": "res://scripts/factory/generator.gd",
+		"ports": [
+			{"type": "in", "cell": [0, 1], "side": "left"}
+		],
 		"generator": {
 			"output_per_hour": 60,
 			"storage": 300,

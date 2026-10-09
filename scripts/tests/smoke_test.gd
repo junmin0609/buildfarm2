@@ -210,6 +210,9 @@ func _ready() -> void:
 	# ---------- 연료 발전기 + 지역 전기 통 + 전기 가공기 (§75~§77, §97)
 	await _test_power_and_electric(world, hud)
 
+	# ---------- 컨베이어 + 입출력 포트 (§54~§61, §65)
+	await _test_conveyor(world, hud)
+
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
 
@@ -2489,6 +2492,232 @@ func _test_power_and_electric(world: FarmWorld, hud: HUD) -> void:
 			grid.remove(obj)
 	await get_tree().process_frame
 	_check(grid.power_status().capacity == 0.0 and not hud._power_label.visible, "모두 철거하면 전기 표시 숨김")
+	inv.load_data(saved_inv)
+	hud._close_panels()
+	await get_tree().process_frame
+
+
+func _test_conveyor(world: FarmWorld, hud: HUD) -> void:
+	var grid := world.build
+	var bm := world.build_mode
+	var inv := GameState.inventory
+	var saved_inv := inv.to_data()
+	var player := world.player
+	var belt_def := PlaceableDB.get_def("conveyor")
+	_check(belt_def != null and belt_def.cost_text() == "컨베이어 1" and BuildMode.is_belt(belt_def) and not belt_def.solid, "컨베이어 정의 (칸마다 컨베이어 1, 지나다닐 수 있음)")
+	_check(ItemDB.shop_items().any(func(it: ItemDef) -> bool: return it.id == "conveyor"), "상점에서 컨베이어 판매")
+
+	# 포트 회전 (§54, §55): 창고 입구는 왼쪽 → 시계 방향으로 돌리면 위쪽
+	var wh_def := PlaceableDB.get_def("warehouse")
+	var p0 := Placeable.ports_of(wh_def, Vector2i(10, 10), 0)
+	var p1 := Placeable.ports_of(wh_def, Vector2i(10, 10), 1)
+	_check(p0.size() == 2 and p0[0].type == "in" and p0[0].cell == Vector2i(10, 11) and p0[0].outside == Vector2i(9, 11) and p0[1].outside == Vector2i(14, 12), "창고 입구 왼쪽·출구 오른쪽 %s" % [p0.map(func(p: Dictionary) -> Vector2i: return p.outside)])
+	_check(p1[0].dir == Vector2i.UP and p1[0].cell == Vector2i(12, 10) and p1[1].dir == Vector2i.DOWN, "돌리면 포트도 같이 돎 (입구 위, 출구 아래)")
+	_check(wh_def.rotatable, "포트가 있는 정사각형 시설은 돌릴 수 있음")
+
+	# ㄱ자 길: 멀리 간 쪽 먼저, 칸마다 다음 칸 방향
+	var path := BuildMode.belt_path(Vector2i(0, 0), Vector2i(2, 1))
+	_check(path.map(func(p: Dictionary) -> Vector2i: return p.cell) == [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0), Vector2i(2, 1)] and path.map(func(p: Dictionary) -> int: return p.turns) == [3, 3, 0, 0], "끌어서 놓을 길 (ㄱ자, 방향)")
+
+	# 자리: 창고A(4x4) → 벨트 2 → 전기 가공기(3x3) → 벨트 2 → 창고B(4x4), 가공기 아래 발전기 — 16x7칸 빈 땅
+	var origin := Vector2i(-1, -1)
+	var cells: Array = world.farm.farmable_cells.keys()
+	cells.sort()
+	for c: Vector2i in cells:
+		var ok := true
+		for y in 7:
+			for x in 16:
+				var fc := c + Vector2i(x, y)
+				if not grid.is_buildable_ground(fc) or grid.is_occupied(fc) or world.farm.tiles.has(fc):
+					ok = false
+		if ok:
+			origin = c
+			break
+	_check(origin.x >= 0, "컨베이어 점검 자리 찾음 %s" % origin)
+	if origin.x < 0:
+		return
+	for y in 7:
+		for x in 16:
+			world.obstacles.remove(origin + Vector2i(x, y))
+	await get_tree().process_frame
+	player.global_position = world.cell_center(_find_char("s"))
+	var o := origin
+	var wa := grid.place(wh_def, o) as Warehouse
+	var ep := grid.place(PlaceableDB.get_def("electric_processor"), o + Vector2i(6, 1)) as Processor
+	var wb := grid.place(wh_def, o + Vector2i(11, 1)) as Warehouse
+	var gen := grid.place(PlaceableDB.get_def("small_generator"), o + Vector2i(6, 4)) as Generator
+	_check(wa != null and ep != null and wb != null and gen != null and ep.warehouses().is_empty(), "창고·가공기·발전기 (가공기는 창고와 떨어져 있음)")
+
+	# 상점에서 사서 끌어서 깔기
+	inv.remove("conveyor", inv.count_of("conveyor"))
+	GameState.add_money(1000)
+	var money := GameState.money
+	hud._shop._buy("conveyor", 4)
+	_check(inv.count_of("conveyor") == 4 and GameState.money == money - 60, "컨베이어 4개 구매 (15 G씩)")
+	bm.start_place("conveyor")
+	_check(bm.place_belts(o + Vector2i(4, 2), o + Vector2i(5, 2)) == 2 and bm.place_belts(o + Vector2i(9, 2), o + Vector2i(10, 2)) == 2 and inv.count_of("conveyor") == 0, "끌어서 2칸씩 깔기 → 칸마다 1개 사용")
+	var b1 := grid.object_at(o + Vector2i(4, 2)) as Conveyor
+	var b2 := grid.object_at(o + Vector2i(5, 2)) as Conveyor
+	var b3 := grid.object_at(o + Vector2i(9, 2)) as Conveyor
+	var b4 := grid.object_at(o + Vector2i(10, 2)) as Conveyor
+	_check(b1 != null and b2 != null and b3 != null and b4 != null and [b1, b2, b3, b4].all(func(b: Conveyor) -> bool: return b.facing() == Vector2i.RIGHT), "깐 방향 = 끈 방향 (오른쪽)")
+	_check(grid.conveyors.next_belt(b1) == b2 and grid.conveyors.target_facility(b2) == ep and grid.conveyors.target_facility(b4) == wb, "벨트 → 가공기 입구, 벨트 → 창고B 입구 연결")
+	_check(bm.place_belts(o + Vector2i(0, 5), o + Vector2i(2, 5)) == 0, "컨베이어가 없으면 못 깜")
+	inv.add("conveyor", 1)
+	_check(bm.place_belts(o + Vector2i(0, 5), o + Vector2i(2, 5)) == 1 and grid.object_at(o + Vector2i(1, 5)) == null, "가진 개수만큼만 깔림 (모자란 칸은 건너뜀)")
+	inv.add("conveyor", 3)
+	_check(bm.place_belts(o + Vector2i(1, 5), o + Vector2i(2, 6)) == 3, "ㄱ자로 3칸 더")
+	_check(bm.place_belts(o + Vector2i(3, 2), o + Vector2i(3, 2)) == 0, "시설이 있는 칸에는 못 깜")
+	bm.stop()
+	var corner := grid.object_at(o + Vector2i(2, 5)) as Conveyor
+	_check(corner != null and corner.facing() == Vector2i.DOWN and corner.shape == Conveyor.Shape.FROM_LEFT and b2.shape == Conveyor.Shape.STRAIGHT, "모서리 그림 저절로 (왼쪽에서 들어와 아래로)")
+
+	# 벨트 위 물건: 모서리를 돌아 끝에서 기다림 (§61)
+	var first := grid.object_at(o + Vector2i(0, 5)) as Conveyor
+	var last := grid.object_at(o + Vector2i(2, 6)) as Conveyor
+	first.put("wheat", "silver")
+	grid.conveyors.tick(10.0)
+	_check(last.has_item() and last.item.id == "wheat" and last.progress >= 1.0 and not first.has_item(), "물건이 모서리를 돌아 끝 칸에서 기다림")
+	var mid := grid.object_at(o + Vector2i(1, 5)) as Conveyor
+	mid.put("carrot", "bronze")
+	grid.conveyors.tick(10.0)
+	_check((grid.object_at(o + Vector2i(2, 5)) as Conveyor).has_item() and last.item.id == "wheat", "앞이 막히면 뒤 칸도 줄 서서 기다림 (사라지지 않음)")
+
+	# 창고A 출구 필터 → 벨트 → 가공기 → 벨트 → 창고B
+	_check(wa.provide_item().is_empty(), "출구 필터를 정하지 않으면 안 내보냄")
+	wa.storage.add("wheat", 4, "bronze")
+	wa.storage.add("carrot", 3, "bronze")
+	wa.set_output_mode("items")
+	wa.add_output_item("wheat")
+	_check(ep.set_recipe("flour") and ep.set_enabled(true), "가공기: 밀가루 레시피 켜기")
+	_check(ep.auto_status().begins_with("재료를 기다리는 중"), "창고가 맞닿지 않아도 입구 벨트가 있으면 재료를 기다림 (%s)" % ep.auto_status())
+	inv.add("wood", 10)
+	gen.deposit(inv, "wood", 10)
+	var per_min := GameState.day_length / float(GameState.day_end - GameState.day_start)
+	GameState.set_clock(8 * 60)
+	for i in 200:
+		GameState.advance_time(per_min)
+	_check(wb.storage.count_of("flour") == 2 and wa.storage.count_of("wheat") == 0 and wa.storage.count_of("carrot") == 3, "밀 4 → 컨베이어 → 가공기 → 컨베이어 → 창고B 밀가루 2 (당근은 안 나감)")
+
+	# 창고B가 받지 않으면 벨트 위에 쌓이고 가공기 안에서 기다림 (아이템 보존)
+	wb.set_filter_mode("seed")
+	wa.storage.add("wheat", 6, "bronze")
+	for i in 400:
+		GameState.advance_time(per_min)
+	var flour_total := wb.storage.count_of("flour") + ep.output_count()
+	for b in grid.conveyors.belts():
+		if b.has_item() and b.item.id == "flour":
+			flour_total += 1
+	_check(b4.has_item() and b4.item.id == "flour" and b4.progress >= 1.0 and flour_total == 5, "받을 곳이 막히면 벨트 끝에서 기다림, 밀가루 5개 모두 그대로 (%d)" % flour_total)
+	wb.set_filter_mode("all")
+
+	# 발전기 입구로 연료 넣기
+	inv.add("conveyor", 1)
+	bm.start_place("conveyor")
+	bm.turns = 3
+	_check(bm.try_place(o + Vector2i(5, 5)), "발전기 입구 앞에 벨트 한 칸")
+	bm.stop()
+	var fuel_belt := grid.object_at(o + Vector2i(5, 5)) as Conveyor
+	var fuel_before := gen.fuel_count()
+	fuel_belt.put("wood", Quality.NONE)
+	grid.conveyors.tick(5.0)
+	_check(not fuel_belt.has_item() and gen.fuel_count() == fuel_before + 1, "벨트로 발전기에 연료 넣기")
+	fuel_belt.put("stone", Quality.NONE)
+	grid.conveyors.tick(5.0)
+	_check(fuel_belt.has_item() and fuel_belt.item.id == "stone", "연료가 아니면 안 받고 벨트에서 기다림")
+
+	# 야간 생산 때도 움직임 (§97)
+	fuel_belt.clear_item()
+	first.put("potato", "gold")
+	grid.night_production({}, 10.0)
+	_check(not first.has_item(), "야간 생산 동안에도 벨트가 움직임")
+
+	# 창고 창: 내보낼 물건 고르기
+	player.global_position = wa.interact_point()
+	await get_tree().physics_frame
+	player._interact()
+	var panel := hud._warehouse
+	_check(panel.visible and panel._out_pick.visible and panel._out_chips.get_child_count() == 1, "창고 창: 내보낼 물건 (지정 아이템 1개)")
+	inv.add("carrot", 1)
+	panel._out_pick.button_pressed = true
+	panel._on_bag_clicked(_slot_index(inv, "carrot", ""))
+	panel._out_pick.button_pressed = false
+	_check(wa.output_items == ["wheat", "carrot"] and wa.filter_mode == "all", "가방에서 골라 내보낼 물건에 추가 (받을 물건 필터는 그대로)")
+	panel._out_filter.select(0)
+	panel._out_filter.item_selected.emit(0)
+	_check(wa.output_mode == "none", "안 내보냄으로 바꾸기")
+	hud._close_panels()
+
+	# 저장 / 불러오기: 벨트 위 물건·창고 출구 필터·가공기 입구 재료
+	var mid_state := mid.save_state()
+	var wa_state := wa.save_state()
+	ep.input = [{"id": "wheat", "count": 1, "quality": "bronze"}] as Array[Dictionary]
+	var ep_state := ep.save_state()
+	world.save_manager.save_game("manual")
+	mid.clear_item()
+	world.save_manager.load_game()
+	mid = grid.object_at(o + Vector2i(1, 5)) as Conveyor
+	wa = grid.object_at(o) as Warehouse
+	ep = grid.object_at(o + Vector2i(6, 1)) as Processor
+	_check(mid != null and mid.save_state() == mid_state and mid.facing() == Vector2i.RIGHT, "벨트 저장·불러오기 (방향·물건·위치)")
+	_check(wa != null and wa.save_state() == wa_state and ep != null and ep.save_state() == ep_state, "창고 출구 필터·가공기 입구 재료 저장·불러오기")
+	_check((grid.object_at(o + Vector2i(2, 5)) as Conveyor).shape == Conveyor.Shape.FROM_LEFT, "불러온 뒤에도 모서리 모양")
+
+	# 철거: 벨트 위 물건과 컨베이어를 돌려받음 (§64, §106)
+	inv.load_data([])
+	var held: Dictionary = mid.item.duplicate()
+	bm.start(BuildMode.Mode.REMOVE)
+	_check(bm.try_remove(o + Vector2i(1, 5)) and inv.count_of("conveyor") == 1 and inv.count_of(str(held.id)) == 1, "벨트 철거 → 컨베이어 + 위의 %s 돌려받음" % held.id)
+	bm.stop()
+
+	# 실제 입력으로 끌기 (키보드: Space 누른 채 걸어서 앞 칸을 옮김 — 마우스와 같은 입력 경로)
+	var space := InputEventKey.new()
+	space.keycode = KEY_SPACE
+	space.physical_keycode = KEY_SPACE
+	# 플레이어를 stand 칸에 세워 아래 칸을 보게 한다. 건설 모드의 _process 가 한 번 돌아 앞 칸을 다시 읽도록 두 프레임 기다린다
+	var aim := func(stand: Vector2i) -> void:
+		player.global_position = world.cell_center(stand)
+		player.facing = Vector2i.DOWN
+		await get_tree().process_frame
+		await get_tree().process_frame
+	inv.remove("conveyor", inv.count_of("conveyor"))
+	inv.add("conveyor", 2)
+	bm.start_place("conveyor")
+	bm._use_mouse = false
+	await aim.call(o + Vector2i(8, 5))
+	space.pressed = true
+	get_viewport().push_input(space, true)
+	await get_tree().process_frame
+	await aim.call(o + Vector2i(10, 5))
+	_check(bm._dragging and bm._path.size() == 3 and not bm._path[2].ok, "끄는 동안 길 미리보기 (3칸 중 가진 2개만 초록)")
+	var release := space.duplicate()
+	release.pressed = false
+	get_viewport().push_input(release, true)
+	await get_tree().process_frame
+	var row := [o + Vector2i(8, 6), o + Vector2i(9, 6), o + Vector2i(10, 6)].map(func(c: Vector2i) -> Placeable: return grid.object_at(c))
+	_check(row[0] is Conveyor and row[1] is Conveyor and row[2] == null and row[0].facing() == Vector2i.RIGHT and inv.count_of("conveyor") == 0, "Space 누른 채 걸어서 깔기 → 가진 2칸만 설치")
+	bm.stop()
+
+	# 철거: 누른 채 끌면 지나간 컨베이어를 모두 철거 (§65)
+	bm.start(BuildMode.Mode.REMOVE)
+	bm._use_mouse = false
+	await aim.call(o + Vector2i(8, 5))
+	get_viewport().push_input(space, true)
+	await get_tree().process_frame
+	await aim.call(o + Vector2i(9, 5))
+	await aim.call(o + Vector2i(10, 5))
+	get_viewport().push_input(release, true)
+	await get_tree().process_frame
+	_check(grid.object_at(o + Vector2i(8, 6)) == null and grid.object_at(o + Vector2i(9, 6)) == null and inv.count_of("conveyor") == 2, "끌어서 철거 → 지나간 벨트 모두 철거, 컨베이어 2개 돌려받음")
+	bm.stop()
+
+	# 정리
+	for obj in grid.objects().duplicate():
+		if Rect2i(o, Vector2i(16, 7)).has_point(obj.cell):
+			obj.take_contents()
+			grid.remove(obj)
+	await get_tree().process_frame
+	_check(grid.conveyors.belts().is_empty(), "정리: 벨트 모두 철거")
 	inv.load_data(saved_inv)
 	hud._close_panels()
 	await get_tree().process_frame

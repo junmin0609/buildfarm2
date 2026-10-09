@@ -330,6 +330,56 @@ func _ready() -> void:
 			hud._close_panels()
 		break
 
+	# 컨베이어: 창고 출구 → 벨트(직선·모서리) → 전기 가공기 입구, 벨트 위 물건 / 건설 모드의 입구·출구 화살표
+	# 앞 장면들이 지은 시설로 밭이 차 있으므로 먼저 치운다
+	for obj in world.build.objects().duplicate():
+		obj.take_contents()
+		world.build.remove(obj)
+	await get_tree().process_frame
+	var spot := Vector2i(-1, -1)
+	var cells: Array = world.farm.farmable_cells.keys()
+	cells.sort()
+	for c: Vector2i in cells:
+		var ok := true
+		for y in 7:
+			for x in 11:
+				var fc := c + Vector2i(x, y)
+				ok = ok and world.build.is_buildable_ground(fc) and not world.build.is_occupied(fc) and (world.farm.get_tile(fc) == null or not world.farm.get_tile(fc).has_crop())
+		if ok:
+			spot = c
+			break
+	if spot.x >= 0:
+		for y in 7:
+			for x in 11:
+				world.obstacles.remove(spot + Vector2i(x, y))
+				world.farm.untill(spot + Vector2i(x, y))
+		await get_tree().process_frame
+		var cwh := world.build.place(PlaceableDB.get_def("warehouse"), spot) as Warehouse
+		var cep := world.build.place(PlaceableDB.get_def("electric_processor"), spot + Vector2i(7, 4)) as Processor
+		var belt_def := PlaceableDB.get_def("conveyor")
+		var belts: Array[Vector2i] = []
+		for p in BuildMode.belt_path(spot + Vector2i(4, 2), spot + Vector2i(6, 5)):
+			world.build.place(belt_def, p.cell, int(p.turns))
+			belts.append(p.cell)
+		for p in BuildMode.belt_path(spot + Vector2i(10, 5), spot + Vector2i(10, 6)):
+			world.build.place(belt_def, p.cell, int(p.turns))
+		var put_items := ["wheat", "carrot", "wheat", "tomato"]
+		for i in put_items.size():
+			var b := world.build.object_at(belts[i * 2 % belts.size()]) as Conveyor
+			if b:
+				b.put(put_items[i], "silver", 0.4)
+		if cwh and cep:
+			cep.set_recipe("flour")
+		world.player.global_position = world.cell_center(spot + Vector2i(5, 7))
+		world.player.facing = Vector2i.UP
+		world.player.camera.reset_smoothing()
+		await get_tree().create_timer(0.8).timeout
+		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_conveyor.png"))
+		world.build_mode.start_place("conveyor")
+		await get_tree().create_timer(0.4).timeout
+		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_conveyor_build.png"))
+		world.build_mode.stop()
+
 	# 아침 야간 생산 요약 (§98)
 	hud._night.open(GameState.day, {"items": {"flour": 24, "bread": 10, "basic_fertilizer": 2}, "energy": 300.0})
 	hud._center(hud._night)

@@ -11,6 +11,9 @@ extends Placeable
 ##     (창고 필터를 지킴). 넣을 창고가 없으면 가공기 안에 쌓고, 그것도 가득 차면 멈춘다. 재료가 다시 생기면 저절로 이어서.
 ##     실제로 만드는 동안에만 지역 전기 통에서 시간당 power 만큼 꺼내 쓰고, 통이 비면 멈췄다가 다시 차면 이어서 (사용자 결정).
 ##     밤에는 야간 생산 5시간만큼 일한다 (§97).
+##     컨베이어 (§55, 사용자 결정: 맞닿은 창고 방식과 함께 씀): 입구로 들어온 재료는 가공기 안 재료 칸(input)에 모아 두고
+##     (레시피 재료만, 재료마다 input_runs 회분까지), 1회분을 꺼낼 때 맞닿은 창고보다 먼저 쓴다.
+##     출구로는 가공기 안에 쌓인 결과물을 1개씩 내보낸다 (맞닿은 창고가 있으면 결과물은 먼저 창고로 간다).
 ##
 ## 수동 가공기 흐름
 ##   1. 시작할 때 정한 횟수만큼의 재료를 가방에서 한꺼번에 가져와 회차별로 넣어 둔다 (queue)
@@ -32,6 +35,8 @@ var queue: Array[Dictionary] = []
 var progress := 0.0
 ## 다 만들어져 꺼내기를 기다리는 결과물 (칸 형식 배열)
 var output: Array[Dictionary] = []
+## 전기 가공기: 컨베이어 입구로 들어와 쓰기를 기다리는 재료 (칸 형식 배열)
+var input: Array[Dictionary] = []
 ## 이번에 시작할 때 정한 횟수 / 그중 끝난 횟수 (표시용)
 var runs_total := 0
 var runs_done := 0
@@ -69,6 +74,11 @@ func max_runs() -> int:
 
 func max_output() -> int:
 	return maxi(1, int(config().get("max_output", 30)))
+
+
+## 컨베이어로 받아 둘 수 있는 재료 양 (재료마다 이 회분까지)
+func input_runs() -> int:
+	return maxi(1, int(config().get("input_runs", 2)))
 
 
 ## 켜져 있을 때 쓰는 전력 (§75)
@@ -122,7 +132,7 @@ func output_count() -> int:
 
 
 func is_empty() -> bool:
-	return queue.is_empty() and output.is_empty()
+	return queue.is_empty() and output.is_empty() and input.is_empty()
 
 
 func _has_room(n: int) -> bool:
@@ -285,8 +295,10 @@ func set_recipe(id: String) -> bool:
 		return false
 	if id == recipe_id:
 		return true
-	if not queue.is_empty():
+	if not queue.is_empty() or not input.is_empty():
 		var back := _queued_inputs()
+		for st in input:
+			_add(back, st.id, st.quality, int(st.count))
 		var room := max_output() - output_count()
 		var total := 0
 		for st in back:
@@ -298,6 +310,7 @@ func set_recipe(id: String) -> bool:
 			if left > 0:
 				_add(output, st.id, st.quality, left)
 		queue.clear()
+		input.clear()
 	recipe_id = id
 	progress = 0.0
 	if enabled and auto_problem() == "":
@@ -342,15 +355,60 @@ func available_in_warehouses(item_id: String) -> int:
 	return _available(item_id)
 
 
-## 맞닿은 창고들에 있는 아이템 개수 (quality null = 모든 품질)
+## 맞닿은 창고들 + 컨베이어로 받아 둔 재료 칸에 있는 아이템 개수 (quality null = 모든 품질)
 func _available(item_id: String, quality: Variant = null) -> int:
-	var n := 0
+	var n := _input_count(item_id, quality)
 	for wh in warehouses():
 		n += wh.storage.count_of(item_id, quality)
 	return n
 
 
-## 맞닿은 창고들에서 1회분 재료를 가져와 회차를 시작한다. 하나라도 모자라면 아무것도 가져오지 않고 false.
+func _input_count(item_id: String, quality: Variant = null) -> int:
+	var n := 0
+	for st in input:
+		if st.id == item_id and (quality == null or st.quality == quality):
+			n += int(st.count)
+	return n
+
+
+## 컨베이어로 받아 둔 재료 칸에서 꺼낸다. 꺼낸 개수
+func _take_input(item_id: String, quality: String, n: int) -> int:
+	for i in input.size():
+		if input[i].id == item_id and input[i].quality == quality:
+			var take := mini(n, int(input[i].count))
+			input[i].count -= take
+			if input[i].count <= 0:
+				input.remove_at(i)
+			return take
+	return 0
+
+
+## 컨베이어 입구 (§55): 지금 레시피의 재료만, 재료마다 input_runs 회분까지 받는다
+func accept_item(item_id: String, quality: String) -> bool:
+	if not is_automatic() or recipe_id == "" or recipe_problem(recipe_id) != "":
+		return false
+	var r := recipe()
+	if not r.inputs.has(item_id) or _input_count(item_id) >= int(r.inputs[item_id]) * input_runs():
+		return false
+	_add(input, item_id, Quality.normalize(ItemDB.get_item(item_id), quality), 1)
+	_changed()
+	return true
+
+
+## 컨베이어 출구: 가공기 안에 쌓인 결과물을 1개 내보낸다
+func provide_item() -> Dictionary:
+	if output.is_empty():
+		return {}
+	var st: Dictionary = output[0]
+	var it := {"id": st.id, "quality": st.quality}
+	st.count -= 1
+	if st.count <= 0:
+		output.remove_at(0)
+	_changed()
+	return it
+
+
+## 받아 둔 재료 칸 → 맞닿은 창고 순서로 1회분 재료를 가져와 회차를 시작한다. 하나라도 모자라면 아무것도 가져오지 않고 false.
 func _pull_run(r: Dictionary) -> bool:
 	for item_id: String in r.inputs:
 		if _available(item_id) < int(r.inputs[item_id]):
@@ -360,6 +418,13 @@ func _pull_run(r: Dictionary) -> bool:
 	for item_id: String in r.inputs:
 		var need := int(r.inputs[item_id])
 		for q in _quality_order(ItemDB.get_item(item_id), high_first):
+			var from_input := _take_input(item_id, q, need)
+			if from_input > 0:
+				_add(stacks, item_id, q, from_input)
+				counts[q] = int(counts.get(q, 0)) + from_input
+				need -= from_input
+				if need == 0:
+					break
 			for wh in warehouses():
 				var take := mini(need, wh.storage.count_of(item_id, q))
 				if take <= 0:
@@ -469,6 +534,17 @@ func on_night_production(_w: FarmWorld, report: Dictionary, minutes: float) -> v
 		DayCycle.add_night_item(report, recipe().output, made * int(recipe().count))
 
 
+## 입구 칸 앞에 이 가공기를 가리키는 컨베이어가 있는가
+func _has_input_belt() -> bool:
+	if _world == null:
+		return false
+	for p in ports():
+		var belt := _world.build.object_at(p.outside) as Conveyor
+		if p.type == "in" and belt != null and belt.facing() == -p.dir:
+			return true
+	return false
+
+
 ## 전기 가공기 상태 글 (창·테스트용)
 func auto_status() -> String:
 	var problem := auto_problem()
@@ -476,10 +552,10 @@ func auto_status() -> String:
 		return problem
 	var r := recipe()
 	var out_name := ItemDB.get_item(r.output).name
-	if warehouses().is_empty() and queue.is_empty():
-		return "맞닿은 창고가 없어요. 창고 옆에 지어 주세요."
+	if warehouses().is_empty() and queue.is_empty() and input.is_empty() and not _has_input_belt():
+		return "재료가 들어올 곳이 없어요. 창고 옆에 짓거나 입구에 컨베이어를 이어 주세요."
 	if queue.is_empty():
-		return "재료를 기다리는 중 (맞닿은 창고에 %s)" % RecipeDB.inputs_text(r)
+		return "재료를 기다리는 중 (%s)" % RecipeDB.inputs_text(r)
 	if progress >= float(r.minutes) and not _has_room(int(r.count)):
 		return "%s 완성! 결과물을 넣을 곳이 없어 기다리는 중" % out_name
 	if starved:
@@ -499,7 +575,7 @@ func _queued_inputs() -> Array[Dictionary]:
 
 func contents() -> Array:
 	var out: Array = []
-	for st in _queued_inputs() + output:
+	for st in _queued_inputs() + output + input:
 		out.append(st.duplicate())
 	return out
 
@@ -507,13 +583,14 @@ func contents() -> Array:
 func take_contents() -> void:
 	queue.clear()
 	output.clear()
+	input.clear()
 	progress = 0.0
 	_changed()
 
 
 func save_state() -> Dictionary:
 	return {"recipe": recipe_id, "queue": queue.duplicate(true), "progress": snappedf(progress, 0.001), "output": output.duplicate(true),
-			"runs_total": runs_total, "runs_done": runs_done, "enabled": enabled, "high_first": high_first}
+			"input": input.duplicate(true), "runs_total": runs_total, "runs_done": runs_done, "enabled": enabled, "high_first": high_first}
 
 
 func load_state(data: Dictionary) -> void:
@@ -528,6 +605,7 @@ func load_state(data: Dictionary) -> void:
 				if not stacks.is_empty():
 					queue.append({"inputs": stacks, "quality": Quality.normalize(out_item, str(run.get("quality", "")))})
 	output = _load_stacks(data.get("output"))
+	input = _load_stacks(data.get("input")) if is_automatic() else ([] as Array[Dictionary])
 	progress = maxf(0.0, float(data.get("progress", 0.0))) if typeof(data.get("progress")) in [TYPE_INT, TYPE_FLOAT] and not queue.is_empty() else 0.0
 	runs_total = maxi(0, int(data.get("runs_total", 0))) if typeof(data.get("runs_total")) in [TYPE_INT, TYPE_FLOAT] else 0
 	runs_done = clampi(int(data.get("runs_done", 0)), 0, runs_total) if typeof(data.get("runs_done")) in [TYPE_INT, TYPE_FLOAT] else 0

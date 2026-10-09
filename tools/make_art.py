@@ -1007,6 +1007,58 @@ def make_compost_bin():
     c.save("compost_bin.png")
 
 
+# ---------------------------------------------------------------- 컨베이어 (1x1칸, conveyor.png 64x48)
+#   줄: 0 직선 / 1 왼쪽에서 들어와 아래로 꺾임 / 2 오른쪽에서 들어와 아래로 꺾임. 칸: 무늬가 흐르는 4장
+#   모두 회전 0(아래로 흐름) 기준이고 게임에서 90°씩 돌려 쓴다. 양옆 나무 난간 + 가운데 짙은 벨트 + 흐르는 V 무늬
+
+BELT_RAIL = (P["wood"][0], P["wood"][2])          # 바깥쪽, 안쪽
+BELT = (hexc("7d6656"), hexc("6e5848"))            # 벨트 바탕, 이음매
+BELT_MARK = hexc("e6cfa4")
+
+
+def belt_pixel(a, s, frame, thick=False):
+    """벨트 가로 위치 a(0~16, 난간 포함)와 흐름 위치 s(0~16)의 색. 없으면 None.
+    thick: 꺾인 칸은 V 무늬가 곡선을 따라 휘며 끊어지므로 흐름 방향으로 2픽셀 두께로 그린다"""
+    if a < 1 or a >= 15:
+        return None
+    if a < 2 or a >= 14:
+        return BELT_RAIL[0]
+    if a < 3 or a >= 13:
+        return BELT_RAIL[1]
+    d = int(abs(a - 8) // 1)                       # 가운데에서 떨어진 정도 0~4
+    along = int(s // 1) - frame * 2
+    if d <= 3 and (along - (3 - d)) % 8 in ((0, 1) if thick else (0,)):
+        return BELT_MARK
+    return BELT[1] if (int(s // 1) - frame * 2) % 8 == 7 else BELT[0]
+
+
+def make_conveyor():
+    atlas = Canvas(4 * T, 3 * T)
+    for frame in range(4):
+        # 직선: a = x, s = y
+        c, done = sub(atlas, frame, 0)
+        for y in range(T):
+            for x in range(T):
+                c.set(x, y, belt_pixel(x + 0.5, y + 0.5, frame))
+        done()
+        # 왼쪽에서 들어와 아래로: 왼쪽 아래 모서리를 축으로 한 4분의 1 원. a = 축에서 거리, s = 각도(0 왼쪽 → 16 아래)
+        c, done = sub(atlas, frame, 1)
+        for y in range(T):
+            for x in range(T):
+                vx, vy = x + 0.5, y + 0.5 - T
+                r = math.hypot(vx, vy)
+                s = math.atan2(vx, -vy) / (math.pi / 2) * T
+                c.set(x, y, belt_pixel(r, s, frame, thick=True))
+        done()
+        # 오른쪽에서 들어와 아래로: 위 그림을 좌우로 뒤집은 것
+        c2, done = sub(atlas, frame, 2)
+        for y in range(T):
+            for x in range(T):
+                c2.set(x, y, c.get(T - 1 - x, y))
+        done()
+    atlas.save("conveyor.png")
+
+
 # ---------------------------------------------------------------- 창고 (4x4칸, 그림 64x84)
 #   돌 기초 + 세로 판자 벽 + 박공지붕(남색 지붕널) + 가운데 큰 미닫이문 + 옆에 쌓인 상자
 
@@ -1873,6 +1925,14 @@ def material_icon(c, kind):
         st = [hexc("7d6f63"), hexc("9a8b7d"), hexc("b5a696"), hexc("cdbfae"), hexc("e6dccd")]
         blob(c, [(8, 9.5, 4.8), (5.5, 10.5, 3), (10.5, 10.5, 3.2)], st)
         c.set(6, 7, st[4]); c.set(7, 7, st[4])
+    elif kind == "conveyor":
+        # 돌돌 만 벨트 한 칸: 나무 난간 두 줄 사이 짙은 벨트 + V 무늬 (비스듬히)
+        for y in range(3, 14):
+            for x in range(2, 14):
+                a = (x - 2) * 16 / 12
+                col = belt_pixel(a, y - 3 + 0.5, 0)
+                if col is not None:
+                    c.set(x, y, col)
     c.outline(INK)
 
 
@@ -2028,6 +2088,7 @@ def make_items():
                  "spinach", "broccoli", "sugar_beet"):
         order += [kind + "_seed", kind]
     order += PRODUCTS  # 가공품 (아이콘 44번부터)
+    order += ["conveyor"]  # 컨베이어 (아이콘 63번)
     atlas = Canvas(len(order) * T, T)
     for col, item in enumerate(order):
         c, done = sub(atlas, col, 0)
@@ -2042,7 +2103,7 @@ def make_items():
             c.template(AXE, ICON_PAL)
         elif item == "pickaxe":
             c.template(PICKAXE, ICON_PAL)
-        elif item in ("fiber", "wood", "stone"):
+        elif item in ("fiber", "wood", "stone", "conveyor"):
             material_icon(c, item)
         elif item.endswith("_fertilizer"):
             fertilizer_bag(c, item)
@@ -2168,6 +2229,7 @@ if __name__ == "__main__":
     make_placeables()
     make_greenhouse()
     make_compost_bin()
+    make_conveyor()
     make_warehouse()
     make_processor()
     make_generator()

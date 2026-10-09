@@ -123,6 +123,15 @@ func deposit(inv: Inventory, item_id: String, count: int) -> int:
 	return n
 
 
+## 컨베이어 입구 (§55): 연료 1개를 받는다 (연료 칸 한도까지)
+func accept_item(item_id: String, _quality: String) -> bool:
+	if not accepts(ItemDB.get_item(item_id)) or fuel_count() >= max_fuel():
+		return false
+	_add(item_id, 1)
+	_changed()
+	return true
+
+
 ## 아직 타지 않은 연료를 가방으로 꺼낸다. 가방에 다 안 들어가면 0
 func withdraw(inv: Inventory, item_id: String, count: int) -> int:
 	var have := 0

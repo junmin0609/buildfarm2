@@ -12,7 +12,7 @@ extends Placeable
 ## 철거하면 대기 중 재료·익히는 중 재료·결과물을 모두 가방으로 돌려준다. 자리가 없으면 철거를 막는다 (§106).
 ##
 ## 확장: 다른 유기물 처리 시설(바이오 연료 등)은 "compost" 같은 설정 묶음과 이 흐름(대기 → 익힘 → 결과)을 그대로 쓰면 된다.
-## 자동 투입은 deposit_stack / take_output 을 부르면 된다.
+## 컨베이어 (§55): 입구로 재료 1개씩 받고(대기 칸 한도까지), 출구로 결과물(기본 비료)을 1개씩 내보낸다.
 
 const REACH := 14.0
 
@@ -113,6 +113,29 @@ func deposit(inv: Inventory, item_id: String, quality: String, count: int) -> in
 	_try_start()
 	_changed()
 	return n
+
+
+## 컨베이어 입구: 재료 1개를 받는다 (대기 칸 한도까지)
+func accept_item(item_id: String, quality: String) -> bool:
+	var item := ItemDB.get_item(item_id)
+	if not accepts(item) or waiting_points() + points_of(item_id) > max_waiting_points():
+		return false
+	_add(waiting, item_id, Quality.normalize(item, quality), 1)
+	_try_start()
+	_changed()
+	return true
+
+
+## 컨베이어 출구: 결과물 1개를 꺼낸다
+func provide_item() -> Dictionary:
+	var item := output_item()
+	if item == null or output <= 0:
+		return {}
+	output -= 1
+	_try_finish()
+	_try_start()
+	_changed()
+	return {"id": item.id, "quality": Quality.NONE}
 
 
 ## 넣어 둔(아직 익히기 전) 재료를 가방으로 꺼낸다. 가방에 다 안 들어가면 꺼내지 않고 0.

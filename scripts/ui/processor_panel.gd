@@ -174,7 +174,7 @@ func refresh() -> void:
 	var p := processor
 	var auto := p.is_automatic()
 	_title.text = "%s · %d급" % [p.def.name, p.tier()]
-	_hint.text = "레시피를 정하고 켜 두면 맞닿은 창고에서 재료를 가져와 만들고, 결과물은 맞닿은 창고에 넣어요. 만드는 동안에만 전기를 시간당 %d 써요." % p.power_use() \
+	_hint.text = "레시피를 정하고 켜 두면 맞닿은 창고나 입구 컨베이어로 들어온 재료로 만들고, 결과물은 맞닿은 창고나 출구 컨베이어로 보내요. 만드는 동안에만 전기를 시간당 %d 써요." % p.power_use() \
 			if auto else "레시피와 횟수를 정해 [가공 시작] → 정한 횟수만 만들고 멈춰요. 게임 시계가 흐르는 동안 진행돼요."
 	_count_row.visible = not auto
 	_start.visible = not auto
@@ -270,7 +270,7 @@ func _fill_detail() -> void:
 		var need := int(r.inputs[item_id])
 		var auto := processor.is_automatic()
 		var have := processor.available_in_warehouses(item_id) if auto else GameState.inventory.count_of(item_id)
-		var line := _small("· %s %d개  (%s %d개)" % [ItemDB.get_item(item_id).name, need, "맞닿은 창고" if auto else "가방", have], Color("5b3a29") if have >= need else Color("c0503a"))
+		var line := _small("· %s %d개  (%s %d개)" % [ItemDB.get_item(item_id).name, need, "창고·입구" if auto else "가방", have], Color("5b3a29") if have >= need else Color("c0503a"))
 		_detail.add_child(line)
 
 

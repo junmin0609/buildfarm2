@@ -24,11 +24,17 @@ extends Node2D
 ##   on_night_production      하루 마감의 night_production 단계 (§97 야간 5시간 생산). 잘게 나눠 여러 번 불린다
 ##   extra_cost               설치 뒤 더 들인 돈·재료 (창고 증축 등). 철거하면 건설비와 함께 돌려준다 (§64)
 ##   save_state / load_state  내부 상태 저장 (to_data 의 "state"). 옮겨도 노드 그대로라 상태가 유지된다 (§63)
+##   컨베이어 (§55, 사용자 결정: 시설마다 정해진 입구·출구 칸)
+##     ports                  placeables.json 의 "ports" 를 지금 방향으로 돌린 입구·출구 목록
+##     accept_item            입구로 들어온 물건 1개를 받는다 (못 받으면 false — 물건은 벨트에서 기다린다)
+##     provide_item           출구로 내보낼 물건 1개를 꺼낸다 (없으면 {})
 ## [E] 로 쓰는 시설은 "interactables" 그룹에 넣고 prompt / interact_point / can_interact / interact 를 만든다
 ## (Interactable 건물과 같은 이름이라 Player 가 같이 찾는다).
 
 const TILE := Art.TILE
 const DIRS: Array[Vector2i] = [Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP, Vector2i.RIGHT]
+## placeables.json "ports" 의 "side" → 회전 0 기준 바깥 방향
+const SIDES := {"down": Vector2i.DOWN, "left": Vector2i.LEFT, "up": Vector2i.UP, "right": Vector2i.RIGHT}
 
 var def: PlaceableDef
 ## 차지하는 칸들의 왼쪽 위 칸
@@ -89,6 +95,39 @@ static func rotate_dir(dir: Vector2i, rot: int) -> Vector2i:
 	for i in posmod(rot, 4):
 		d = Vector2i(-d.y, d.x)
 	return d
+
+
+## 회전 0 기준 시설 안 칸 local 을 rot 만큼 시계 방향으로 돌린 칸 (왼쪽 위 기준). size0 = 회전 0 크기
+static func rotate_local(local: Vector2i, size0: Vector2i, rot: int) -> Vector2i:
+	var c := local
+	var s := size0
+	for i in posmod(rot, 4):
+		c = Vector2i(s.y - 1 - c.y, c.x)
+		s = Vector2i(s.y, s.x)
+	return c
+
+
+## 입구·출구 (§55): [{"type": "in"/"out", "cell": 시설의 포트 칸, "dir": 바깥 방향, "outside": 컨베이어가 이어지는 칸}]
+## 지금 자리·방향 기준. 시설을 돌리면 포트도 같이 돈다 (§54).
+func ports() -> Array[Dictionary]:
+	return ports_of(def, cell, turns)
+
+
+static func ports_of(placeable_def: PlaceableDef, origin: Vector2i, rot: int) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var raw: Variant = placeable_def.data.get("ports", []) if placeable_def else []
+	if not raw is Array:
+		return out
+	for p: Variant in raw:
+		if not p is Dictionary or not SIDES.has(str(p.get("side", ""))) or str(p.get("type", "")) not in ["in", "out"]:
+			continue
+		var local := DataFile.to_vector2i(p.get("cell"), Vector2i(-1, -1))
+		if local.x < 0 or local.y < 0 or local.x >= placeable_def.size.x or local.y >= placeable_def.size.y:
+			continue
+		var c := origin + rotate_local(local, placeable_def.size, rot)
+		var d := rotate_dir(SIDES[str(p.side)], rot)
+		out.append({"type": str(p.type), "cell": c, "dir": d, "outside": c + d})
+	return out
 
 
 func _ready() -> void:
@@ -207,6 +246,16 @@ func neighbors(grid: BuildGrid) -> Array[Placeable]:
 			if obj != null and obj != self and obj not in out:
 				out.append(obj)
 	return out
+
+
+## 입구로 들어온 물건 1개를 받는다. 받으면 true, 못 받으면 false (물건은 벨트 끝에서 기다린다 §61)
+func accept_item(_item_id: String, _quality: String) -> bool:
+	return false
+
+
+## 출구로 내보낼 물건 1개를 꺼낸다: {"id", "quality"}. 내보낼 게 없으면 {}
+func provide_item() -> Dictionary:
+	return {}
 
 
 ## {"price": G, "materials": {아이템 id: 개수}}
