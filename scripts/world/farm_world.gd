@@ -5,8 +5,9 @@ extends Node2D
 
 const TILE := Art.TILE
 const CAMERA_ZOOM := 4.0
-## 기본 줌보다 넓게 보기 (사용자 요청: 약 1.7배). 도트가 고르게 보이도록 실제 줌은 가장 가까운 정수 배율로 맞춘다
-const VIEW_SCALE := 1.7
+## 보이는 범위 (사용자 요청: 1.7배 넓게 → 너무 넓어 반으로(0.8) → 그 1.5배(1.2)). 도트가 고르게 보이도록 실제 줌은 가장 가까운 정수 배율로 맞춘다
+## 1920x1080 에서 가로 24칸, 1280x720 에서 약 27칸
+const VIEW_SCALE := 1.2
 
 @onready var ground: TileMapLayer = $Ground
 @onready var edges: TileMapLayer = $Edges
