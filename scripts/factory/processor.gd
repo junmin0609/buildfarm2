@@ -258,6 +258,7 @@ func advance(minutes: float) -> int:
 func _finish_one(r: Dictionary) -> void:
 	var run: Dictionary = queue.pop_front()
 	_add(output, r.output, run.quality, int(r.count))
+	GameState.discover(r.output)  # 처음 만든 가공품도 "얻은 것" (다음 레시피 재료가 될 수 있음 §71)
 	if not is_automatic():
 		runs_done += 1  # 정한 횟수 중 몇 번째인지는 수동 가공기에만 의미가 있다
 

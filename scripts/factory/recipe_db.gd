@@ -9,7 +9,12 @@ extends RefCounted
 ##   minutes  1회분에 걸리는 게임 시계 분
 ##   tier     필요한 가공기 등급 (§70: 1 하급 / 2 중급 / 3 상급)
 ##   unlocked 처음부터 아는 레시피인가. 나머지는 배워야 쓴다 (§71, 한 번 배우면 영구)
-## 배운 레시피는 GameState.unlocks["recipe:<id>"] 에 저장된다 (레시피 상점이 생기면 learn 을 부르면 된다).
+##   price    레시피 상점(셰프, §71)에서 배우는 값 (처음부터 아는 레시피는 0)
+## 배운 레시피는 GameState.unlocks["recipe:<id>"] 에 저장된다.
+##
+## 레시피 상점 (사용자 결정: 주재료를 처음 얻으면 진열)
+##   재료를 모두 한 번씩 얻어 본(GameState.has_found) 레시피만 살 수 있다. 한 번 진열되면 그 뒤로 계속 진열.
+##   아직 못 얻은 재료가 있으면 "???" 로 보이고 얻은 재료만 알려 준다.
 
 const DATA_PATH := "res://data/recipes.json"
 
@@ -43,6 +48,7 @@ static func _ensure_loaded() -> void:
 			"minutes": maxf(1.0, float(raw.get("minutes", 60))),
 			"tier": maxi(1, int(raw.get("tier", 1))),
 			"unlocked": bool(raw.get("unlocked", false)),
+			"price": maxi(0, int(raw.get("price", 0))),
 		}
 		_order.append(id)
 
@@ -78,6 +84,49 @@ static func learn(id: String) -> bool:
 	GameState.unlocks["recipe:" + id] = true
 	Events.processor_changed.emit()
 	return true
+
+
+# ---------- 레시피 상점 (§71)
+
+## 상점에서 파는 레시피 (처음부터 아는 것 빼고, 데이터 순서)
+static func shop_recipes() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for r in all():
+		if not r.unlocked:
+			out.append(r)
+	return out
+
+
+## 재료를 모두 한 번씩 얻어 봐서 상점에 진열되는가
+static func is_revealed(id: String) -> bool:
+	var r := get_recipe(id)
+	if r.is_empty():
+		return false
+	for item_id: String in r.inputs:
+		if not GameState.has_found(item_id):
+			return false
+	return true
+
+
+## 배울 수 없는 이유. 배울 수 있으면 ""
+static func buy_problem(id: String) -> String:
+	var r := get_recipe(id)
+	if r.is_empty():
+		return "없는 레시피예요."
+	if is_known(id):
+		return "이미 배운 레시피예요."
+	if not is_revealed(id):
+		return "재료를 먼저 모두 얻어 보세요."
+	if GameState.money < int(r.price):
+		return "돈이 부족해요. (%d G 필요)" % r.price
+	return ""
+
+
+## 돈을 내고 배운다. 배웠으면 true
+static func buy(id: String) -> bool:
+	if buy_problem(id) != "" or not GameState.try_spend(int(get_recipe(id).price)):
+		return false
+	return learn(id)
 
 
 ## "밀 2 + 설탕 1"

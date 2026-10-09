@@ -270,7 +270,10 @@ func deposit_all(inv: Inventory) -> int:
 func insert(item_id: String, count: int, quality := Quality.NONE) -> int:
 	if not accepts(ItemDB.get_item(item_id)):
 		return count
-	return storage.add(item_id, count, quality)
+	var left := storage.add(item_id, count, quality)
+	if left < count:
+		GameState.discover(item_id)  # 가방을 거치지 않고 창고로 바로 들어온 물건도 "얻은 것" (레시피 상점 §71)
+	return left
 
 
 ## 컨베이어 입구 (§55): 받을 물건 필터를 지켜 1개 넣는다
@@ -356,6 +359,9 @@ func load_state(data: Dictionary) -> void:
 					output_items.append(str(id))
 	if data.get("slots") is Array:
 		storage.load_data(data.slots)
+	for slot: Variant in storage.slots:
+		if slot != null:
+			GameState.discover(str(slot.id))
 	_changed()
 
 

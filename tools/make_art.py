@@ -1406,6 +1406,55 @@ def make_blacksmith():
     c.save("blacksmith.png")
 
 
+# ---------------------------------------------------------------- 레시피 상점 (셰프, 광장, 3x2칸, 그림 48x44)
+#   크림색 회벽 + 붉은 기와 지붕 + 줄무늬 차양 + 요리사 모자 간판 + 굴뚝 김
+
+def make_recipe_shop():
+    w = P["wood"]
+    c = Canvas(48, 44)
+    c.ellipse(24, 42.5, 23, 1.6, SOFT_SHADOW)
+    # 회벽 + 나무 기둥
+    rrect(c, 2, 18, 44, 25, 2, hexc("f4e6c8"))
+    c.rect(2, 39, 44, 4, hexc("e2cfa6"))
+    for x in (2, 44):
+        c.rect(x, 18, 2, 25, w[1])
+    # 굴뚝과 김
+    rrect(c, 8, 3, 6, 13, 1, hexc("c7826a"))
+    c.rect(8, 3, 6, 2, hexc("a8654f"))
+    for x, y, r in ((11, 1.0, 1.5), (13.5, -0.5, 1.1)):
+        c.ellipse(x, y, r, r, hexc("fbf6ec"))
+    # 지붕 (붉은 기와)
+    roof, roof_d, roof_l = hexc("d9775a"), hexc("b85d44"), hexc("eda083")
+    for y in range(6, 20):
+        inset = max(0, int(10 - (y - 6) * 0.8))
+        for x in range(inset, 48 - inset):
+            c.set(x, y, roof_d if (y - 6) % 4 == 3 else roof)
+    c.rect(10, 6, 28, 1, roof_l)
+    # 줄무늬 차양 (문 위)
+    for x in range(14, 34):
+        col = hexc("e0715f") if (x // 3) % 2 == 0 else hexc("fff8ea")
+        c.rect(x, 22, 1, 4, col)
+        c.set(x, 26, col if x % 3 != 2 else CLEAR)
+    c.rect(14, 22, 20, 1, hexc("b85d44"))
+    # 문
+    rrect(c, 18, 28, 12, 15, 2, w[0])
+    rrect(c, 19, 29, 10, 14, 1.5, w[2])
+    c.rect(24, 29, 1, 14, w[1])
+    c.set(22, 36, hexc("f5c542")); c.set(26, 36, hexc("f5c542"))
+    # 요리사 모자 간판 (왼쪽)
+    rrect(c, 4, 26, 10, 10, 1.5, w[2])
+    c.ellipse(9, 29.5, 3.2, 2.2, hexc("ffffff"))
+    c.rect(7, 30, 5, 3, hexc("ffffff"))
+    c.rect(7, 33, 5, 1, hexc("d9c9a8"))
+    # 창 (오른쪽, 따뜻한 불빛 + 화분)
+    rrect(c, 35, 27, 8, 7, 1, hexc("ffd27a")); c.rect(39, 27, 1, 7, w[1]); c.rect(35, 30, 8, 1, w[1])
+    rrect(c, 34, 34, 10, 3, 1, w[1])
+    for x, col in ((36, "7fb069"), (38, "e0715f"), (40, "7fb069"), (42, "f5c542")):
+        c.set(x, 33, hexc(col))
+    c.outline(INK)
+    c.save("recipe_shop.png")
+
+
 # ---------------------------------------------------------------- 개간 장애물 (data/obstacles.json 의 그림)
 # 모두 한 칸을 차지하고, 그림 아래쪽 가운데가 칸 바닥에 놓인다.
 
@@ -2237,6 +2286,7 @@ if __name__ == "__main__":
     make_well()
     make_shipping_bin()
     make_blacksmith()
+    make_recipe_shop()
     make_obstacles()
     make_player()
     make_crops()

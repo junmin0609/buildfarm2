@@ -18,6 +18,7 @@ extends RefCounted
 ##   H  집 (왼쪽 위 기준 4x3칸)   M  씨앗 상점 (3x2칸)   S  작물 판매처 (3x2칸)
 ##   W  우물 (2x2칸, 물뿌리개를 채우는 곳)   O  출하함 (2x1칸, 하루가 끝나면 넣어 둔 것을 판다)
 ##   K  대장간 (3x2칸, 도구 강화)
+##   C  레시피 상점 (3x2칸, 셰프 §71)
 ##   @  플레이어 시작 위치
 
 const ROWS := [
@@ -48,7 +49,7 @@ const ROWS := [
 	"TT..ggggggggggggggggggggggggg..YTT~~~~TTY..phppppppppppppp....TT",
 	"TT...ggggggggggggggggggggggggg.TTT~~~~TT.....pppppppppppp.....TT",
 	"TT...ggggggggggggggggggggggggg.TTT~~~TTT.......L.s..h.p..x...BTT",
-	"TTY..gggggggggggggggggggggggg.YTT~~~~TTTxxx.....ss.....xxxxx.TTT",
+	"TTY..gggggggggggggggggggggggg.YTT~~~~TTTCxx.....ss.....xxxxx.TTT",
 	"TT...gggggggggggggggggggggggg.TTT~~~~TTxxxxx....ss.....xxxxx.TTT",
 	"TT...ggggggggggggggggggggggg..TTT~~~TTTxxxxx....s......xxxxx.TTT",
 	"TTB.ggggggggggggggggggggggg...TT~~~~TTT.xxx.....s........x...TTT",
@@ -100,6 +101,7 @@ const BUILDINGS := {
 	"W": "res://scenes/buildings/well.tscn",
 	"O": "res://scenes/buildings/shipping_bin.tscn",
 	"K": "res://scenes/buildings/blacksmith.tscn",
+	"C": "res://scenes/buildings/recipe_shop.tscn",
 }
 
 

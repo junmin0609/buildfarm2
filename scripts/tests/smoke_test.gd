@@ -51,7 +51,7 @@ func _ready() -> void:
 	var inv := GameState.inventory
 
 	_check(farm.farmable_cells.size() >= 100, "밭 칸 (실제 %d)" % farm.farmable_cells.size())
-	_check(world.buildings.size() == 6, "건물 6개 배치 (집·씨앗 상점·작물 판매처·우물·출하함·대장간)")
+	_check(world.buildings.size() == 7, "건물 7개 배치 (집·씨앗 상점·작물 판매처·우물·출하함·대장간·레시피 상점)")
 	_check(world.fences.get_used_cells().is_empty(), "농장에 울타리 없음")
 	_check(world.objects.get_children().filter(func(n: Node) -> bool: return n is Prop).size() > 100, "나무·바위 소품 배치")
 	var home_cell := world.world_to_cell(world.cell_center(_find_char("@")))
@@ -212,6 +212,9 @@ func _ready() -> void:
 
 	# ---------- 컨베이어 + 입출력 포트 (§54~§61, §65)
 	await _test_conveyor(world, hud)
+
+	# ---------- 레시피 상점 (셰프, §71)
+	await _test_recipe_shop(world, hud)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -2720,6 +2723,90 @@ func _test_conveyor(world: FarmWorld, hud: HUD) -> void:
 	_check(grid.conveyors.belts().is_empty(), "정리: 벨트 모두 철거")
 	inv.load_data(saved_inv)
 	hud._close_panels()
+	await get_tree().process_frame
+
+
+func _test_recipe_shop(world: FarmWorld, hud: HUD) -> void:
+	var inv := GameState.inventory
+	var saved_inv := inv.to_data()
+	var saved_unlocks := GameState.unlocks.duplicate(true)
+	var money0 := GameState.money
+	var player := world.player
+
+	# 데이터: 처음부터 아는 6개를 뺀 14개를 팔고, 값이 있음
+	var shop := RecipeDB.shop_recipes()
+	_check(shop.size() == 14 and shop.all(func(r: Dictionary) -> bool: return int(r.price) > 0 and not r.unlocked), "레시피 상점 품목 14개, 모두 값이 있음 (recipes.json price)")
+	_check(int(RecipeDB.get_recipe("strawberry_jam").price) == 2100 and int(RecipeDB.get_recipe("flour").price) == 0, "딸기잼 2100 G (임시 값), 처음부터 아는 레시피는 0")
+
+	# 광장 건물 [E] → 창 (게임·시간 멈춤)
+	var shops := world.buildings.filter(func(b: Interactable) -> bool: return b is RecipeShop)
+	_check(shops.size() == 1 and MapLayout.char_at(Vector2i(40, 27)) == "C", "광장에 레시피 상점 (3x2)")
+	if shops.is_empty():
+		return
+	player.global_position = shops[0].interact_point()
+	await get_tree().physics_frame
+	player._interact()
+	_check(hud._recipes.visible and get_tree().paused and GameState.is_time_paused(), "레시피 상점 창 열면 게임·시간 멈춤")
+	hud._close_panels()
+	_check(not hud._recipes.visible and not get_tree().paused and not GameState.is_time_paused(), "닫으면 재개")
+
+	# 재료를 모두 얻어 봐야 진열 (사용자 결정: 주재료를 처음 얻으면)
+	for key: String in ["found:strawberry", "found:sugar", "found:blueberry", "recipe:strawberry_jam", "recipe:blueberry_jam"]:
+		GameState.unlocks.erase(key)
+	inv.remove("strawberry", inv.count_of("strawberry"))
+	inv.remove("sugar", inv.count_of("sugar"))
+	inv.remove("blueberry", inv.count_of("blueberry"))
+	var jam := RecipeDB.get_recipe("strawberry_jam")
+	_check(not RecipeDB.is_revealed("strawberry_jam") and RecipeDB.buy_problem("strawberry_jam") != "" and RecipeShopPanel._hidden_inputs(jam) == "??? · ???", "재료를 못 얻었으면 ??? (%s)" % RecipeShopPanel._hidden_inputs(jam))
+	inv.add("strawberry", 1)
+	_check(GameState.has_found("strawberry") and not RecipeDB.is_revealed("strawberry_jam") and RecipeShopPanel._hidden_inputs(jam) == "딸기 · ???", "가방에 들어온 재료는 이름이 보임 (%s)" % RecipeShopPanel._hidden_inputs(jam))
+	var wh := Warehouse.new()
+	wh.setup(PlaceableDB.get_def("warehouse"), Vector2i.ZERO)
+	wh.insert("sugar", 1)
+	wh.free()
+	_check(GameState.has_found("sugar") and RecipeDB.is_revealed("strawberry_jam"), "창고로 바로 들어온 재료도 얻은 것으로 침 → 딸기잼 진열")
+	_check(RecipeShopPanel.ordered()[0].id == "strawberry_jam" or RecipeDB.is_revealed(RecipeShopPanel.ordered()[0].id), "배울 수 있는 레시피가 맨 위")
+
+	# 사기: 돈이 모자라면 못 배우고, 내면 영구히 배움
+	GameState.money = 1000
+	_check(RecipeDB.buy_problem("strawberry_jam").begins_with("돈이 부족") and not RecipeDB.buy("strawberry_jam"), "돈이 모자라면 못 배움")
+	GameState.money = 3000
+	_check(RecipeDB.buy("strawberry_jam") and RecipeDB.is_known("strawberry_jam") and GameState.money == 900, "2100 G 내고 딸기잼 배움 (남은 돈 %d)" % GameState.money)
+	_check(RecipeDB.buy_problem("strawberry_jam") == "이미 배운 레시피예요." and RecipeShopPanel.ordered()[-1].id in shop.filter(func(r: Dictionary) -> bool: return RecipeDB.is_known(r.id)).map(func(r: Dictionary) -> String: return r.id), "배운 레시피는 맨 아래, 다시 못 삼")
+
+	# 창에서 배우기
+	inv.add("blueberry", 1)
+	GameState.money = 5000
+	player.global_position = shops[0].interact_point()
+	await get_tree().physics_frame
+	player._interact()
+	var rows := hud._recipes._list.get_children()
+	var first_name := (rows[0].get_child(1).get_child(0) as Label).text
+	_check(rows.size() == 14 and first_name == "블루베리잼", "창: 14줄, 맨 위는 배울 수 있는 블루베리잼 (%s)" % first_name)
+	hud._recipes._buy("blueberry_jam")
+	_check(RecipeDB.is_known("blueberry_jam") and GameState.money == 3050, "창에서 [배우기] (1950 G)")
+	hud._close_panels()
+
+	# 처음 만든 가공품도 얻은 것 (다음 레시피 재료)
+	GameState.unlocks.erase("found:tomato_puree")
+	var pr := Processor.new()
+	pr.setup(PlaceableDB.get_def("manual_processor"), Vector2i.ZERO)
+	pr.recipe_id = "tomato_puree"
+	pr.queue = [{"inputs": [], "quality": "bronze"}] as Array[Dictionary]
+	pr._finish_one(RecipeDB.get_recipe("tomato_puree"))
+	pr.free()
+	_check(GameState.has_found("tomato_puree"), "가공기가 처음 만든 토마토 퓌레도 얻은 것으로 침")
+
+	# 저장 / 불러오기: 배운 레시피·얻은 기록 유지
+	world.save_manager.save_game("manual")
+	GameState.unlocks.erase("recipe:strawberry_jam")
+	GameState.unlocks.erase("found:sugar")
+	world.save_manager.load_game()
+	_check(RecipeDB.is_known("strawberry_jam") and GameState.has_found("sugar"), "저장·불러오기: 배운 레시피와 얻은 기록 유지")
+
+	GameState.unlocks = saved_unlocks
+	GameState.money = money0
+	inv.load_data(saved_inv)
 	await get_tree().process_frame
 
 

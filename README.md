@@ -123,6 +123,17 @@ Godot 4.7로 만든 2D 픽셀 농장 게임의 기본 버전입니다. 16px 도�
 - 코드: `scripts/factory/conveyor.gd`(`Conveyor`, 칸 하나), `scripts/factory/conveyor_net.gd`(`ConveyorNet`, 지역 전체를 앞 벨트부터 한꺼번에 움직임, `BuildGrid.conveyors`), 끌어서 깔기는 `BuildMode.belt_path / place_belts`
 - 그림: `assets/art/conveyor.png` (줄: 직선/왼쪽 꺾임/오른쪽 꺾임, 칸: 무늬 4장, 회전 0 = 아래로 흐름)
 
+## 레시피 상점 (셰프, BUILD_FARM_PLAN §71)
+- 광장 남서쪽 시설 터의 **레시피 상점** 3x2 (지도 글자 `C`) → [E] → 창 (상점처럼 게임·시간 멈춤)
+- 처음부터 아는 6개를 뺀 **14개**를 판다. 한 번 배우면 영구 (`GameState.unlocks["recipe:<id>"]`), 모든 가공기에서 고를 수 있음
+- **진열 조건** (사용자 결정: 주재료를 처음 얻으면): 레시피 재료를 **모두 한 번씩 얻어 봐야** 진열. 한 번 진열되면 계속
+  - "얻음" 기록: 가방에 들어왔을 때, 창고에 들어왔을 때(컨베이어·전기 가공기 포함), 가공기가 처음 만들었을 때 → `GameState.unlocks["found:<id>"]` (`GameState.discover / has_found`)
+  - 이 기록이 없던 예전 저장은 불러올 때 가방·창고에 든 것부터 얻은 것으로 침
+  - 아직이면 이름이 "???"이고 얻어 본 재료만 이름이 보임 (예: "딸기 · ???")
+- 창 순서: 배울 수 있는 것 → ??? → 배운 것(흐리게). 줄마다 재료·시간·결과물 판매가·값
+- 값: `recipes.json`의 `price` (임시: 결과물 기준 판매가 × 1회 개수 × 3, 50 G 단위, 최소 300 G → 딸기잼 2,100 G, 호박파이 4,200 G, 수박 주스 500 G …)
+- 코드: `RecipeDB.shop_recipes / is_revealed / buy_problem / buy`, `scripts/buildings/recipe_shop.gd`(`RecipeShop`), `scripts/ui/recipe_shop_panel.gd`(`RecipeShopPanel`), 그림 `make_recipe_shop` → `assets/art/recipe_shop.png`
+
 ## 아침 야간 생산 요약 (BUILD_FARM_PLAN §98)
 - 하루가 끝나면: 판매가 있으면 판매 수익 요약(§99) → [확인]/Esc → **밤새 생산된 결과** 창. 판매가 없으면 바로 야간 생산 요약. 두 창은 섞지 않음
 - 내용: 밤새 만든 물건과 개수 (많은 순, 품질은 합쳐서), 발전기가 만든 전기. 밤새 만든 물건이 없으면 창을 띄우지 않음

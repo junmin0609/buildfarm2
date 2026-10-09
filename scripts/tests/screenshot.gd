@@ -146,6 +146,22 @@ func _ready() -> void:
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_smith_panel.png"))
 	hud._close_panels()
 
+	# 레시피 상점 (셰프 §71): 광장 위치·창 (딸기·설탕·블루베리를 얻어 본 상태, 딸기잼은 배움)
+	var chef: Interactable = world.buildings.filter(func(b: Interactable) -> bool: return b is RecipeShop)[0]
+	world.player.global_position = chef.interact_point() + Vector2(0, 6)
+	world.player.facing = Vector2i.UP
+	world.player.camera.reset_smoothing()
+	for id in ["sugar", "blueberry", "tomato_puree", "tomato_sauce"]:
+		GameState.discover(id)
+	RecipeDB.learn("strawberry_jam")
+	GameState.add_money(3000)
+	await get_tree().create_timer(0.6).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_recipe_shop.png"))
+	hud.open_recipe_shop()
+	await get_tree().create_timer(0.4).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_recipe_panel.png"))
+	hud._close_panels()
+
 	# 출하함: 위치·창, 하루가 끝난 뒤 판매 수익 요약
 	var bin: ShippingBin = world.shipping_bin
 	world.player.global_position = bin.interact_point()

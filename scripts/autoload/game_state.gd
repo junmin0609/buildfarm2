@@ -30,7 +30,9 @@ var daily_special := ""
 var weather := "sunny"
 ## 오늘 번 돈 (판매 방식 -> G). 하루 마감 때 판매 수익 요약(§99)으로 보여 주고 비운다.
 var today_sales := {}
-## 해금 상태 (지역·레시피·상점 품목 등). id -> true. 아직 해금 시스템은 없지만 저장 구조는 미리 둔다.
+## 해금 상태 (지역·레시피·상점 품목 등). id -> true.
+##   "recipe:<id>"  배운 레시피 (§71)
+##   "found:<id>"   한 번이라도 얻은 아이템 (가방에 들어왔거나 창고·가공기에서 생겼을 때). 레시피 상점은 재료를 모두 얻어 본 레시피만 판다
 var unlocks := {}
 
 ## 하루 길이·시계 설정 (data/time.json)
@@ -56,6 +58,7 @@ func _ready() -> void:
 	_setup_input()
 	Settings.apply_saved()  # 저장된 전체 화면 설정, 처음 창 크기
 	inventory.changed.connect(func() -> void: Events.inventory_changed.emit())
+	inventory.changed.connect(_discover_bag)
 	new_game()
 
 
@@ -239,6 +242,23 @@ func advance_date() -> void:
 	_reset_day_clock()
 
 
+# ---------- 얻은 아이템 기록 (레시피 상점 §71)
+
+func discover(item_id: String) -> void:
+	if item_id != "" and not unlocks.has("found:" + item_id):
+		unlocks["found:" + item_id] = true
+
+
+func has_found(item_id: String) -> bool:
+	return unlocks.get("found:" + item_id, false)
+
+
+func _discover_bag() -> void:
+	for slot: Variant in inventory.slots:
+		if slot != null:
+			discover(str(slot.id))
+
+
 # ---------- 저장용 (SaveManager 가 부른다)
 
 func to_data() -> Dictionary:
@@ -268,6 +288,7 @@ func load_data(data: Variant) -> bool:
 	inventory.load_data(inv_data if inv_data is Array else [])
 	var unlock_data: Variant = data.get("unlocks", {})
 	unlocks = unlock_data.duplicate(true) if unlock_data is Dictionary else {}
+	_discover_bag()  # 이 기록이 생기기 전 저장이면 지금 가방에 든 것부터 얻은 것으로 친다
 	today_sales.clear()
 	var sales_data: Variant = data.get("today_sales", {})
 	if sales_data is Dictionary:

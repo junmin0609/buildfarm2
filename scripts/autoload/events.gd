@@ -25,6 +25,8 @@ signal hotbar_selection_changed(index: int)
 
 ## 대장간 창 열기 요청
 signal blacksmith_requested
+## 광장 레시피 상점(셰프, §71) [E]
+signal recipe_shop_requested
 ## 출하함 창 열기 요청 (bin: ShippingBin) / 출하함 내용이 바뀜
 signal shipping_bin_requested(bin: Node)
 signal shipping_bin_changed

@@ -236,7 +236,7 @@ func _fill_list() -> void:
 		var item := ItemDB.get_item(r.output)
 		var known := RecipeDB.is_known(r.id)
 		var label := item.name + (" ×%d" % r.count if r.count > 1 else "")
-		var info := "%s · %s" % [RecipeDB.inputs_text(r), RecipeDB.time_text(r.minutes)] if known else "잠김 · 레시피 상점에서 배울 예정"
+		var info := "%s · %s" % [RecipeDB.inputs_text(r), RecipeDB.time_text(r.minutes)] if known else "잠김 · 광장 레시피 상점에서 배워요"
 		var row := ShopPanel.item_row(item, info)
 		(row.get_child(1) as Label).text = label
 		for child in row.get_children():
