@@ -352,5 +352,53 @@
 			"fuels": {"fiber": 20, "wood": 60},
 			"max_fuel": 99
 		}
+	},
+	"house": {
+		"name": "집",
+		"category": "농장",
+		"_comment": "농장 고정 건물 (사용자 결정: 건설 모드에서 농장 땅 어디로든 옮길 수 있고 철거는 안 됨). 건설 창 목록에는 안 나오고 [옮기기]로만 고른다. 앞 한 줄은 늘 비워 둔다 (front_clear)",
+		"size": [
+			4,
+			3
+		],
+		"texture": "res://assets/art/house.png",
+		"price": 0,
+		"solid": false,
+		"rotatable": false,
+		"script": "res://scripts/build/fixture.gd",
+		"fixture": "house",
+		"front_clear": true
+	},
+	"shipping_bin": {
+		"name": "출하함",
+		"category": "농장",
+		"_comment": "농장 고정 건물 (사용자 결정: 건설 모드에서 농장 땅 어디로든 옮길 수 있고 철거는 안 됨). 건설 창 목록에는 안 나오고 [옮기기]로만 고른다. 앞 한 줄은 늘 비워 둔다 (front_clear)",
+		"size": [
+			2,
+			1
+		],
+		"texture": "res://assets/art/shipping_bin.png",
+		"price": 0,
+		"solid": false,
+		"rotatable": false,
+		"script": "res://scripts/build/fixture.gd",
+		"fixture": "shipping_bin",
+		"front_clear": true
+	},
+	"well": {
+		"name": "우물",
+		"category": "농장",
+		"_comment": "농장 고정 건물 (사용자 결정: 건설 모드에서 농장 땅 어디로든 옮길 수 있고 철거는 안 됨). 건설 창 목록에는 안 나오고 [옮기기]로만 고른다. 앞 한 줄은 늘 비워 둔다 (front_clear)",
+		"size": [
+			2,
+			2
+		],
+		"texture": "res://assets/art/well.png",
+		"price": 0,
+		"solid": false,
+		"rotatable": false,
+		"script": "res://scripts/build/fixture.gd",
+		"fixture": "well",
+		"front_clear": true
 	}
 }

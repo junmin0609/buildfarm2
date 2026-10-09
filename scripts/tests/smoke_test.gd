@@ -51,7 +51,7 @@ func _ready() -> void:
 	var inv := GameState.inventory
 
 	_check(farm.farmable_cells.size() >= 100, "밭 칸 (실제 %d)" % farm.farmable_cells.size())
-	_check(world.buildings.size() == 8, "건물 8개 배치 (집·씨앗 상점·작물 판매처·우물·출하함·대장간·레시피 상점·비행선 정류장)")
+	_check(world.buildings.size() == 8, "건물 8개 배치 (집·잡화점·우물·출하함·대장간·기계상점·레시피 상점·비행선 정류장)")
 	_check(world.fences.get_used_cells().is_empty(), "농장에 울타리 없음")
 	_check(world.objects.get_children().filter(func(n: Node) -> bool: return n is Prop).size() > 100, "나무·바위 소품 배치")
 	var home_cell := world.world_to_cell(world.cell_center(_find_char("@")))
@@ -234,6 +234,7 @@ func _ready() -> void:
 	# ---------- 가게 실내 + NPC 대화 (사용자 요청)
 	await _test_interiors(world, hud)
 	_test_plaza(world)
+	await _test_fixtures(world)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -320,7 +321,7 @@ func _test_build(world: FarmWorld, hud: HUD) -> void:
 	GameState.money = 0
 	_check(not bm.try_place(_free_origin(world, scarecrow, o)), "돈이 부족하면 설치 불가")
 	GameState.money = saved
-	_check(bm.try_place(soil) and grid.objects().size() == 1, "갈아 둔 밭 위에 허수아비 설치")
+	_check(bm.try_place(soil) and grid.objects().filter(func(x: Placeable) -> bool: return not x is Fixture).size() == 1, "갈아 둔 밭 위에 허수아비 설치")
 	_check(not world.farm.tiles.has(soil), "시설 밑의 밭은 보통 땅이 됨")
 	bm.stop()
 	_check(not bm.is_active() and not hud._build_hint.visible, "건설 모드 끝")
@@ -340,7 +341,7 @@ func _test_build_grid_and_rotation(world: FarmWorld) -> void:
 	_check(ov != null and ov.visible, "건설 모드에서 격자 표시")
 	_check(ov.get_index() == world.farm.get_index() + 1 and ov.get_index() < world.objects.get_index(), "격자는 밭 위·나무와 시설 아래에 그림")
 	var all_cells := ov.grid_cells(Rect2i(Vector2i.ZERO, MapLayout.size()))
-	_check(all_cells.size() == world.farm.farmable_cells.size() and all_cells.all(grid.is_buildable_ground), "격자는 지을 수 있는 농장 땅에만 (%d칸)" % all_cells.size())
+	_check(all_cells.size() == world.farm.farmable_cells.size() + grid.extra_buildable.size() and grid.extra_buildable.size() == 18 and all_cells.all(grid.is_buildable_ground), "격자는 농장 땅 + 집·출하함·우물 처음 자리에만 (%d칸)" % all_cells.size())
 	var taken := all_cells.filter(grid.is_cell_taken)
 	_check(not taken.is_empty() and taken.all(func(c: Vector2i) -> bool: return grid.is_occupied(c) or world.obstacles.is_blocked(c) or world.farm.get_tile(c) != null), "시설·장애물·작물 칸은 어둡게 표시 (%d칸)" % taken.size())
 	_check(not shed.rotatable and not scarecrow.rotatable, "정사각형 시설은 회전 대상 아님")
@@ -3441,6 +3442,103 @@ func _test_tool_cooldown(world: FarmWorld) -> void:
 	inv.load_data(saved_inv)
 
 
+## 집·출하함·우물 옮기기 (사용자 결정: 건설 모드에서 농장 땅 어디로든, 철거는 안 됨)
+func _test_fixtures(world: FarmWorld) -> void:
+	var grid := world.build
+	var bm := world.build_mode
+	var player := world.player
+	var fixtures := grid.objects().filter(func(o: Placeable) -> bool: return o is Fixture)
+	_check(fixtures.size() == 3 and world.fixture_buildings.size() == 3, "집·출하함·우물 자리표 3개")
+	var house_fx: Fixture = fixtures.filter(func(o: Placeable) -> bool: return o.def.id == "house")[0]
+	var bin_fx: Fixture = fixtures.filter(func(o: Placeable) -> bool: return o.def.id == "shipping_bin")[0]
+	var well_fx: Fixture = fixtures.filter(func(o: Placeable) -> bool: return o.def.id == "well")[0]
+	var house: House = world.fixture_buildings["house"]
+	var home0 := world.home_position
+	var house_cell0 := house_fx.cell
+	_check(house_cell0 == _find_char("H") and house.position == Vector2(house_cell0.x * FarmWorld.TILE, (house_cell0.y + 3) * FarmWorld.TILE), "집 자리표 = 맵의 집 자리")
+	var panel_rows := PlaceableDB.all().filter(func(d: PlaceableDef) -> bool: return d.data.has("fixture"))
+	_check(panel_rows.size() == 3, "고정 건물 정의 3개 (건설 창 목록에는 안 나옴)")
+
+	# 철거 불가
+	player.global_position = world.cell_center(_find_char("s"))
+	bm.start(BuildMode.Mode.REMOVE)
+	_check(not bm.try_remove(house_cell0) and grid.object_at(house_cell0) == house_fx and is_instance_valid(house), "집은 철거할 수 없음")
+	bm.stop()
+
+	# 앞 한 줄은 비워 둠: 집 앞에 허수아비를 못 놓음 (농장 땅이 아니어도 '앞 줄' 이유가 먼저인지 보려고 check 로)
+	var front := house_fx.front_cells()
+	_check(front.size() == 4 and front[0] == house_cell0 + Vector2i(0, 3) and grid.is_reserved(front[1]), "집 앞 4칸은 비워 둘 칸")
+
+	# 농장 땅 빈 자리 찾기 (집 4x3·출하함·우물 + 앞 한 줄이 들어갈 10x5)
+	var target := Vector2i(-1, -1)
+	var cells: Array = world.farm.farmable_cells.keys()
+	cells.sort()
+	for c: Vector2i in cells:
+		var ok := c.x > 12
+		for y in 5:
+			for x in 10:
+				var fc := c + Vector2i(x, y)
+				if not world.farm.farmable_cells.has(fc) or grid.is_occupied(fc) or world.farm.tiles.has(fc):
+					ok = false
+		if ok:
+			target = c
+			break
+	_check(target.x >= 0, "집 옮길 자리 찾음 %s" % target)
+	for y in 5:
+		for x in 4:
+			world.obstacles.remove(target + Vector2i(x, y))
+	world.obstacles.spawn(target + Vector2i(1, 3), "weed")
+	await get_tree().process_frame
+	bm.start(BuildMode.Mode.MOVE)
+	_check(bm.pick(house_cell0 + Vector2i(1, 1)) and house.modulate.a < 1.0, "집 집기 (집이 흐려짐)")
+	_check(not bm.try_drop(target), "집 앞 줄에 잡초가 있으면 못 놓음")
+	world.obstacles.remove(target + Vector2i(1, 3))
+	_check(bm.try_drop(target) and house.modulate.a == 1.0, "농장 땅으로 집 옮기기")
+	bm.stop()
+	_check(house_fx.cell == target and house.position == Vector2(target.x * FarmWorld.TILE, (target.y + 3) * FarmWorld.TILE), "집 건물이 새 자리로")
+	_check(world.home_position == world.cell_center(target + Vector2i(2, 4)) and world.home_position != home0, "깨어나는 자리도 새 집 앞")
+	player.global_position = house.interact_point()
+	_check(house.can_interact(player.global_position), "새 집 앞에서 [E] 잠자기 가능")
+	_check(not grid.is_occupied(house_cell0) and grid.is_buildable_ground(house_cell0), "예전 집 자리는 비고, 다시 지을 수 있는 땅")
+	var scarecrow := PlaceableDB.get_def("scarecrow")
+	_check(not grid.check(scarecrow, target + Vector2i(1, 3)).ok and grid.check(scarecrow, target + Vector2i(1, 3)).reason.contains("비워"), "새 집 앞에는 시설을 못 놓음")
+	_check(not world.obstacles.can_grow_at(target + Vector2i(2, 3)), "집 앞에는 장애물이 다시 자라지 않음")
+
+	# 출하함: 내용물을 넣고 옮겨도 그대로 / 우물: 옮기면 물 공급원 칸도 따라감
+	var bin: ShippingBin = world.fixture_buildings["shipping_bin"]
+	var bin_cell0 := bin_fx.cell
+	GameState.inventory.add("carrot", 2, "bronze")
+	bin.deposit(GameState.inventory, "carrot", "bronze", 2)
+	var bin_to := Vector2i(target.x + 5, target.y)
+	for y in 2:
+		for x in 2:
+			world.obstacles.remove(bin_to + Vector2i(x, y))
+	_check(grid.move(bin_fx, bin_to) and bin.count_of("carrot", "bronze") == 2 and world.shipping_bin == bin and bin.position.x == bin_to.x * FarmWorld.TILE, "출하함 옮겨도 내용물 그대로")
+	var well: Well = world.fixture_buildings["well"]
+	var well_cell0 := well_fx.cell
+	var well_to := Vector2i(target.x + 8, target.y)
+	for y in 3:
+		for x in 2:
+			world.obstacles.remove(well_to + Vector2i(x, y))
+	_check(grid.move(well_fx, well_to) and well.covers_cell(well_to) and not well.covers_cell(well_cell0), "우물 옮기면 물 긷는 칸도 따라감")
+
+	# 저장·불러오기: 옮긴 자리 그대로, 예전 저장(자리표 없음)은 건물이 있던 자리에 다시 만듦
+	var data := grid.to_data()
+	grid.load_data(data)
+	await get_tree().process_frame
+	var house_fx2: Placeable = grid.object_at(target)
+	_check(house_fx2 is Fixture and house_fx2.def.id == "house" and world.home_position == world.cell_center(target + Vector2i(2, 4)), "저장·불러오기: 옮긴 집 그대로")
+	grid.load_data(data.filter(func(e: Dictionary) -> bool: return not str(e.id) in ["house", "shipping_bin", "well"]))
+	await get_tree().process_frame
+	_check(grid.objects().filter(func(o: Placeable) -> bool: return o is Fixture).size() == 3 and grid.object_at(target) is Fixture, "자리표가 없는 예전 저장: 건물 자리에 다시 만듦")
+
+	# 처음 자리로 되돌리기 (농장 땅이 아니어도 처음 자리는 가능)
+	bin.withdraw(GameState.inventory, "carrot", "bronze", 2)
+	_check(grid.move(grid.object_at(target) as Placeable, house_cell0) and world.home_position == home0, "집을 처음 자리로 되돌림")
+	_check(grid.move(grid.object_at(bin_to) as Placeable, bin_cell0) and grid.move(grid.object_at(well_to) as Placeable, well_cell0), "출하함·우물도 처음 자리로")
+	await get_tree().process_frame
+
+
 ## 넓힌 메인 광장 (사용자 요청: 가로·세로 모두 더 크게)
 func _test_plaza(world: FarmWorld) -> void:
 	_check(MapLayout.size() == Vector2i(112, 64), "맵 112x64 (%s)" % MapLayout.size())
@@ -3523,7 +3621,7 @@ func _test_interiors(world: FarmWorld, hud: HUD) -> void:
 	var mnames := hud._shop._buy_list.get_children().map(func(r: Node) -> String: return r.get_child(1).text)
 	_check(world.area == "machine" and hud._shop._title.text == "기계상점" and "컨베이어" in mnames and not "당근 씨앗" in mnames, "기계상점 [기계 사기] → 컨베이어 %s" % [mnames])
 	_check(mnames.size() == 16 and "창고" in mnames and "소형 발전기" in mnames and "펌프" in mnames, "기계상점에 기계 16종 (컨베이어 + 공장·자동화 15종, %d)" % mnames.size())
-	var build_names := PlaceableDB.all().filter(func(d: PlaceableDef) -> bool: return d.machine_item() == null).map(func(d: PlaceableDef) -> String: return d.id)
+	var build_names := PlaceableDB.all().filter(func(d: PlaceableDef) -> bool: return d.machine_item() == null and not d.data.has("fixture")).map(func(d: PlaceableDef) -> String: return d.id)
 	_check(build_names == ["scarecrow", "shed", "greenhouse", "compost_bin"], "돈으로 바로 짓는 건 허수아비·헛간·온실·퇴비통만 %s" % [build_names])
 	hud._close_panels()
 

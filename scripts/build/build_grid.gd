@@ -15,6 +15,9 @@ var world: FarmWorld
 ## 이 지역의 컨베이어 전체 (§56~§61). 게임 시계·야간 생산 때 시설 다음에 움직인다
 var conveyors := ConveyorNet.new(self)
 var _cells: Dictionary = {}          # Vector2i -> Placeable
+## 농장 땅이 아니어도 지을 수 있는 칸: 집·출하함·우물이 처음 서 있던 자리 (FarmWorld 가 맵을 만들 때 채운다).
+## 그래서 옮겼던 집을 원래 자리로 되돌릴 수 있다
+var extra_buildable := {}
 var _objects: Array[Placeable] = []
 
 
@@ -46,7 +49,15 @@ func blocks_farming(cell: Vector2i) -> bool:
 
 ## 시설을 지을 수 있는 땅인가 (지금은 농장 땅)
 func is_buildable_ground(cell: Vector2i) -> bool:
-	return MapLayout.char_at(cell) in MapLayout.BUILDABLE
+	return MapLayout.char_at(cell) in MapLayout.BUILDABLE or extra_buildable.has(cell)
+
+
+## 집·출하함·우물(Fixture) 앞 한 줄인가 (비워 둬야 하는 칸). ignore 는 옮기는 중인 자기 자신
+func is_reserved(cell: Vector2i, ignore: Placeable = null) -> bool:
+	for obj in _objects:
+		if obj is Fixture and obj != ignore and cell in (obj as Fixture).front_cells():
+			return true
+	return false
 
 
 ## origin(왼쪽 위)에 def 를 turns 방향으로 놓을 수 있는지. ignore 는 이동 중인 자기 자신.
@@ -57,6 +68,8 @@ func check(def: PlaceableDef, origin: Vector2i, ignore: Placeable = null, turns 
 	var player_cells := _player_cells()
 	for c in Placeable.footprint_of(def, origin, turns):
 		var why := _space_problem(c, ignore)
+		if why == "" and is_reserved(c, ignore):
+			why = "집·출하함·우물 앞은 비워 둬야 해요."
 		if why == "":
 			why = _cell_problem(c, player_cells)
 		if why != "":
@@ -67,7 +80,37 @@ func check(def: PlaceableDef, origin: Vector2i, ignore: Placeable = null, turns 
 	if bad.is_empty() and def.data.get("needs_water", false) and not touches_water(def, origin, turns):
 		bad = Placeable.footprint_of(def, origin, turns)
 		reason = "물가(개울·연못) 옆에만 지을 수 있어요."
+	# 집·출하함·우물 (사용자 결정): 앞 한 줄이 걸어 다닐 수 있게 비어 있어야 한다
+	if bad.is_empty() and def.data.get("front_clear", false):
+		for c in Fixture.front_cells_of(def, origin, turns):
+			var why := _front_problem(c, ignore)
+			if why != "":
+				bad.append(c)
+				if reason == "":
+					reason = why
 	return {"ok": bad.is_empty(), "bad": bad, "reason": reason}
+
+
+## 집·출하함·우물 앞 칸으로 쓸 수 없는 이유 (숲·물·소품·다른 시설·장애물). 괜찮으면 ""
+func _front_problem(c: Vector2i, ignore: Placeable) -> String:
+	var ch := MapLayout.char_at(c)
+	if ch == "" or ch == "~" or MapLayout.PROPS.has(ch) or MapLayout.BUILDINGS.has(ch) and not extra_buildable.has(c):
+		return "앞에 설 자리가 있어야 해요."
+	if _cells.has(c) and _cells[c] != ignore:
+		return "앞 한 줄은 비워 둬야 해요."
+	if world.obstacles.is_blocked(c):
+		return "앞의 장애물을 먼저 치워야 해요."
+	return ""
+
+
+## 집·출하함·우물 자리표가 없으면(새 게임·예전 저장) 건물 노드가 서 있는 자리에 만든다
+func ensure_fixtures() -> void:
+	for fixture_id: String in world.fixture_buildings:
+		var def := PlaceableDB.get_def(fixture_id)
+		if def == null or _objects.any(func(o: Placeable) -> bool: return o.def == def):
+			continue
+		var b: Node2D = world.fixture_buildings[fixture_id]
+		_spawn(def, Vector2i(floori(b.position.x / FarmWorld.TILE), floori(b.position.y / FarmWorld.TILE) - def.size.y), 0)
 
 
 ## 차지하는 칸 중 하나라도 물 칸('~')과 변이 맞닿는가
@@ -330,6 +373,7 @@ func load_data(data: Variant) -> Array:
 		var obj := _spawn(def, origin, turns)
 		if entry.get("state") is Dictionary:
 			obj.load_state(entry.state)
+	ensure_fixtures()  # 집·출하함·우물 자리표가 없는 예전 저장
 	return failed
 
 

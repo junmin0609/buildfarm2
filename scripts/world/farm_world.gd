@@ -22,6 +22,8 @@ var buildings: Array[Interactable] = []
 var home_position := Vector2.ZERO
 ## 농장 출하함 (맵의 'O')
 var shipping_bin: ShippingBin
+## 건설 모드로 옮길 수 있는 농장 고정 건물 (사용자 결정): placeables.json 의 fixture id -> 건물 노드. Fixture 자리표가 옮긴다
+var fixture_buildings := {}
 ## 하루 마감 흐름 (scripts/time/day_cycle.gd)
 var day_cycle: DayCycle
 ## 저장 / 불러오기 (scripts/save/save_manager.gd)
@@ -51,6 +53,7 @@ func _ready() -> void:
 	add_child(_edge_corners)
 	move_child(_edge_corners, edges.get_index() + 1)
 	_build_map()
+	build.ensure_fixtures()
 	obstacles.generate_start(player.position)
 	_build_edges()
 	_build_details()
@@ -112,6 +115,13 @@ func _build_map() -> void:
 				buildings.append(building)
 				if building is ShippingBin:
 					shipping_bin = building
+				var fixture_id := "house" if building is House else "shipping_bin" if building is ShippingBin else "well" if building is Well else ""
+				if fixture_id != "":
+					fixture_buildings[fixture_id] = building
+					# 처음 자리는 농장 땅이 아니어도 다시 놓을 수 있게 (옮겼다가 되돌리기)
+					for dy in building.size_tiles.y:
+						for dx in building.size_tiles.x:
+							build.extra_buildable[cell + Vector2i(dx, dy)] = true
 
 
 # ---------- 나무 / 숲 (비주얼만: 칸·충돌은 예전과 같다)

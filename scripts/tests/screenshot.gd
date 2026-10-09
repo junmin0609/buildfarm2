@@ -146,6 +146,41 @@ func _ready() -> void:
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_smith_panel.png"))
 	hud._close_panels()
 
+	# 집 옮기기 (사용자 결정): 집을 집어 든 모습 → 농장 땅으로 옮긴 뒤
+	var house_fx: Placeable = world.build.object_at(world.fixture_buildings["house"].position / FarmWorld.TILE - Vector2(0, 1))
+	var home_cell := house_fx.cell
+	var to := Vector2i(-1, -1)  # 집 4x3 + 앞 한 줄이 모두 농장 땅인 첫 자리 (작물·시설 없음)
+	var farm_cells: Array = world.farm.farmable_cells.keys()
+	farm_cells.sort()
+	for c: Vector2i in farm_cells:
+		var ok := true
+		for y in 4:
+			for x in 4:
+				var fc: Vector2i = c + Vector2i(x, y)
+				if not world.farm.farmable_cells.has(fc) or world.build.is_occupied(fc) or (world.farm.get_tile(fc) != null and world.farm.get_tile(fc).has_crop()):
+					ok = false
+		if ok:
+			to = c
+			break
+	for y in 5:
+		for x in 4:
+			world.obstacles.remove(to + Vector2i(x, y))
+			world.farm.untill(to + Vector2i(x, y))
+	world.player.global_position = world.cell_center(to + Vector2i(1, 3))  # 바라보는 앞 칸 기준으로 집 미리보기가 to 에
+	world.player.facing = Vector2i.UP
+	world.player.camera.reset_smoothing()
+	world.build_mode.start(BuildMode.Mode.MOVE)
+	world.build_mode.pick(home_cell)
+	await get_tree().create_timer(0.3).timeout
+	world.build_mode._use_mouse = false
+	await get_tree().create_timer(0.5).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_house_moving.png"))
+	world.build_mode.try_drop(to)
+	world.build_mode.stop()
+	await get_tree().create_timer(0.5).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_house_moved.png"))
+	world.build.move(house_fx, home_cell)
+
 	# 가게 실내 (사용자 요청): 광장의 잡화점·기계상점 → 잡화점 안 + 대화 창 → 대장간 안 → 기계상점 안
 	world.player.global_position = world.cell_center(Vector2i(48, 16))
 	world.player.facing = Vector2i.UP

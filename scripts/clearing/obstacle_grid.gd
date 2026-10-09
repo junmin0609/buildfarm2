@@ -160,7 +160,7 @@ func regrow() -> int:
 
 
 func can_grow_at(cell: Vector2i) -> bool:
-	if _cells.has(cell) or world.farm.tiles.has(cell) or world.build.is_occupied(cell):
+	if _cells.has(cell) or world.farm.tiles.has(cell) or world.build.is_occupied(cell) or world.build.is_reserved(cell):
 		return false
 	if MapLayout.char_at(cell) != "g":
 		return false

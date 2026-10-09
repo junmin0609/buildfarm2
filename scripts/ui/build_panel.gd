@@ -77,6 +77,8 @@ func refresh() -> void:
 		_list.remove_child(child)
 		child.queue_free()
 	for def in PlaceableDB.all():
+		if def.data.has("fixture"):
+			continue  # 집·출하함·우물은 짓지 않고 [옮기기]로만 고른다
 		_list.add_child(_row(def))
 
 

@@ -13,6 +13,7 @@ extends Node2D
 ##   on_moved                 옮기거나 돌렸을 때 (상태는 그대로 유지된다 §63)
 ##   on_day_started           매일 아침, 플레이어가 깨어날 때 (자동 물주기 등). DayCycle 의 wake_up 단계에서 불린다.
 ##   removal_problem          옮기거나 철거하면 안 되는 이유 (안에 작물이 있는 온실 등 §105). 괜찮으면 ""
+##   demolish_problem         철거만 안 되는 이유 (옮기기는 됨: 집·출하함·우물, Fixture). 괜찮으면 ""
 ##   allows_farming           차지한 칸이라도 괭이질·심기를 허락하는 칸인가 (온실 안쪽 밭)
 ##   on_day_end               하루 마감의 farm_daily 단계 (퇴비 익히기 같은 일 단위 처리). report 에 결과를 적을 수 있다
 ##   contents                 안에 든 아이템 (칸 형식 배열). 철거하면 가방으로 돌려주고, 자리가 없으면 철거를 막는다 (§106)
@@ -190,6 +191,10 @@ func on_day_started(_world: FarmWorld) -> void:
 
 
 func removal_problem(_world: FarmWorld) -> String:
+	return ""
+
+
+func demolish_problem(_world: FarmWorld) -> String:
 	return ""
 
 

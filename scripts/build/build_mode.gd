@@ -239,7 +239,7 @@ func pick(cell: Vector2i) -> bool:
 		Events.toast.emit(problem)
 		return false
 	moving = obj
-	moving.modulate.a = 0.35
+	_fade(moving, 0.35)
 	turns = obj.turns
 	_update_hint()
 	return true
@@ -272,7 +272,9 @@ func try_remove(cell: Vector2i) -> bool:
 		refund_mats[mat_id] = int(refund_mats.get(mat_id, 0)) + int(extra_mats[mat_id])
 	for mat_id: String in refund_mats:
 		back.append({"id": mat_id, "count": int(refund_mats[mat_id]), "quality": Quality.NONE})
-	var problem := obj.removal_problem(_world())
+	var problem := obj.demolish_problem(_world())
+	if problem == "":
+		problem = obj.removal_problem(_world())
 	if problem == "" and not inv.can_add_stacks(back):
 		problem = "가방에 돌려받을 물건을 넣을 자리가 없어요."
 	if problem != "":
@@ -290,8 +292,15 @@ func try_remove(cell: Vector2i) -> bool:
 
 func _drop_moving() -> void:
 	if moving and is_instance_valid(moving):
-		moving.modulate.a = 1.0
+		_fade(moving, 1.0)
 	moving = null
+
+
+## 옮기는 중인 시설을 흐리게 (집·출하함·우물은 자리표가 안 보이므로 건물 노드를 흐리게)
+func _fade(obj: Placeable, alpha: float) -> void:
+	obj.modulate.a = alpha
+	if obj is Fixture and (obj as Fixture).building():
+		(obj as Fixture).building().modulate.a = alpha
 
 
 func _end_drags() -> void:
