@@ -4511,6 +4511,41 @@ def _shrub(c, x, y):
     c.set(x + 1, y + 1, lf[3]); c.set(x + 2, y + 1, lf[2]); c.rect(x, y + 2, 4, 1, lf[0])
 
 
+def soil_joined(c, pal, wet, mask):
+    """이웃에 맞춘 밭 한 칸. mask = 일군 이웃 (북1 동2 남4 서8). 이웃 쪽은 끝까지 칠하고 고랑을 이어 그린다"""
+    s = pal
+    n, e, so, w = mask & 1, mask & 2, mask & 4, mask & 8
+    x0, x1 = (-6 if w else 1), (T + 6 if e else 15)
+    y0, y1 = (-6 if n else 1), (T + 6 if so else 15)
+    rrect(c, x0, y0, x1 - x0, y1 - y0, 3.5, s[0])                             # 테두리 (닫힌 쪽만 둥글게)
+    rrect(c, x0 + 1, y0 + 1, x1 - x0 - 2, y1 - y0 - 2, 2.5, s[1])
+    fx0, fx1 = (0 if w else 3), (T if e else 13)
+    rows = (1, 5, 9, 13) if n else (5, 9, 13)
+    for y in rows:                                                              # 고랑 (4px 간격이라 위아래 칸과도 맞물림)
+        c.rect(max(fx0, 4 if not w else 0), y - 1, min(fx1, 12 if not e else T) - max(fx0, 4 if not w else 0), 1, s[3])
+        c.rect(fx0, y, fx1 - fx0, 1, s[0] if (y < 13 or so) else s[1])
+        if not w:
+            c.set(3, y - 1, s[2])
+        if not e:
+            c.set(12, y - 1, s[2])
+    if not n:
+        c.rect(fx0 + (1 if not w else 0), 2, (fx1 - fx0) - (2 if not e else 0) - (1 if not w else 0), 1, s[2])
+    if wet:
+        for x, y in ((5, 6), (10, 10), (7, 11), (11, 5)):
+            c.set(x, y, hexc("bfe4f2"))
+
+
+def make_soil_tiles():
+    """일군 밭 (16칸 = 이웃 비트, 줄 0 마른 흙 · 줄 1 젖은 흙). 이어서 일구면 틈 없이 한 밭으로 보인다"""
+    atlas = Canvas(16 * T, 2 * T)
+    for row, (pal, wet) in enumerate(((P["soil"], False), (P["wet"], True))):
+        for mask in range(16):
+            c, done = sub(atlas, mask, row)
+            soil_joined(c, pal, wet, mask)
+            done()
+    atlas.save("soil.png")
+
+
 def make_garden_beds():
     """마을 장식 화단: 진한 흙 + 꽃·낮은 초록 포기, 바깥쪽에만 나무 테두리 (남쪽은 앞면이 보이게 두껍게)"""
     so, w, lf = P["soil"], P["wood"], P["leaf"]
@@ -4571,6 +4606,7 @@ if __name__ == "__main__":
     make_tiles()
     make_bridge_tiles()
     make_garden_beds()
+    make_soil_tiles()
     make_details()
     make_edges()
     make_trees()

@@ -358,8 +358,8 @@ func _draw() -> void:
 	for cell: Vector2i in tiles:
 		var tile: SoilTile = tiles[cell]
 		var rect := Rect2(Vector2(cell * TILE), Vector2(TILE, TILE))
-		var soil := TerrainTileSet.SOIL_WET if tile.watered else TerrainTileSet.SOIL
-		draw_texture_rect_region(Art.TILES, rect, Art.tile_region(soil))
+		# 이어서 일군 밭은 틈 없이 한 밭으로 (이웃에 맞춘 그림, soil.png)
+		draw_texture_rect_region(Art.SOIL_TILES, rect, Art.tile_region(soil_tile_coords(cell)))
 		if tile.fertilizer != "":
 			_draw_fertilizer(rect, tile.fertilizer_item().soil_color)
 		if tile.has_crop():
@@ -380,6 +380,15 @@ func _draw() -> void:
 
 
 const WITHERED_TINT := Color(0.78, 0.62, 0.42)
+
+
+## soil.png 의 칸: 열 = 일군 이웃 비트 (북1 동2 남4 서8), 줄 = 0 마른 흙 · 1 젖은 흙
+func soil_tile_coords(cell: Vector2i) -> Vector2i:
+	var mask := 0
+	for entry: Array in [[1, Vector2i.UP], [2, Vector2i.RIGHT], [4, Vector2i.DOWN], [8, Vector2i.LEFT]]:
+		if tiles.has(cell + (entry[1] as Vector2i)):
+			mask |= int(entry[0])
+	return Vector2i(mask, 1 if (tiles[cell] as SoilTile).watered else 0)
 
 
 ## 비료를 준 밭: 흙 위에 등급 색 알갱이 (자리는 항상 같게)

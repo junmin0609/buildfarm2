@@ -12,6 +12,8 @@ const DETAILS := preload("res://assets/art/details.png")
 ## 마을 다리 (방향 2줄 × 난간 비트 16칸) · 마을 장식 화단 (테두리 비트 16칸 × 꽃 배치 3줄). tools/make_art.py
 const BRIDGES := preload("res://assets/art/bridge.png")
 const GARDEN_BEDS := preload("res://assets/art/garden_bed.png")
+## 일군 밭 (16칸 = 일군 이웃 비트 북1 동2 남4 서8, 줄 0 마른 흙 · 줄 1 젖은 흙). tools/make_art.py make_soil_tiles
+const SOIL_TILES := preload("res://assets/art/soil.png")
 const CROPS := preload("res://assets/art/crops.png")
 const ITEMS := preload("res://assets/art/items.png")
 ## items.png 한 칸 (사용자 그림 아이콘 32x32). 화면에는 지금처럼 16 크기로 그린다 (TILE / ICON 배)
