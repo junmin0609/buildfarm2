@@ -246,6 +246,7 @@ func _ready() -> void:
 	_test_mine(world, hud)
 	_test_furnace_tools(world)
 	await _test_story(world)
+	await _test_story_ui(world, hud)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -3933,6 +3934,134 @@ func _test_story(world: FarmWorld) -> void:
 	for c in plots:
 		farm.tiles.erase(c)
 	farm.queue_redraw()
+	await get_tree().process_frame
+
+
+## 스토리 2단계: 퀘스트 HUD · 퀘스트 목록 · 입력 충돌 · NPC 대화·납품 · 시대 표시
+func _test_story_ui(world: FarmWorld, hud: HUD) -> void:
+	var qm := world.quests
+	var inv := GameState.inventory
+	var player := world.player
+	var saved_story := qm.to_data()
+	var saved_inv := inv.to_data()
+	var saved_money := GameState.money
+	var saved_pos := player.global_position
+	var q_key := InputEventAction.new()
+	q_key.action = "quest_log"
+	q_key.pressed = true
+	player.global_position = world.home_position  # 광장 밖에서 (광장 방문이 저절로 세지지 않게)
+	qm.new_game()
+	await get_tree().process_frame
+
+	# HUD 추적: 제목 + 목표 2개 (진행도/필요 수량)
+	var tr := hud._quest_tracker
+	var lines := tr._lines.map(func(l: Label) -> String: return l.text)
+	_check(tr.visible and tr._title.text == "낯선 고향" and lines == ["· 농장 안내판 읽기 0/1", "· 광장에 가 보기 0/1"], "HUD: MQ01 제목 + 목표 2개 %s" % [lines])
+	Events.sign_read.emit("farm_sign")
+	_check(tr._lines[0].text == "· 농장 안내판 읽기 1/1" and tr._lines[0].get_theme_color("font_color") == QuestTracker.DONE, "HUD: 끝낸 목표는 1/1 초록")
+	_check(tr.mouse_filter == Control.MOUSE_FILTER_IGNORE and tr.get_global_rect().position.x < 40 and tr.get_global_rect().position.y < 40 and tr.size.x < 420, "HUD: 왼쪽 위 작게, 클릭을 막지 않음 (%s)" % tr.size)
+
+	# 퀘스트 목록 (Q): 진행 중 / 잠김, 시대
+	hud._unhandled_input(q_key)
+	var log := hud._quest_log
+	_check(log.visible and get_tree().paused and GameState.is_time_paused(), "Q → 퀘스트 목록 (게임·시간 멈춤)")
+	var rows := log._list.get_children().filter(func(n: Node) -> bool: return n is VBoxContainer)
+	var head := func(id: String) -> String: return (log._list.get_node(id).get_child(0) as Label).text
+	_check(rows.size() == 20 and head.call("MQ01").contains("진행 중") and head.call("MQ02").contains("잠김") and (log._list.get_node("MQ02").get_child(1) as Label).text.contains("앞 퀘스트"), "목록 20개: MQ01 진행 중, MQ02 잠김 (제목만)")
+	_check(log._era.text == "시대: 개척시대" and log._techs.text.contains("기본 농사"), "새 저장: 시대 개척시대, 열린 기술 표시 (%s)" % log._era.text)
+	hud._unhandled_input(q_key)
+	_check(not log.visible and not get_tree().paused and not GameState.is_time_paused(), "Q 다시 → 닫힘, 게임 재개")
+	# 완료 · 보상 받음
+	player.global_position = world.cell_center(Vector2i(60, 20))
+	qm._process(0.0)
+	player.global_position = world.home_position
+	hud.open_quest_log()
+	_check(head.call("MQ01").contains("완료 · 보상 받음") and (log._list.get_node("MQ01").get_child(4) as Label).text.contains("(받음)") and head.call("MQ02").contains("진행 중"), "MQ01 완료 · 보상 받음 (받음 표시), MQ02 진행 중")
+	hud._close_panels()
+
+	# 입력 충돌: 가방·건설 창·건설 모드·대화·상점이 열려 있으면 Q 로 안 열림, 퀘스트 목록이 열려 있으면 I·B 로 안 열림
+	hud.open_inventory()
+	hud._unhandled_input(q_key)
+	_check(hud._inventory.visible and not log.visible, "가방이 열려 있으면 Q 무시")
+	hud._close_panels()
+	hud.open_build_panel()
+	hud._unhandled_input(q_key)
+	_check(hud._build.visible and not log.visible, "건설 창이 열려 있으면 Q 무시")
+	hud._close_panels()
+	Events.shop_requested.emit("buy")
+	hud._unhandled_input(q_key)
+	_check(hud._shop.visible and not log.visible, "상점이 열려 있으면 Q 무시")
+	hud._close_panels()
+	hud.open_quest_log()
+	var i_key := InputEventAction.new()
+	i_key.action = "toggle_inventory"
+	i_key.pressed = true
+	var b_key := InputEventAction.new()
+	b_key.action = "build_menu"
+	b_key.pressed = true
+	hud._unhandled_input(i_key)
+	hud._unhandled_input(b_key)
+	_check(log.visible and not hud._inventory.visible and not hud._build.visible, "퀘스트 목록이 열려 있으면 I·B 무시")
+	hud._close_panels()
+
+	# 기존 저장 표시
+	qm.load_data({"legacy": true})
+	hud.open_quest_log()
+	_check(log._era.text == "시대: 기존 저장 · 모든 기술 해금", "기존 저장: '기존 저장 · 모든 기술 해금' (%s)" % log._era.text)
+	hud._close_panels()
+
+	# NPC 대화·납품 (MQ07: 잡화점에 작물 아무거나 3개)
+	qm.new_game()
+	for id: String in ["MQ01", "MQ02", "MQ03", "MQ04", "MQ05", "MQ06"]:
+		qm.quests[id].state = QuestManager.REWARDED
+	qm._activate_ready()
+	var store: Npc = world.interiors["store"].npc
+	inv.load_data([])
+	inv.add("carrot", 2, "bronze")
+	store.interact(player)
+	var btn := hud._dialog._buttons.get_child(0) as Button
+	_check(qm.state_of("MQ07") == QuestManager.ACTIVE and qm.progress_of("MQ07")[0] == 1, "잡화점 주인에게 말 걸기 → 대화 목표 1/1")
+	_check(btn.text == "납품: 작물 아무거나 3개 납품 (2/3)" and btn.disabled and hud._dialog._line.text.contains("[퀘스트] 씨앗상점의 부탁"), "대화 창: 퀘스트 안내 + 납품 버튼 (2/3, 누를 수 없음)")
+	var money0 := GameState.money
+	hud._on_dialog_chosen("quest:MQ07:1")
+	_check(inv.count_of("carrot") == 2 and qm.progress_of("MQ07")[1] == 0 and GameState.money == money0, "모자라면 납품 안 됨 (아무것도 안 빠짐)")
+	inv.add("potato", 2, "silver")
+	store.interact(player)
+	btn = hud._dialog._buttons.get_child(0) as Button
+	_check(btn.text == "납품: 작물 아무거나 3개 납품 (4/3)" and not btn.disabled, "재료가 모이면 납품 버튼 (4/3)")
+	btn.pressed.emit()
+	await get_tree().process_frame
+	_check(inv.count_of("potato") == 0 and inv.count_of("carrot") == 1, "납품: 정확히 3개 차감 (싼 감자 2 → 당근 1)")
+	_check(qm.state_of("MQ07") == QuestManager.REWARDED and GameState.money == money0 + 200 and qm.state_of("MQ08") == QuestManager.ACTIVE, "MQ07 완료, +200 G, MQ08 시작")
+	hud._on_dialog_chosen("quest:MQ07:1")
+	store.interact(player)
+	var has_quest_btn := hud._dialog._buttons.get_children().any(func(b: Button) -> bool: return b.text.begins_with("납품"))
+	_check(GameState.money == money0 + 200 and inv.count_of("carrot") == 1 and not has_quest_btn, "끝난 납품은 다시 안 됨 (버튼도 없음, 보상 한 번)")
+	hud._close_panels()
+	# MQ09: 대장장이에게 석탄 3개
+	qm.quests.MQ08.state = QuestManager.REWARDED
+	qm._activate_ready()
+	inv.add("coal", 3)
+	var smith: Npc = world.interiors["smith"].npc
+	smith.interact(player)
+	btn = hud._dialog._buttons.get_child(0) as Button
+	_check(btn.text == "납품: 석탄 3개 전달 (폐탄더미) (3/3)" and not btn.disabled and qm.progress_of("MQ09")[0] == 1, "대장장이: 대화 1/1, 석탄 납품 버튼 (3/3)")
+	btn.pressed.emit()
+	await get_tree().process_frame
+	_check(inv.count_of("coal") == 0 and qm.state_of("MQ09") == QuestManager.REWARDED and qm.state_of("MQ10") == QuestManager.ACTIVE, "석탄 3개 납품 → MQ09 완료, MQ10 시작")
+	# 저장 → 다시 불러오기: 진행도·보상 상태 그대로
+	world.save_manager.save_game("manual")
+	var money_saved := GameState.money
+	qm.new_game()
+	world.save_manager.load_game()
+	_check(qm.state_of("MQ07") == QuestManager.REWARDED and qm.state_of("MQ09") == QuestManager.REWARDED and qm.state_of("MQ10") == QuestManager.ACTIVE and GameState.money == money_saved, "저장·불러오기 후 납품·보상 상태 그대로, 다시 보상 안 함")
+	hud._close_panels()
+
+	# 정리
+	qm.load_data(saved_story)
+	inv.load_data(saved_inv)
+	GameState.money = saved_money
+	player.global_position = saved_pos
 	await get_tree().process_frame
 
 

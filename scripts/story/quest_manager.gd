@@ -67,6 +67,10 @@ func _ready() -> void:
 	Events.watering_can_refilled.connect(func(amount: int) -> void: _on_event("refill", "", 1 if amount > 0 else 0))
 	Events.crop_harvested.connect(func(item_id: String, count: int) -> void: _on_event("harvest", item_id, count))
 	Events.inventory_changed.connect(_try_rewards)
+	# 가게 NPC 에게 말을 걸면 (Npc.room_id: store · smith · machine)
+	Events.npc_talk_requested.connect(func(npc: Node) -> void:
+		if "room_id" in npc and str(npc.room_id) != "":
+			_on_event("talk_npc", str(npc.room_id), 1))
 	if world:
 		world.obstacles.cleared.connect(func(_cell: Vector2i, def: ObstacleDef) -> void: _on_event("clear_obstacle", def.id, 1))
 
@@ -133,6 +137,56 @@ static func tech_for_item(item_id: String) -> String:
 func item_unlocked(item_id: String) -> bool:
 	var t := tech_for_item(item_id)
 	return t == "" or is_unlocked(t)
+
+
+## 화면에 보여 줄 시대 (기존 저장은 따로, 사용자 결정)
+func era_label() -> String:
+	return "기존 저장 · 모든 기술 해금" if legacy else era_name()
+
+
+## 열린 기술 이름 (기존 저장은 전부)
+func unlocked_tech_names() -> Array[String]:
+	var out: Array[String] = []
+	var all: Dictionary = data().get("techs", {})
+	for tech_id: String in all:
+		if is_unlocked(tech_id):
+			out.append(str(all[tech_id].get("name", tech_id)))
+	return out
+
+
+## HUD 가 따라갈 퀘스트 (진행 중인 것 중 첫 번째, 없으면 {})
+func tracked() -> Dictionary:
+	var act := active_quests()
+	return act[0] if not act.is_empty() else {}
+
+
+## 목표 한 줄 ("잡초 치우기 3/10")
+func objective_line(q: Dictionary, i: int) -> String:
+	var o: Dictionary = q.objectives[i]
+	var need := int(o.get("count", 1))
+	var done := mini(int(progress_of(q.id)[i]), need) if i < progress_of(q.id).size() else 0
+	if state_of(q.id) in [COMPLETED, REWARDED]:
+		done = need
+	return "%s %d/%d" % [str(o.get("text", o.type)), done, need]
+
+
+## 보상 글 ("감자 씨앗 5 · 100 G")
+func reward_text(q: Dictionary) -> String:
+	var r: Dictionary = q.get("rewards", {})
+	var parts: Array[String] = []
+	for item_id: String in r.get("items", {}):
+		parts.append("%s %d" % [ItemDB.get_item(item_id).name, int(r.items[item_id])])
+	if int(r.get("money", 0)) > 0:
+		parts.append("%d G" % int(r.money))
+	var all: Dictionary = data().get("techs", {})
+	for tech_id: String in r.get("unlock", []):
+		parts.append("%s 해금" % all.get(tech_id, {}).get("name", tech_id))
+	for o: Dictionary in q.get("objectives", []):
+		if o.type == "project":
+			var pr: Dictionary = data().get("projects", {}).get(str(o.get("target", "")), {})
+			for tech_id: String in pr.get("unlock", []):
+				parts.append("%s 해금" % all.get(tech_id, {}).get("name", tech_id))
+	return " · ".join(parts) if not parts.is_empty() else "없음"
 
 
 func era_name() -> String:
@@ -208,6 +262,84 @@ func _check_complete(q: Dictionary) -> void:
 			return
 	st.state = COMPLETED
 	_try_rewards()
+
+
+# ---------- NPC 납품 (사용자 결정: 필요한 재료를 모두 가졌을 때만, 한꺼번에 차감)
+
+## 이 NPC(room_id) 에게 지금 할 수 있는 납품: [{quest, index, text, have, need, ok}]
+func deliveries_for(npc_id: String) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for q: Dictionary in quest_defs():
+		if state_of(q.id) != ACTIVE:
+			continue
+		var objs: Array = q.get("objectives", [])
+		for i in objs.size():
+			var o: Dictionary = objs[i]
+			if o.type != "deliver" or str(o.get("npc", "")) != npc_id:
+				continue
+			var need := int(o.get("count", 1))
+			if int(progress_of(q.id)[i]) >= need:
+				continue
+			var have := deliver_have(str(o.get("target", "")))
+			out.append({"quest": q.id, "index": i, "text": str(o.get("text", "")), "have": have, "need": need, "ok": have >= need})
+	return out
+
+
+## 진행 중인 퀘스트 중 이 NPC 와 관련된 것 (대화 창에 한 줄 안내)
+func quests_for_npc(npc_id: String) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for q: Dictionary in active_quests():
+		for o: Dictionary in q.get("objectives", []):
+			if str(o.get("npc", o.get("target", ""))) == npc_id and o.type in ["deliver", "talk_npc"]:
+				out.append(q)
+				break
+	return out
+
+
+## 가방에서 납품할 수 있는 개수 (kind:crop 이면 작물 전부)
+func deliver_have(target: String) -> int:
+	if not target.begins_with("kind:"):
+		return GameState.inventory.count_of(target)
+	var n := 0
+	for st: Dictionary in GameState.inventory.stacks():
+		if _target_matches(target, str(st.id)):
+			n += GameState.inventory.count_of(str(st.id), str(st.get("quality", "")))
+	return n
+
+
+## 납품한다. 모자라면 아무것도 빼지 않고 이유를 돌려준다. 성공하면 ""
+func deliver(quest_id: String, index: int) -> String:
+	var q := quest_def(quest_id)
+	if q.is_empty() or state_of(quest_id) != ACTIVE or index < 0 or index >= q.objectives.size():
+		return "지금 할 수 있는 납품이 아니에요."
+	var o: Dictionary = q.objectives[index]
+	var need := int(o.get("count", 1))
+	if o.type != "deliver" or int(progress_of(quest_id)[index]) >= need:
+		return "이미 납품했어요."
+	var target := str(o.get("target", ""))
+	var have := deliver_have(target)
+	if have < need:
+		return "%s이(가) 모자라요. (%d/%d)" % [str(o.get("text", "재료")), have, need]
+	# 다 있을 때만 차감: 같은 아이템이면 낮은 품질부터, '작물 아무거나' 면 싼 작물·낮은 품질부터
+	var stacks := GameState.inventory.stacks().filter(func(st: Dictionary) -> bool: return _target_matches(target, str(st.id)) if target.begins_with("kind:") else str(st.id) == target)
+	var order := Quality.ids()
+	stacks.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var pa := ItemDB.get_item(a.id).sell_price
+		var pb := ItemDB.get_item(b.id).sell_price
+		if pa != pb:
+			return pa < pb
+		return order.find(str(a.get("quality", ""))) < order.find(str(b.get("quality", ""))))
+	var left := need
+	for st: Dictionary in stacks:
+		if left <= 0:
+			break
+		var take := mini(left, GameState.inventory.count_of(str(st.id), str(st.get("quality", ""))))
+		GameState.inventory.remove(str(st.id), take, str(st.get("quality", "")))
+		left -= take
+	quests[quest_id].progress[index] = need
+	_check_complete(q)
+	Events.quest_changed.emit(quest_id)
+	return ""
 
 
 # ---------- 보상 · 다음 퀘스트

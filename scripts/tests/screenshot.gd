@@ -760,6 +760,30 @@ func _ready() -> void:
 		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_charge.png"))
 		world.player.cancel_charge()
 
+	# 스토리 2단계: 퀘스트 추적 · 퀘스트 목록 · 납품 대화
+	var qm: QuestManager = world.quests
+	qm.new_game()
+	world.player.global_position = world.home_position + Vector2(0, 24)
+	world.player.camera.reset_smoothing()
+	Events.sign_read.emit("farm_sign")
+	await get_tree().create_timer(0.6).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_quest_hud.png"))
+	for id: String in ["MQ01", "MQ02", "MQ03", "MQ04"]:
+		qm.quests[id].state = QuestManager.REWARDED
+	qm._activate_ready()
+	hud.open_quest_log()
+	await get_tree().create_timer(0.5).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_quest_log.png"))
+	hud._close_panels()
+	for id: String in ["MQ05", "MQ06"]:
+		qm.quests[id].state = QuestManager.REWARDED
+	qm._activate_ready()
+	GameState.inventory.add("carrot", 4, "bronze")
+	world.interiors["store"].npc.interact(world.player)
+	await get_tree().create_timer(0.5).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_quest_dialog.png"))
+	hud._close_panels()
+
 	# 광산 (사용자 결정: 북쪽 숲길 끝 입구 · 아래로 내려가는 층 · 엘리베이터)
 	var shot := func(file: String) -> void:
 		get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://%s.png" % file))

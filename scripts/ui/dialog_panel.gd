@@ -32,13 +32,21 @@ func _ready() -> void:
 
 
 ## target: 가게 NPC(Npc) 또는 광장 주민(Townsfolk) — npc_name · greeting · options 를 가진 노드
-func open(target: Node) -> void:
+## quest_line: 퀘스트 안내 한 줄 (인사 아래), quest_options: [[글, 하는 일, 누를 수 있는가]] — NPC 선택지 앞에 (스토리 2단계)
+func open(target: Node, quest_line := "", quest_options: Array = []) -> void:
 	npc = target
 	_name.text = npc.npc_name
-	_line.text = npc.greeting
+	_line.text = npc.greeting + ("\n" + quest_line if quest_line != "" else "")
 	for child in _buttons.get_children():
 		_buttons.remove_child(child)
 		child.queue_free()
+	for option: Array in quest_options:
+		var qbtn := Button.new()
+		qbtn.text = str(option[0])
+		qbtn.disabled = not bool(option[2])
+		var qaction := str(option[1])
+		qbtn.pressed.connect(func() -> void: choose(qaction))
+		_buttons.add_child(qbtn)
 	for option: Array in npc.options:
 		var btn := Button.new()
 		btn.text = str(option[0])
