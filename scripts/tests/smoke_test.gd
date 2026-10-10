@@ -5457,7 +5457,12 @@ func _test_continue_on_start(main: Node) -> void:
 
 
 func _test_title() -> void:
+	# 실제 설정(user://settings.cfg, 플레이어가 켠 전체 화면 등)과 상관없이 같은 결과가 나오게
+	# 점검용 설정 파일을 비우고 '꺼짐'에서 시작한다. 끝나면 원래 값으로 되돌린다
+	var real_fullscreen := Settings.fullscreen
 	Settings.path = "user://smoke_test_settings.cfg"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(Settings.path))
+	Settings.fullscreen = false
 	var opened := [0]
 	var title: TitleScreen = load("res://scenes/title.tscn").instantiate()
 	title.open_main = func() -> void: opened[0] += 1
@@ -5495,7 +5500,9 @@ func _test_title() -> void:
 	SaveManager.skip_load_once = false
 	title.queue_free()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(Settings.path))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(Settings.path))
 	Settings.path = "user://settings.cfg"
+	Settings.fullscreen = real_fullscreen
 	await get_tree().process_frame
 
 
