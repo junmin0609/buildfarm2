@@ -4321,9 +4321,21 @@ func _test_story_play(world: FarmWorld, hud: HUD) -> void:
 	# MQ20 가공품 5개를 컨베이어로 창고에 (진행 중일 때만 셈)
 	var before := wh.storage.count_of("flour")
 	_check(qm.state_of("MQ20") == QuestManager.ACTIVE, "MQ20 시작")
+	_check(qm.quests["MQ20"].granted and inv.count_of("flour") == 3, "MQ20 시작: 밀가루 3개 받음 (%d)" % inv.count_of("flour"))
+	_check(qm.objective_line(QuestManager.quest_def("MQ20"), 0).begins_with("가공품 5개를 컨베이어로 운반해 창고에 저장"), "MQ20 목표 글: %s" % qm.objective_line(QuestManager.quest_def("MQ20"), 0))
+	world.save_manager.save_game("manual")
+	world.save_manager.load_game()
+	qm._activate_ready()
+	_check(inv.count_of("flour") == 3, "저장·불러오기 뒤에도 밀가루 3개 그대로 (중복 지급 없음)")
+	wh = world.build.object_at(line + Vector2i(7, 0)) as Warehouse
+	proc = world.build.object_at(line) as Processor
 	var m20: int = qm.progress_of("MQ20")[0]
 	wh.insert("flour", 3, Quality.NONE)
 	_check(qm.progress_of("MQ20")[0] == m20, "손으로/직접 창고에 넣은 건 안 셈")
+	Events.belt_delivered.emit(wh, "carrot")
+	Events.belt_delivered.emit(wh, "copper_ore")
+	Events.belt_delivered.emit(wh, "copper_bar")
+	_check(qm.progress_of("MQ20")[0] == m20, "컨베이어로 들어와도 작물·광석·주괴는 안 셈")
 	inv.add("wheat", 14)
 	proc.start(inv, "flour", 7)
 	for i in 24:
@@ -4334,6 +4346,15 @@ func _test_story_play(world: FarmWorld, hud: HUD) -> void:
 	qm._activate_ready()
 	_check(GameState.money == money_after and qm.state_of("MQ20") == QuestManager.REWARDED, "보상은 한 번만 (다시 불러도 그대로)")
 	_check(qm.quests.values().all(func(st: Dictionary) -> bool: return st.state == QuestManager.REWARDED), "MQ01 ~ MQ20 모두 완료")
+	# 이미 완료·보상받은 MQ20 은 (granted 기록이 없어도) 밀가루를 주지 않음
+	var flour0 := inv.count_of("flour")
+	for st_name: String in [QuestManager.REWARDED, QuestManager.COMPLETED]:
+		var d := qm.to_data()
+		d.quests["MQ20"].state = st_name
+		d.quests["MQ20"].granted = false
+		qm.load_data(d)
+		qm._activate_ready()
+	_check(inv.count_of("flour") == flour0, "완료·보상받은 MQ20 은 밀가루를 다시 주지 않음")
 	_check(qm.project_problem("electric_repair") == "", "MQ20 뒤: 전력 복구 프로젝트를 시작할 수 있음")
 
 	# 기존 저장의 수동 가공기 (belt_out 키 없음): 컨베이어로 저절로 빠져나가지 않음

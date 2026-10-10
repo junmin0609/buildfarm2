@@ -100,7 +100,8 @@
 			"objectives": [{"type": "place", "target": "conveyor", "count": 5, "text": "컨베이어 5칸 설치"}, {"type": "convey", "count": 5, "text": "컨베이어로 물건 옮기기"}], "rewards": {"unlock": ["splitter"]}},
 		{"id": "MQ19", "chapter": 4, "title": "갈라지는 길", "description": "분배기로 물건을 두 길로 나눠 보내자.", "prerequisites": ["MQ18"],
 			"objectives": [{"type": "split", "count": 2, "text": "분배기 두 출구로 보내기"}], "rewards": {"unlock": ["merger"]}},
-		{"id": "MQ20", "chapter": 4, "title": "첫 번째 생산라인", "description": "가공기에서 나온 가공품을 컨베이어로 창고까지 보내자.", "prerequisites": ["MQ19"],
-			"objectives": [{"type": "store_processed", "count": 5, "text": "가공품 5개 창고 입고 (가공기 → 컨베이어 → 창고)"}], "rewards": {"money": 1000, "flags": ["electric_project_open"]}}
+		{"id": "MQ20", "chapter": 4, "title": "첫 번째 생산라인", "description": "가공품 5개를 컨베이어로 운반해 창고에 저장하자. 작물·광석은 세지 않아요.", "prerequisites": ["MQ19"],
+			"on_activate_items": {"flour": 3}, "_note": "받을 때 밀가루 3개를 한 번 (4단계 결정 3: 가을에도 막히지 않게). 판정은 컨베이어가 창고에 넣은 가공품만, 출처는 보지 않음 (4단계 결정 2)",
+			"objectives": [{"type": "store_processed", "count": 5, "text": "가공품 5개를 컨베이어로 운반해 창고에 저장"}], "rewards": {"money": 1000, "flags": ["electric_project_open"]}}
 	]
 }
