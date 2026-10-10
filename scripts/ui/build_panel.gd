@@ -109,13 +109,17 @@ func _row(def: PlaceableDef) -> HBoxContainer:
 	# 기계는 값 대신 가방에 든 개수 (기계상점에서 사서 놓는다, 사용자 결정)
 	price.text = "가방에 %d개" % GameState.inventory.count_of(machine.id) if machine else def.cost_text()
 	if machine and GameState.inventory.count_of(machine.id) == 0:
-		price.text += "\n기계상점에서 사요"
+		price.text += "\n대장간에서 사요" if machine.shop == "smith" else "\n기계상점에서 사요"
+	# 기술이 잠긴 시설은 해금 조건 (새 게임만, 스토리 3단계). 이미 놓은 것은 그대로 옮길 수 있다
+	var lock := QuestManager.lock_reason_now(def.id)
+	if lock != "":
+		price.text = lock
 	price.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	price.add_theme_color_override("font_color", Color("c98a2e"))
+	price.add_theme_color_override("font_color", Color("b8a58c") if lock != "" else Color("c98a2e"))
 	row.add_child(price)
 	var btn := Button.new()
 	btn.text = "배치"
-	btn.disabled = def.afford_problem(GameState.inventory) != ""
+	btn.disabled = lock != "" or def.afford_problem(GameState.inventory) != ""
 	btn.pressed.connect(_choose.bind("place", def.id))
 	row.add_child(btn)
 	return row

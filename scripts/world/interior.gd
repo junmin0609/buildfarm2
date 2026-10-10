@@ -33,7 +33,7 @@ const ROOMS := {
 		"rows": ["WWWWWWWWWWWW", "WRRR....FFFW", "W...CCCCC..W", "W.........NW", "WT..IIII..XW", "WT..IIII..XW", "WT.........W", "WB........GW", "WWWWWDDWWWWW"],
 		"npc": {"cell": Vector2i(6, 1), "name": "대장장이 철수", "texture": "res://assets/art/npc_smith.png",
 			"greet": "도구를 맡기면 바로 고쳐 주지!",
-			"options": [["도구 강화", "smith"], ["나가기", ""]]},
+			"options": [["도구 강화", "smith"], ["용광로 사기", "smith_shop"], ["나가기", ""]]},
 	},
 	"machine": {
 		"origin": Vector2i(202, 80),

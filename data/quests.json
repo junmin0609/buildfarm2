@@ -33,13 +33,13 @@
 		"sky_station": {"name": "하늘섬 정류장", "era": "advanced", "_note": "하늘섬·정류장 기존 구현 보존 (사용자 결정 10)"}
 	},
 
-	"_projects": "기술 복구 프로젝트 (명세 4장, 사용자 결정 9: 기계 연구는 구리 주괴 8 + 500 G, 철 없음). advanced_research 의 조건은 나중에 (사용자 결정 10)",
+	"_projects": "기술 복구 프로젝트 (명세 4장, 사용자 결정 9: 기계 연구는 구리 주괴 8 + 500 G, 철 없음). quest = 이 퀘스트가 진행 중일 때 납품할 수 있음, flag = 이 기록이 생기면. 재료·돈은 나눠서 넣을 수 있고, 다 차면 한 번 완료 (해금·시대). advanced_research 는 구조만 (todo, 사용자 결정 10)",
 	"projects": {
-		"workbench_repair": {"name": "낡은 제작대 복구", "items": {"wood": 15, "stone": 10}, "money": 0, "unlock": ["basic_buildings"]},
-		"mine_repair": {"name": "광산 입구 수리", "items": {"wood": 10, "stone": 10}, "money": 0, "unlock": ["mine_access", "basic_smelting", "tool_upgrade"], "era": "metal"},
-		"mechanical_research": {"name": "기계 기술 복구", "items": {"copper_bar": 8}, "money": 500, "unlock": ["manual_processing", "conveyor", "warehouse_basic", "sprinkler_basic"], "era": "mechanical"},
-		"electric_repair": {"name": "전력 복구", "items": {"iron_bar": 10, "copper_bar": 10}, "money": 2000, "unlock": ["electric_grid", "electric_processing", "water_supply", "filter_routing", "sprinkler_mid", "auto_harvest"], "era": "electric"},
-		"advanced_research": {"name": "첨단 연구", "items": {}, "money": 10000, "unlock": ["advanced_automation", "sky_station"], "era": "advanced", "_todo": "희귀 광물·자동 생산 100개·지역 복구 조건은 나중에 (사용자 결정 10)"}
+		"workbench_repair": {"name": "낡은 제작대 복구", "quest": "MQ08", "items": {"wood": 15, "stone": 10}, "money": 0, "unlock": ["basic_buildings"]},
+		"mine_repair": {"name": "광산 입구 수리", "quest": "MQ11", "items": {"wood": 10, "stone": 10}, "money": 0, "unlock": ["mine_access", "basic_smelting", "tool_upgrade"], "era": "metal"},
+		"mechanical_research": {"name": "기계 기술 복구", "quest": "MQ16", "items": {"copper_bar": 8}, "money": 500, "unlock": ["manual_processing", "conveyor", "warehouse_basic", "sprinkler_basic"], "era": "mechanical"},
+		"electric_repair": {"name": "전력 복구", "flag": "electric_project_open", "items": {"iron_bar": 10, "copper_bar": 10}, "money": 2000, "unlock": ["electric_grid", "electric_processing", "water_supply", "filter_routing", "sprinkler_mid", "auto_harvest"], "era": "electric"},
+		"advanced_research": {"name": "첨단 연구", "todo": true, "items": {}, "money": 10000, "unlock": ["advanced_automation", "sky_station"], "era": "advanced", "_todo": "희귀 광물·자동 생산 100개·지역 복구 조건은 나중에 (사용자 결정 10)"}
 	},
 
 	"_areas": "방문 판정 영역 (농장 맵 칸). plaza = 개울 다리 동쪽",

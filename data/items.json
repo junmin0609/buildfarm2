@@ -935,8 +935,8 @@
 	"furnace": {
 		"name": "용광로",
 		"kind": "machine",
-		"shop": "machine",
-		"_comment": "사용자 결정: 1x1, 기계상점, 손으로 넣고 꺼내기. 값·재료는 임시",
+		"shop": "smith",
+		"_comment": "사용자 결정: 1x1, 손으로 넣고 꺼내기. 금속시대부터 대장간에서 판매 (스토리 결정 6). 값·재료는 임시",
 		"buy_price": 1000,
 		"buy_materials": {"stone": 30},
 		"max_stack": 20,

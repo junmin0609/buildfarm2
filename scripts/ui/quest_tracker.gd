@@ -15,18 +15,18 @@ var _lines: Array[Label] = []
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	custom_minimum_size = Vector2(300, 0)
+	custom_minimum_size = Vector2(340, 0)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 0)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(box)
 	var head := HBoxContainer.new()
 	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_title = _label(Art.FONT_SIZE_SMALL, TEXT)
+	_title = _label(Art.FONT_SIZE, TEXT)
 	_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(_title)
 	var key := _label(Art.FONT_SIZE_SMALL, TEXT_SOFT)
-	key.text = "Q"
+	key.text = "Q 퀘스트"
 	head.add_child(key)
 	box.add_child(head)
 	for i in MAX_LINES:

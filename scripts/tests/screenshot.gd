@@ -11,6 +11,7 @@ func _ready() -> void:
 	add_child(main)
 	await get_tree().process_frame
 	var world: FarmWorld = main.get_node("FarmWorld")
+	world.quests.legacy = true  # 화면 캡처는 모든 시설을 쓰므로 기존 저장처럼
 	var farm := world.farm
 	var origin := Vector2i(11, 14)  # 집 앞 남동쪽 (예전 흙밭 자리, 흙밭은 사용자 요청으로 없앰)
 	for y in range(0, 12):
@@ -783,6 +784,25 @@ func _ready() -> void:
 	await get_tree().create_timer(0.5).timeout
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_quest_dialog.png"))
 	hud._close_panels()
+	# 스토리 3단계: 새 게임 기술 탭 · 기계상점 잠김 표시 (기계시대 직전: 광산 입구 수리까지 끝낸 상태)
+	for id: String in ["MQ07", "MQ08", "MQ09", "MQ10"]:
+		qm.quests[id].state = QuestManager.REWARDED
+	qm._activate_ready()
+	qm.projects_done["workbench_repair"] = true
+	qm.techs["basic_buildings"] = true
+	GameState.inventory.add("wood", 6)
+	qm.donate("mine_repair", "wood")
+	hud.open_quest_log()
+	hud._quest_log.show_tab("tech")
+	await get_tree().create_timer(0.5).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_quest_tech.png"))
+	hud._quest_log.show_tab("quests")
+	hud._close_panels()
+	Events.shop_requested.emit("machine")
+	await get_tree().create_timer(0.5).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_shop_locked.png"))
+	hud._close_panels()
+	qm.legacy = true  # 아래 화면 캡처(광산 등)는 기존 저장처럼
 
 	# 광산 (사용자 결정: 북쪽 숲길 끝 입구 · 아래로 내려가는 층 · 엘리베이터)
 	var shot := func(file: String) -> void:

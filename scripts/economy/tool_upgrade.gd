@@ -28,6 +28,9 @@ static func check(inv: Inventory, index: int) -> Dictionary:
 	var next := next_of(item)
 	if next == null:
 		return {"ok": false, "reason": "더 강화할 수 없어요."}
+	var lock := QuestManager.tech_lock_reason_now("tool_upgrade")
+	if lock != "":
+		return {"ok": false, "reason": "도구 강화는 " + lock}
 	if GameState.money < price_of(item):
 		return {"ok": false, "reason": "돈이 부족해요. (%d G 필요)" % price_of(item)}
 	var mats := materials_of(item)

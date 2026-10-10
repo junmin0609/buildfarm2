@@ -89,7 +89,7 @@ func machine_item() -> ItemDef:
 	if price > 0 or materials.size() != 1:
 		return null
 	var item := ItemDB.get_item(str(materials.keys()[0]))
-	return item if item and item.shop == "machine" else null
+	return item if item and item.shop in ["machine", "smith"] else null  # 용광로는 대장간에서 (스토리 결정 6)
 
 
 ## 설치할 돈·재료가 있는지. 모자라면 이유, 충분하면 ""

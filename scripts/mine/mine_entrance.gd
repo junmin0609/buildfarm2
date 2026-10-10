@@ -21,4 +21,9 @@ static func place_position() -> Vector2:
 
 
 func interact(_player: Node) -> void:
+	# 새 게임은 광산 입구 수리(MQ11) 뒤에 열림. 기존 저장은 그대로 (스토리 3단계)
+	var lock := QuestManager.tech_lock_reason_now("mine_access")
+	if lock != "":
+		Events.toast.emit("무너진 광산 입구예요. 들어가려면 " + lock.trim_prefix("잠김 · "))
+		return
 	Events.mine_requested.emit(0)

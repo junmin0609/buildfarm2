@@ -72,6 +72,9 @@ static func station_cost() -> Dictionary:
 static func restore_problem(inv: Inventory) -> String:
 	if is_open():
 		return "이미 복구했어요."
+	var lock := QuestManager.tech_lock_reason_now("sky_station")
+	if lock != "":
+		return "하늘섬 정류장은 " + lock  # 새 게임은 첨단시대에 (스토리 결정 8), 기존 저장은 그대로
 	var cost := station_cost()
 	if GameState.money < int(cost.price):
 		return "돈이 부족해요. (%d G 필요)" % cost.price

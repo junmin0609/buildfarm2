@@ -22,6 +22,8 @@ const REWARDED := "rewarded"
 const STATE_TYPES := ["visit"]
 
 static var _data: Dictionary = {}
+## 지금 게임의 QuestManager (상점·건설·대장간·광산 입구 같은 곳이 잠금을 물어볼 때, 3단계)
+static var current: QuestManager = null
 
 var world: FarmWorld
 ## 퀘스트 id → {"state", "progress": [목표별 수], "granted": on_activate_items 를 줬는가}
@@ -32,6 +34,9 @@ var era := "pioneer"
 var techs := {}
 ## 기존 저장 (버전 5 이하): 모든 기술이 열린 것으로 본다
 var legacy := false
+## 복구 프로젝트: 넣은 재료·돈 {프로젝트: {아이템 id 또는 "money": 개수}}, 끝난 프로젝트 {프로젝트: true}
+var project_given := {}
+var projects_done := {}
 ## 보상을 주는 중 (보상 아이템이 가방 신호로 다시 이 함수를 부르지 않게)
 var _rewarding := false
 
@@ -59,6 +64,7 @@ static func era_ids() -> Array:
 
 func _ready() -> void:
 	name = "Quests"
+	current = self
 	new_game()
 	Events.sign_read.connect(func(sign_id: String) -> void: _on_event("talk_sign", sign_id, 1))
 	Events.soil_tilled.connect(func(_cell: Vector2i) -> void: _on_event("till", "", 1))
@@ -91,6 +97,8 @@ func new_game() -> void:
 	quests.clear()
 	flags.clear()
 	techs.clear()
+	project_given.clear()
+	projects_done.clear()
 	legacy = false
 	era = era_ids()[0] if not era_ids().is_empty() else "pioneer"
 	for tech_id: String in data().get("techs", {}):
@@ -137,6 +145,46 @@ static func tech_for_item(item_id: String) -> String:
 func item_unlocked(item_id: String) -> bool:
 	var t := tech_for_item(item_id)
 	return t == "" or is_unlocked(t)
+
+
+## 이 기술이 어디서 열리는지 (해금 조건 글): "광산 입구 수리 복구 프로젝트 (MQ11)" · "MQ18 '…' 보상" · "시작부터"
+static func tech_source(tech_id: String) -> String:
+	var t: Dictionary = data().get("techs", {}).get(tech_id, {})
+	if t.get("start", false):
+		return "시작부터"
+	var projects: Dictionary = data().get("projects", {})
+	for pid: String in projects:
+		if tech_id in projects[pid].get("unlock", []):
+			var p: Dictionary = projects[pid]
+			var where := str(p.get("quest", "")) if p.has("quest") else ("MQ20 뒤" if p.has("flag") else "추후 공개")
+			return "%s 프로젝트 (%s)" % [p.name, where]
+	for q: Dictionary in quest_defs():
+		if tech_id in q.get("rewards", {}).get("unlock", []):
+			return "%s '%s' 보상" % [q.id, q.title]
+	return "추후 공개"
+
+
+## 잠긴 이유 (열려 있으면 ""). 기술 id
+func tech_lock_reason(tech_id: String) -> String:
+	if tech_id == "" or is_unlocked(tech_id):
+		return ""
+	if not data().get("techs", {}).has(tech_id):
+		return ""
+	return "잠김 · %s에서 해금" % tech_source(tech_id)
+
+
+## 잠긴 이유 (열려 있으면 ""). 아이템·시설 id
+func lock_reason(item_id: String) -> String:
+	return tech_lock_reason(tech_for_item(item_id))
+
+
+## 지금 게임 기준 잠긴 이유 (QuestManager 가 없으면 잠기지 않음 — 시작 화면 등)
+static func lock_reason_now(item_id: String) -> String:
+	return current.lock_reason(item_id) if is_instance_valid(current) else ""
+
+
+static func tech_lock_reason_now(tech_id: String) -> String:
+	return current.tech_lock_reason(tech_id) if is_instance_valid(current) else ""
 
 
 ## 화면에 보여 줄 시대 (기존 저장은 따로, 사용자 결정)
@@ -342,6 +390,91 @@ func deliver(quest_id: String, index: int) -> String:
 	return ""
 
 
+# ---------- 복구 프로젝트 (3단계): 재료·돈을 나눠 넣고, 다 차면 한 번 완료
+
+static func project_defs() -> Dictionary:
+	return data().get("projects", {})
+
+
+func project_done(pid: String) -> bool:
+	return projects_done.get(pid, false)
+
+
+## 지금 넣을 수 있는가 (연결된 퀘스트가 진행 중이거나 기록이 생김). 못 넣으면 이유
+func project_problem(pid: String) -> String:
+	var p: Dictionary = project_defs().get(pid, {})
+	if p.is_empty():
+		return "없는 프로젝트예요."
+	if project_done(pid):
+		return "이미 끝났어요."
+	if p.get("todo", false):
+		return "아직 준비 중이에요."
+	if p.has("quest") and state_of(str(p.quest)) != ACTIVE:
+		return "%s 퀘스트를 받으면 시작할 수 있어요." % p.quest
+	if p.has("flag") and not flags.has(str(p.flag)):
+		return "MQ20 을 끝내면 시작할 수 있어요."
+	return ""
+
+
+## 프로젝트 요구 줄: [{key: 아이템 id 또는 "money", name, need, given, have}]
+func project_rows(pid: String) -> Array[Dictionary]:
+	var p: Dictionary = project_defs().get(pid, {})
+	var given: Dictionary = project_given.get(pid, {})
+	var rows: Array[Dictionary] = []
+	for item_id: String in p.get("items", {}):
+		rows.append({"key": item_id, "name": ItemDB.get_item(item_id).name, "need": int(p.items[item_id]), "given": int(given.get(item_id, 0)), "have": GameState.inventory.count_of(item_id)})
+	if int(p.get("money", 0)) > 0:
+		rows.append({"key": "money", "name": "돈", "need": int(p.money), "given": int(given.get("money", 0)), "have": GameState.money})
+	return rows
+
+
+## key(아이템 id 또는 "money")를 가진 만큼 (남은 만큼까지) 넣는다. 넣은 수 (0 이면 못 넣음)
+func donate(pid: String, key: String) -> int:
+	if project_problem(pid) != "":
+		return 0
+	for row: Dictionary in project_rows(pid):
+		if row.key != key:
+			continue
+		var n := mini(int(row.need) - int(row.given), int(row.have))
+		if n <= 0:
+			return 0
+		if key == "money":
+			if not GameState.try_spend(n):
+				return 0
+		elif not GameState.inventory.remove(key, n):
+			return 0
+		if not project_given.has(pid):
+			project_given[pid] = {}
+		project_given[pid][key] = int(row.given) + n
+		_try_finish_project(pid)
+		Events.quest_changed.emit("")
+		return n
+	return 0
+
+
+func _try_finish_project(pid: String) -> void:
+	if project_done(pid):
+		return
+	for row: Dictionary in project_rows(pid):
+		if int(row.given) < int(row.need):
+			return
+	# 해금과 완료 기록을 한자리에서 (두 번 적용되지 않게)
+	projects_done[pid] = true
+	var p: Dictionary = project_defs()[pid]
+	for tech_id: String in p.get("unlock", []):
+		techs[tech_id] = true
+	if p.has("era"):
+		_set_era(str(p.era))
+	var unlock: Array = p.get("unlock", [])
+	Events.toast.emit("복구 완료: %s%s" % [p.name, " — " + _unlock_names(unlock) if not unlock.is_empty() else ""])
+	_on_event("project", pid, 1)
+
+
+func _unlock_names(ids: Array) -> String:
+	var all: Dictionary = data().get("techs", {})
+	return " · ".join(ids.map(func(t: String) -> String: return str(all.get(t, {}).get("name", t)))) + " 해금"
+
+
 # ---------- 보상 · 다음 퀘스트
 
 ## 다 한 퀘스트의 보상을 준다. 가방에 다 안 들어가면 그 퀘스트는 completed 로 두고 다음에 다시
@@ -412,7 +545,8 @@ func _activate_ready() -> void:
 # ---------- 저장 ("story" 섹션)
 
 func to_data() -> Dictionary:
-	return {"era": era, "techs": techs.duplicate(), "quests": quests.duplicate(true), "flags": flags.duplicate(), "legacy": legacy}
+	return {"era": era, "techs": techs.duplicate(), "quests": quests.duplicate(true), "flags": flags.duplicate(), "legacy": legacy,
+		"projects": {"given": project_given.duplicate(true), "done": projects_done.duplicate()}}
 
 
 ## 받은 데이터가 통째로 틀리면 false. 퀘스트 id 가 데이터에 없으면 건너뛰고, 데이터에 새로 생긴 퀘스트는 잠긴 상태로 시작
@@ -433,6 +567,25 @@ func load_data(d: Variant) -> bool:
 	if f is Dictionary:
 		for k: Variant in f:
 			flags[str(k)] = true
+	var pr: Variant = d.get("projects", {})
+	if pr is Dictionary:
+		var given: Variant = pr.get("given", {})
+		if given is Dictionary:
+			for pid: Variant in given:
+				var p: Dictionary = project_defs().get(str(pid), {})
+				if p.is_empty() or not given[pid] is Dictionary:
+					continue
+				var row := {}
+				for key: Variant in given[pid]:
+					var need := int(p.get("money", 0)) if str(key) == "money" else int(p.get("items", {}).get(str(key), 0))
+					if need > 0:
+						row[str(key)] = clampi(int(given[pid][key]), 0, need)
+				project_given[str(pid)] = row
+		var done: Variant = pr.get("done", {})
+		if done is Dictionary:
+			for pid: Variant in done:
+				if project_defs().has(str(pid)) and done[pid] == true:
+					projects_done[str(pid)] = true
 	var qs: Variant = d.get("quests", {})
 	if qs is Dictionary:
 		for id: Variant in qs:

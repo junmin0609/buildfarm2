@@ -89,6 +89,10 @@ func _on_build_requested(what: String, def_id: String) -> void:
 
 
 func start_place(def_id: String) -> void:
+	var lock := QuestManager.lock_reason_now(def_id)
+	if lock != "":
+		Events.toast.emit(lock)  # 기술이 잠긴 시설은 새로 놓지 못함 (스토리 3단계)
+		return
 	place_def = PlaceableDB.get_def(def_id)
 	if place_def:
 		turns = 0
@@ -213,6 +217,10 @@ func rotate_preview() -> bool:
 
 
 func try_place(origin: Vector2i) -> bool:
+	var lock := QuestManager.lock_reason_now(place_def.id) if place_def else ""
+	if lock != "":
+		Events.toast.emit(lock)
+		return false
 	var grid := _world().build
 	var result := grid.check(place_def, origin, null, turns)
 	if not result.ok:

@@ -49,6 +49,8 @@ func _ready() -> void:
 	var player := world.player
 	var hud: HUD = main.get_node("HUD")
 	var inv := GameState.inventory
+	# 스토리 이전부터 있던 점검은 '모든 기술이 열린' 상태에서 돈다 (기존 저장과 같음). 시대 제한은 스토리 점검이 새 게임으로 따로 확인
+	world.quests.legacy = true
 
 	_check(farm.farmable_cells.size() >= 100, "밭 칸 (실제 %d)" % farm.farmable_cells.size())
 	_check(world.buildings.size() == 8, "건물 8개 배치 (집·잡화점·우물·출하함·대장간·기계상점·레시피 상점·비행선 정류장)")
@@ -247,6 +249,7 @@ func _ready() -> void:
 	_test_furnace_tools(world)
 	await _test_story(world)
 	await _test_story_ui(world, hud)
+	await _test_story_tech(world, hud)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -3582,7 +3585,7 @@ func _test_furnace_tools(world: FarmWorld) -> void:
 	var saved_inv := inv.to_data()
 	var saved_money := GameState.money
 	var fdef := PlaceableDB.get_def("furnace")
-	_check(fdef != null and fdef.size == Vector2i(1, 1) and fdef.machine_item() == ItemDB.get_item("furnace") and ItemDB.get_item("furnace").shop == "machine", "용광로: 1x1, 기계상점 기계")
+	_check(fdef != null and fdef.size == Vector2i(1, 1) and fdef.machine_item() == ItemDB.get_item("furnace") and ItemDB.get_item("furnace").shop == "smith", "용광로: 1x1, 대장간에서 파는 기계 (스토리 결정 6)")
 	var spot := _free_clear_cell(world)
 	var f := grid.place(fdef, spot) as Furnace
 	_check(f != null and grid.object_at(spot) == f, "용광로 설치")
@@ -4065,6 +4068,153 @@ func _test_story_ui(world: FarmWorld, hud: HUD) -> void:
 	await get_tree().process_frame
 
 
+## 스토리 3단계: 새 게임 시대 제한 (상점·대장간·건설·광산·정류장) · 복구 프로젝트 · 기술 탭 · 기존 저장
+func _test_story_tech(world: FarmWorld, hud: HUD) -> void:
+	var qm := world.quests
+	var inv := GameState.inventory
+	var player := world.player
+	var saved_story := qm.to_data()
+	var saved_inv := inv.to_data()
+	var saved_money := GameState.money
+	var saved_pos := player.global_position
+	var saved_sky: Variant = GameState.unlocks.get(SkyMarket.UNLOCK, null)
+	GameState.unlocks.erase(SkyMarket.UNLOCK)
+	player.global_position = world.home_position
+	qm.new_game()
+	GameState.money = 50000
+
+	# 새 게임: 잠긴 기계는 못 삼 (해금 조건 표시)
+	var conveyor := ItemDB.get_item("conveyor")
+	var lock := ShopPanel.buy_problem(conveyor, 1)
+	_check(lock == "잠김 · 기계 기술 복구 프로젝트 (MQ16)에서 해금", "새 게임: 컨베이어 잠김 + 해금 조건 (%s)" % lock)
+	Events.shop_requested.emit("machine")
+	var rows := hud._shop._buy_list.get_children()
+	var conv_row: Node = rows.filter(func(r: Node) -> bool: return r.get_child(1).text == "컨베이어")[0]
+	_check((conv_row.get_child(2) as Label).text.begins_with("잠김 ·") and (conv_row.get_child(3) as Button).disabled, "기계상점: 잠긴 기계는 조건 표시, 사기 버튼 꺼짐")
+	var money0 := GameState.money
+	hud._shop._buy("conveyor", 1)
+	_check(GameState.money == money0 and inv.count_of("conveyor") == 0, "잠긴 기계는 사지 못함 (돈·가방 그대로)")
+	hud._close_panels()
+	# 대장간: 용광로·도구 강화는 금속시대
+	Events.shop_requested.emit("smith")
+	var smith_names := hud._shop._buy_list.get_children().map(func(r: Node) -> String: return r.get_child(1).text)
+	_check(hud._shop._title.text == "대장간 · 사기" and smith_names == ["용광로"] and ShopPanel.buy_problem(ItemDB.get_item("furnace"), 1).contains("광산 입구 수리"), "대장간에서 용광로 판매, 지금은 잠김 (광산 입구 수리)")
+	hud._close_panels()
+	inv.load_data([])
+	inv.add("hoe")
+	inv.add("copper_bar", 5)
+	_check(ToolUpgrade.check(inv, 0).reason.begins_with("도구 강화는 잠김"), "도구 강화도 금속시대 전엔 잠김 (%s)" % ToolUpgrade.check(inv, 0).reason)
+	# 건설: 잠긴 시설은 새로 못 놓음 (가방에 있어도), 이미 놓은 건 옮기기 가능
+	inv.add("conveyor", 3)
+	world.build_mode.start_place("conveyor")
+	_check(not world.build_mode.is_active(), "가방에 있어도 잠긴 시설은 건설 모드로 놓지 못함")
+	world.build_mode.start_place("scarecrow")
+	_check(not world.build_mode.is_active() and qm.lock_reason("scarecrow").contains("낡은 제작대 복구"), "허수아비도 제작대 복구(MQ08) 전엔 잠김")
+	hud.open_build_panel()
+	var brow: Node = hud._build._list.get_children().filter(func(r: Node) -> bool: return (r.get_child(1).get_child(0) as Label).text.begins_with("허수아비"))[0]
+	_check((brow.get_child(2) as Label).text.begins_with("잠김 ·") and (brow.get_child(3) as Button).disabled, "건설 창: 잠긴 시설은 조건 표시, 배치 버튼 꺼짐")
+	hud._close_panels()
+	var spot := _free_origin(world, PlaceableDB.get_def("scarecrow"), Vector2i(-1, -1))
+	world.obstacles.remove(spot)
+	var crow := world.build.place(PlaceableDB.get_def("scarecrow"), spot)
+	var spot2 := _free_origin(world, PlaceableDB.get_def("scarecrow"), spot)
+	world.obstacles.remove(spot2)
+	_check(crow != null and world.build.move(crow, spot2) and crow.cell == spot2, "이미 놓은 시설은 잠겨도 그대로 옮길 수 있음")
+	world.build.remove(crow)
+	# 광산 입구·하늘섬 정류장
+	world.mine_entrance.interact(player)
+	_check(world.area == "farm" and qm.lock_reason("") == "" and not qm.is_unlocked("mine_access"), "새 게임: 광산 입구는 막혀 있음 (들어가지 않음)")
+	_check(SkyMarket.restore_problem(inv).begins_with("하늘섬 정류장은 잠김"), "새 게임: 하늘섬 정류장 복구는 첨단시대 (%s)" % SkyMarket.restore_problem(inv))
+
+	# 복구 프로젝트: 퀘스트가 진행 중일 때만, 나눠 넣기, 저장 유지, 완료는 한 번
+	_check(qm.project_problem("workbench_repair") == "MQ08 퀘스트를 받으면 시작할 수 있어요." and qm.donate("workbench_repair", "wood") == 0, "MQ08 전에는 제작대 복구에 못 넣음")
+	for id: String in ["MQ01", "MQ02", "MQ03", "MQ04", "MQ05", "MQ06", "MQ07"]:
+		qm.quests[id].state = QuestManager.REWARDED
+	qm._activate_ready()
+	inv.load_data([])
+	inv.add("wood", 10)
+	_check(qm.donate("workbench_repair", "wood") == 10 and inv.count_of("wood") == 0 and not qm.project_done("workbench_repair"), "목재 10 넣음 (15 중), 가방에서 정확히 10 빠짐")
+	world.save_manager.save_game("manual")
+	qm.new_game()
+	world.save_manager.load_game()
+	var wb_rows := qm.project_rows("workbench_repair")
+	_check(wb_rows[0].given == 10 and wb_rows[0].need == 15 and wb_rows[1].given == 0 and qm.state_of("MQ08") == QuestManager.ACTIVE, "저장·불러오기 후 넣은 양 그대로 (목재 10/15, 돌 0/10)")
+	inv.add("wood", 9)
+	inv.add("stone", 10)
+	_check(qm.donate("workbench_repair", "wood") == 5 and inv.count_of("wood") == 4, "남은 만큼만 넣음 (목재 5, 4개는 가방에)")
+	_check(qm.donate("workbench_repair", "stone") == 10 and qm.project_done("workbench_repair") and qm.is_unlocked("basic_buildings"), "다 차면 완료 → 기본 건설 시설 해금")
+	_check(qm.state_of("MQ08") == QuestManager.REWARDED and qm.state_of("MQ09") == QuestManager.ACTIVE, "프로젝트 완료 → MQ08 완료, MQ09 시작")
+	inv.add("stone", 5)
+	_check(qm.donate("workbench_repair", "stone") == 0 and inv.count_of("stone") == 5, "끝난 프로젝트에는 더 안 들어감")
+	world.build_mode.start_place("scarecrow")
+	_check(world.build_mode.is_active(), "해금 뒤: 허수아비를 건설 모드로 놓을 수 있음")
+	world.build_mode.stop()
+	# 광산 입구 수리 (MQ11) → 금속시대: 광산·용광로·도구 강화
+	for id: String in ["MQ09", "MQ10"]:
+		qm.quests[id].state = QuestManager.REWARDED
+	qm._activate_ready()
+	inv.add("wood", 10)
+	inv.add("stone", 10)
+	qm.donate("mine_repair", "wood")
+	qm.donate("mine_repair", "stone")
+	_check(qm.project_done("mine_repair") and qm.era == "metal" and qm.is_unlocked("mine_access") and qm.lock_reason("furnace") == "" and not ShopPanel.buy_problem(ItemDB.get_item("furnace"), 1).begins_with("잠김"), "광산 입구 수리 → 금속시대, 광산·용광로 해금")
+	world.mine_entrance.interact(player)
+	_check(world.area == "mine", "광산 입구가 열림")
+	world.exit_mine()
+	inv.load_data([])
+	inv.add("hoe")
+	inv.add("copper_bar", 3)
+	_check(ToolUpgrade.check(inv, 0).ok, "금속시대: 도구 강화 가능")
+	# 기계 기술 복구 (MQ16): 구리 주괴 8 + 500 G → 기계시대, 컨베이어 등
+	for id: String in ["MQ11", "MQ12", "MQ13", "MQ14", "MQ15"]:
+		qm.quests[id].state = QuestManager.REWARDED
+	qm._activate_ready()
+	inv.add("copper_bar", 8)
+	var m1 := GameState.money
+	qm.donate("mechanical_research", "copper_bar")
+	_check(qm.donate("mechanical_research", "money") == 500 and GameState.money == m1 - 500 and qm.project_done("mechanical_research") and qm.era == "mechanical", "구리 주괴 8 + 500 G → 기계시대 (돈도 정확히 500)")
+	_check(ShopPanel.buy_problem(conveyor, 1) == "" and qm.is_unlocked("warehouse_basic") and not qm.is_unlocked("splitter"), "기계시대: 컨베이어·창고 해금, 분배기는 MQ18 보상")
+	hud._shop._buy("conveyor", 1)
+	_check(inv.count_of("conveyor") == 1, "해금 뒤 컨베이어를 살 수 있음")
+	world.build_mode.start_place("conveyor")
+	_check(world.build_mode.is_active(), "해금 뒤 컨베이어를 놓을 수 있음")
+	world.build_mode.stop()
+	_check(qm.project_problem("advanced_research") == "아직 준비 중이에요." and qm.project_problem("electric_repair").contains("MQ20"), "전력 복구는 MQ20 뒤, 첨단 연구는 준비 중 (구조만)")
+
+	# 기술 탭: 시대별 기술 (열림/잠김 + 해금 조건), 프로젝트 진행도·남은 재료
+	hud.open_quest_log()
+	hud._quest_log.show_tab("tech")
+	var texts := hud._quest_log._list.get_children().filter(func(n: Node) -> bool: return n is Label).map(func(l: Label) -> String: return l.text)
+	_check(texts.has("기계시대  (지금)") and texts.any(func(t: String) -> bool: return t.begins_with("· 열림  컨베이어")) and texts.any(func(t: String) -> bool: return t.begins_with("· 잠김  전력") and t.contains("전력 복구 프로젝트 (MQ20 뒤)에서 해금")), "기술 탭: 지금 시대 · 열린 기술 · 잠긴 기술과 해금 조건")
+	var pr_box := hud._quest_log._list.get_node("electric_repair")
+	var pr_line := (pr_box.get_child(1) as HBoxContainer).get_child(0) as Label
+	_check((pr_box.get_child(0) as Label).text.contains("MQ20") and pr_line.text.begins_with("· 철 주괴  넣은 양 0/10") and pr_line.text.contains("남은 것 10"), "기술 탭: 프로젝트 넣은 양·가진 것·남은 것 (%s)" % pr_line.text)
+	_check((hud._quest_log._list.get_node("mine_repair").get_child(0) as Label).text.ends_with("완료"), "기술 탭: 끝난 프로젝트는 완료")
+	hud._quest_log.show_tab("quests")
+	hud._close_panels()
+
+	# 기존 저장: 모든 기술 열림, 광산·정류장 그대로
+	qm.load_data({"legacy": true})
+	_check(ShopPanel.buy_problem(ItemDB.get_item("harvester_3"), 1) != "" and not ShopPanel.buy_problem(ItemDB.get_item("harvester_3"), 1).begins_with("잠김") and SkyMarket.restore_problem(inv).find("잠김") < 0, "기존 저장: 잠김 없음 (돈만 확인), 정류장 복구도 잠기지 않음")
+	world.mine_entrance.interact(player)
+	_check(world.area == "mine", "기존 저장: 광산 그대로 열림")
+	world.exit_mine()
+
+	# HUD 추적 한 단계 크게 (사용자 결정): 제목 큰 글씨
+	qm.new_game()
+	await get_tree().process_frame
+	_check(hud._quest_tracker._title.get_theme_font_size("font_size") == Art.FONT_SIZE and hud._quest_tracker.size.x >= 340, "HUD 추적: 제목 큰 글씨, 폭 넓힘 (%s)" % hud._quest_tracker.size)
+
+	# 정리
+	qm.load_data(saved_story)
+	inv.load_data(saved_inv)
+	GameState.money = saved_money
+	player.global_position = saved_pos
+	if saved_sky != null:
+		GameState.unlocks[SkyMarket.UNLOCK] = saved_sky
+	await get_tree().process_frame
+
+
 ## 광산 (사용자 결정: 북쪽 숲길 끝 입구 · 아래로 내려가는 층 · 엘리베이터 · 사다리 찾기 · 10층마다 보물 층 · 광석 4종)
 func _test_mine(world: FarmWorld, hud: Node) -> void:
 	var mine := world.mine
@@ -4484,7 +4634,7 @@ func _test_interiors(world: FarmWorld, hud: HUD) -> void:
 	hud._dialog.choose("machine")
 	var mnames := hud._shop._buy_list.get_children().map(func(r: Node) -> String: return r.get_child(1).text)
 	_check(world.area == "machine" and hud._shop._title.text == "기계상점" and "컨베이어" in mnames and not "당근 씨앗" in mnames, "기계상점 [기계 사기] → 컨베이어 %s" % [mnames])
-	_check(mnames.size() == 18 and "창고" in mnames and "중급 가공기" in mnames and "펌프" in mnames and "용광로" in mnames, "기계상점에 기계 18종 (컨베이어 + 공장·자동화 16종 + 용광로, %d)" % mnames.size())
+	_check(mnames.size() == 17 and "창고" in mnames and "중급 가공기" in mnames and "펌프" in mnames and not "용광로" in mnames, "기계상점에 기계 17종 (컨베이어 + 공장·자동화 16종, 용광로는 대장간, %d)" % mnames.size())
 	var build_names := PlaceableDB.all().filter(func(d: PlaceableDef) -> bool: return d.machine_item() == null and not d.data.has("fixture")).map(func(d: PlaceableDef) -> String: return d.id)
 	_check(build_names == ["scarecrow", "shed", "greenhouse", "compost_bin"], "돈으로 바로 짓는 건 허수아비·헛간·온실·퇴비통만 %s" % [build_names])
 	hud._close_panels()

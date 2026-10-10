@@ -91,8 +91,8 @@ func _column(parent: Container, heading: String) -> VBoxContainer:
 ## mode: "buy" 씨앗·비료 사기, "sell" 작물 팔기, "machine" 기계 사기, "all" 사기+팔기
 func open(mode := "all") -> void:
 	_mode = mode
-	_title.text = {"buy": "잡화점 · 사기", "sell": "잡화점 · 팔기", "machine": "기계상점"}.get(mode, "잡화점")
-	(_buy_col.get_child(0) as Label).text = "기계 사기" if mode == "machine" else "씨앗·비료 사기"
+	_title.text = {"buy": "잡화점 · 사기", "sell": "잡화점 · 팔기", "machine": "기계상점", "smith": "대장간 · 사기"}.get(mode, "잡화점")
+	(_buy_col.get_child(0) as Label).text = {"machine": "기계 사기", "smith": "용광로 사기"}.get(mode, "씨앗·비료 사기")
 	_buy_col.visible = mode != "sell"
 	_sell_list.get_parent().visible = mode in ["sell", "all"]
 	# 기계상점만 목록이 길어 고정 높이 + 스크롤, 나머지는 목록 높이 그대로
@@ -110,13 +110,18 @@ func refresh() -> void:
 	_money_label.text = "가진 돈  %d G" % GameState.money
 	_refresh_special()
 	_clear(_buy_list)
-	var shop := "machine" if _mode == "machine" else "general"
+	var shop: String = {"machine": "machine", "smith": "smith"}.get(_mode, "general")
 	for item in ItemDB.shop_items():
 		if item.shop != shop:
 			continue
 		if not Calendar.in_season_for_shop(item, GameState.day):
 			continue  # 이번 계절에 심을 수 없는 씨앗은 팔지 않는다
-		var row := item_row(item, PlaceableDef.cost_text_of(item.buy_price, item.buy_materials))
+		# 기술이 잠긴 기계는 값 대신 해금 조건 (새 게임만, 스토리 3단계)
+		var lock := QuestManager.lock_reason_now(item.id)
+		var row := item_row(item, lock if lock != "" else PlaceableDef.cost_text_of(item.buy_price, item.buy_materials))
+		if lock != "":
+			(row.get_child(2) as Label).add_theme_color_override("font_color", Color("b8a58c"))
+			row.modulate.a = 0.75
 		for qty: int in [1, 5]:
 			var btn := Button.new()
 			btn.text = "%d개" % qty
@@ -253,6 +258,9 @@ func _sellable_stacks() -> Array[Dictionary]:
 
 ## qty 개를 살 수 없는 이유 (돈·재료·가방 자리). 살 수 있으면 ""
 static func buy_problem(item: ItemDef, qty: int) -> String:
+	var lock := QuestManager.lock_reason_now(item.id)
+	if lock != "":
+		return lock
 	if GameState.money < item.buy_price * qty:
 		return "돈이 부족해요."
 	for mat_id: String in item.buy_materials:

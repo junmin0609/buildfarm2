@@ -432,6 +432,8 @@ func _on_dialog_chosen(action: String) -> void:
 	match action:
 		"smith":
 			open_blacksmith()
+		"smith_shop":
+			_open_shop("smith")  # 대장간에서 용광로 (스토리 결정 6)
 		"buy", "sell", "machine":
 			_open_shop(action)
 
