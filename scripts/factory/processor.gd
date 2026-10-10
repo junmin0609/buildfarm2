@@ -206,6 +206,43 @@ func start(inv: Inventory, id: String, runs: int, use_high_first := false) -> in
 	return n
 
 
+## 퀘스트 재료로 runs 회 시작 (5단계 후속 2): 가방 재료를 쓰지 않고, 회차에 재료 없이 "quest" 만 적는다.
+## 가공 시간·완료(Events.item_made)·결과물은 보통 회차와 같다. 취소·철거하면 재료 대신 퀘스트 재료 횟수를 돌려준다.
+## QuestManager.use_quest_material 이 횟수를 확인한 뒤에 부른다.
+func start_quest_runs(id: String, runs: int, quest_id: String) -> int:
+	id = RecipeDB.canonical(id)
+	if is_automatic() or is_working() or recipe_problem(id) != "" or runs <= 0:
+		return 0
+	var n := mini(runs, max_runs())
+	var out_item := ItemDB.get_item(RecipeDB.get_recipe(id).output)
+	var runs_list: Array[Dictionary] = []
+	for i in n:
+		runs_list.append({"inputs": [] as Array[Dictionary], "quality": Quality.normalize(out_item, ""), "quest": quest_id})
+	queue = runs_list
+	recipe_id = id
+	progress = 0.0
+	runs_total = n
+	runs_done = 0
+	_changed()
+	return n
+
+
+## 아직 안 끝난 퀘스트 재료 회차를 퀘스트별로 센다 {퀘스트 id: 회}
+func _quest_runs_left() -> Dictionary:
+	var out := {}
+	for run in queue:
+		var qid := str(run.get("quest", ""))
+		if qid != "":
+			out[qid] = int(out.get(qid, 0)) + 1
+	return out
+
+
+func _refund_quest_runs() -> void:
+	var left := _quest_runs_left()
+	for qid: String in left:
+		QuestManager.refund_quest_material_now(qid, int(left[qid]))
+
+
 ## 재료를 꺼낼 품질 순서. only 가 있으면 그 품질만 (§73-9 고급잼: 골드 과일만)
 static func _quality_order(item: ItemDef, high_quality_first: bool, only: Variant = null) -> Array[String]:
 	if item == null or not item.has_quality:
@@ -227,6 +264,7 @@ func cancel(inv: Inventory) -> bool:
 		return false
 	for st in back:
 		inv.add(st.id, int(st.count), st.quality)
+	_refund_quest_runs()
 	queue.clear()
 	progress = 0.0
 	runs_total = runs_done
@@ -611,6 +649,7 @@ func contents() -> Array:
 
 
 func take_contents() -> void:
+	_refund_quest_runs()  # 철거: 퀘스트 재료 회차는 재료 대신 횟수로 돌려준다
 	queue.clear()
 	output.clear()
 	input.clear()
@@ -632,7 +671,10 @@ func load_state(data: Dictionary) -> void:
 		for run: Variant in raw_queue:
 			if run is Dictionary:
 				var stacks := _load_stacks(run.get("inputs"))
-				if not stacks.is_empty():
+				var quest_id := str(run.get("quest", ""))
+				if quest_id != "":
+					queue.append({"inputs": [] as Array[Dictionary], "quality": Quality.normalize(out_item, str(run.get("quality", ""))), "quest": quest_id})
+				elif not stacks.is_empty():
 					queue.append({"inputs": stacks, "quality": Quality.normalize(out_item, str(run.get("quality", "")))})
 	output = _load_stacks(data.get("output"))
 	input = _load_stacks(data.get("input")) if is_automatic() else ([] as Array[Dictionary])

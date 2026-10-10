@@ -28,6 +28,8 @@ var checkpoints := false
 var start_day_override := 0
 ## --keep-support: MQ17 진행 중에는 받은 밀을 팔지 않는 플레이어 (기본 봇은 작물을 모두 출하함에 넣는다)
 var keep_support := false
+## --ship-wheat: 가공 퀘스트(MQ17~20) 중에도 받은 밀을 출하함에 넣는 부주의한 플레이어 (기본 봇은 그동안 밀을 남긴다)
+var ship_wheat := false
 var _ckpt_done := {}
 var _last_era := ""
 
@@ -69,11 +71,17 @@ func _ready() -> void:
 			rng_seed = int(a.trim_prefix("--seed="))
 		elif a.begins_with("--day="):
 			start_day_override = int(a.trim_prefix("--day="))
+		elif a == "--ship-wheat":
+			ship_wheat = true
 		elif a == "--keep-support":
 			keep_support = true
 		elif a == "--checkpoints":
 			checkpoints = true
 	seed(rng_seed)
+	# 감시 타이머 (5단계 후속 2): 스크립트 오류로 _finish 에 못 닿아도 40분 뒤 끝낸다 (Godot 는 스크립트 오류로 스스로 끝나지 않음)
+	get_tree().create_timer(2400.0, true, false, true).timeout.connect(func() -> void:
+		print("PLAYTHROUGH_TIMEOUT")
+		get_tree().quit(3))
 	SaveManager.load_on_start = false
 	SaveManager.slot_path = "user://playthrough_save_%s_%d_%d.json" % [season, plot_size, rng_seed]
 	Weather.forced = ""
@@ -382,6 +390,8 @@ func _ship_crops() -> void:
 		keep[item_id] = _recipe_inputs_needed()[item_id]
 	if keep_support and qm.state_of("MQ17") == QuestManager.ACTIVE:
 		keep["wheat"] = int(keep.get("wheat", 0)) + 4
+	if not ship_wheat and str(qm.tracked().get("id", "")) in ["MQ17", "MQ18", "MQ19", "MQ20"]:
+		keep["wheat"] = 999  # 가공 퀘스트 중에는 밀을 팔지 않음 (출하하면 경고가 뜨는 재료)
 	var bin := world.shipping_bin
 	var shipped := false
 	for st: Dictionary in inv.stacks():
@@ -932,6 +942,21 @@ func _processing_quest(conveyor: bool) -> void:
 				_walk_to(_building("RecipeShop").interact_point())
 				_spend(UI_TIME)
 				RecipeDB.buy(rid))
+	# 가방 재료가 없으면 가공기 창의 [퀘스트 재료 사용] (5단계 후속 2)
+	if qm.quest_material_usable():
+		_walk_to(world.cell_center(processor.cell))
+		hud.open_processor(processor)
+		await get_tree().process_frame
+		hud._processor._select("flour")
+		hud._processor.refresh()
+		if hud._processor._quest_btn.visible:
+			var left := qm.quest_material_left()
+			hud._processor._quest_btn.pressed.emit()
+			_note("가공기 [퀘스트 재료 사용] %s %d회" % [qm.quest_material_quest(), left - qm.quest_material_left()])
+		_spend(UI_TIME)
+		hud._close_panels()
+		if processor.is_working():
+			return
 	for try_id: String in [rid, "dough", "flour", "potato_snack", "tomato_puree", "sugar"]:
 		var runs := Processor.runs_possible(inv, RecipeDB.get_recipe(try_id), 99) if RecipeDB.has(try_id) else 0
 		if runs > 0 and processor.recipe_problem(try_id) == "":
@@ -960,7 +985,7 @@ func _finish(start_money: int) -> void:
 		"days": GameState.day - _start_day() + 1, "active_minutes": snappedf(active_seconds / 60.0, 0.1), "start_money": start_money, "end_money": GameState.money,
 		"ledger": ledger, "daily": daily, "income": total_in, "expense": total_out, "timeline": timeline, "notes": notes, "counters": counters,
 		"era": qm.era, "techs": qm.techs.keys(), "inventory": {"wood": inv.count_of("wood"), "stone": inv.count_of("stone"), "copper_bar": inv.count_of("copper_bar")}}
-	var path := "user://playthrough_%s_%d_%d%s.json" % [season, plot_size, rng_seed, "_keep" if keep_support else ""]
+	var path := "user://playthrough_%s_%d_%d%s%s.json" % [season, plot_size, rng_seed, "_keep" if keep_support else "", "_shipwheat" if ship_wheat else ""]
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(result, "\t"))
 	f.close()

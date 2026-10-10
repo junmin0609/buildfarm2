@@ -254,6 +254,7 @@ func _ready() -> void:
 	await _test_story_play(world, hud)
 	await _test_story_support(world, hud)
 	await _test_story_winter_mq20(world)
+	await _test_story_stabilize(world, hud)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -4072,8 +4073,123 @@ func _test_story_ui(world: FarmWorld, hud: HUD) -> void:
 	await get_tree().process_frame
 
 
-## 5단계 계절 검증 (퀘스트 상태 강제): 겨울(바깥에 못 심음)에 MQ20 을 받아도, 받을 때 주는 밀가루 3개만으로
-## 창고 출구 → 벨트 → 같은 창고 입구 순환으로 '가공품 5개 컨베이어 입고'를 채울 수 있는가 (작물 없이)
+## 5단계 후속 안정화 (퀘스트 상태 강제): MQ03 갈아 둔 칸 인정 · 가공 재료 보충 (MQ17 밀 손실, 가을·겨울 MQ18~20) · 토스트 위치
+func _test_story_stabilize(world: FarmWorld, hud: HUD) -> void:
+	var qm := world.quests
+	var inv := GameState.inventory
+	var farm := world.farm
+	var saved_story := qm.to_data()
+	var saved_inv := inv.to_data()
+	var saved_farm := farm.to_data()
+	var saved_day := GameState.day
+	var saved_build := world.build.to_data()
+	world.build.load_data([])  # 다른 점검이 남긴 벨트·가공기 물건이 '흐르는 중' 수에 섞이지 않게
+
+	# MQ03: 받기 전에 간 칸도 인정, 같은 칸은 한 번
+	farm.load_data({})
+	qm.new_game()
+	inv.load_data([])
+	var cells: Array = farm.farmable_cells.keys().filter(func(c: Vector2i) -> bool: return world.obstacles.obstacle_at(c) == null and not world.build.is_occupied(c))
+	cells.sort()
+	for i in 3:
+		farm.till(cells[i])
+	qm.quests["MQ01"].state = QuestManager.REWARDED
+	qm.quests["MQ02"].state = QuestManager.REWARDED
+	qm._activate_ready()
+	_check(qm.state_of("MQ03") == QuestManager.ACTIVE and qm.progress_of("MQ03")[0] == 3, "MQ03: 받기 전에 갈아 둔 3칸 인정 (%s)" % qm.objective_line(QuestManager.quest_def("MQ03"), 0))
+	farm.till(cells[0])
+	farm.untill(cells[1])
+	farm.till(cells[1])
+	_check(qm.progress_of("MQ03")[0] == 3, "같은 칸을 다시 갈아도 두 번 세지 않음 (3)")
+	farm.till(cells[3])
+	farm.till(cells[4])
+	_check(qm.progress_of("MQ03")[0] == 5, "새 칸 2개 더 → 5/5")
+
+	# 퀘스트 재료 (MQ17): 가방에 밀이 있으면 안 보이고, 다 팔면 보임
+	farm.load_data(saved_farm)
+	GameState.day = 10
+	qm.new_game()
+	inv.load_data([])
+	_reach(qm, "MQ17")
+	_check(inv.count_of("wheat") == 4 and not qm.quest_material_usable(), "MQ17: 받은 밀 4개가 있으면 퀘스트 재료 안 보임 (겹쳐 주지 않음)")
+	inv.remove("wheat", 3)
+	_check(qm.quest_material_usable(), "밀이 1개만 남으면 (밀가루 1회분 2개가 안 됨) 퀘스트 재료가 보임")
+	inv.remove("wheat", 1)
+	_check(qm.quest_material_usable() and qm.quest_material_left() == 1, "밀을 다 팔면 퀘스트 재료 1회")
+	var o := _factory_line_spot(world)
+	var proc := world.build.place(PlaceableDB.get_def("manual_processor"), o) as Processor
+	hud.open_processor(proc)
+	await get_tree().process_frame
+	var pp := hud._processor
+	pp._select("flour")
+	pp.refresh()
+	_check(pp._quest_btn.visible and pp._quest_btn.text == "퀘스트 재료 사용 · 밀가루 (MQ17 남은 1회)", "가공기 창 버튼: %s" % pp._quest_btn.text)
+	pp._select("dough")
+	pp.refresh()
+	_check(not pp._quest_btn.visible, "다른 레시피를 고르면 안 보임")
+	pp._select("flour")
+	pp.refresh()
+	hud._close_panels()
+	hud.open_quest_log()
+	hud._quest_log.show_tab("quests")
+	var qline := hud._quest_log._list.get_node_or_null("Support/QuestMaterial") as Label
+	_check(qline != null and qline.text.contains("MQ17 남은 1회") and qline.text.contains("[퀘스트 재료 사용]"), "퀘스트 창 안내: %s" % (qline.text if qline else "없음"))
+	_check(hud._quest_tracker._hint.text.begins_with("가방에 밀이 없으면 수동 가공기에서 [퀘스트 재료 사용]"), "HUD 안내: %s" % hud._quest_tracker._hint.text)
+	hud._close_panels()
+	# 빠른 반복 클릭 · 취소 → 횟수만 돌려받음 (밀은 생기지 않음)
+	for i in 5:
+		qm.use_quest_material(proc, 3)
+	_check(proc.queue.size() == 1 and qm.quest_material_left() == 0, "5번 눌러도 1회만")
+	_check(proc.cancel(inv) and inv.count_of("wheat") == 0 and qm.quest_material_left() == 1, "취소 → 퀘스트 재료 1회 돌려받음, 밀은 안 생김")
+	# 저장·불러오기: 진행 중인 퀘스트 재료 회차와 쓴 횟수 그대로
+	qm.use_quest_material(proc, 1)
+	world.save_manager.save_game("manual")
+	world.save_manager.load_game()
+	proc = world.build.object_at(o) as Processor
+	_check(proc.queue.size() == 1 and str(proc.queue[0].get("quest", "")) == "MQ17" and qm.quest_material_used == {"MQ17": 1}, "저장·불러오기 뒤에도 퀘스트 재료 회차·쓴 횟수 그대로")
+	# 철거: 가공기를 치우면 회차 대신 횟수를 돌려받음 (밀 복제 없음)
+	world.build_mode.start(BuildMode.Mode.REMOVE)
+	_check(world.build_mode.try_remove(o) and inv.count_of("wheat") == 0 and qm.quest_material_left() == 1, "철거 → 횟수 돌려받음, 밀은 안 생김")
+	world.build_mode.stop()
+	# 끝나면 비활성
+	proc = world.build.place(PlaceableDB.get_def("manual_processor"), o) as Processor
+	qm.use_quest_material(proc, 1)
+	Events.time_advanced.emit(61.0)
+	_check(qm.state_of("MQ17") == QuestManager.REWARDED and qm.quest_material_left("MQ17") == 0, "MQ17 완료 → MQ17 퀘스트 재료 비활성")
+	_check(inv.count_of("flour") == 0 and proc.take_output(inv) == 1 and inv.count_of("flour") == 1, "퀘스트 재료로 만든 밀가루는 보통 아이템 (꺼내기)")
+	# 예전 저장 (쓴 기록 없음): MQ17 진행 중 · 밀 없음 → 바로 쓸 수 있음
+	inv.load_data([])
+	qm.load_data(_old_story(qm, "MQ17", QuestManager.ACTIVE, true))
+	_check(qm.quest_material_used.is_empty() and qm.quest_material_usable() and qm.quest_material_left() == 1, "예전 저장 · MQ17 진행 중 · 밀 없음 → 퀘스트 재료 1회")
+	# 저장 값이 상한보다 크면 잘라 냄
+	var dd := qm.to_data()
+	dd.quest_material_used = {"MQ17": 99, "MQ99": 3}
+	qm.load_data(dd)
+	_check(qm.quest_material_used == {"MQ17": 1}, "틀린 저장 값은 상한·없는 퀘스트 정리 %s" % [qm.quest_material_used])
+	world.build.load_data([])
+
+	# 토스트는 위쪽 HUD 칸 아래에 (1280x720 에서 퀘스트 추적·시계 칸과 안 겹침)
+	qm.load_data(saved_story)
+	await get_tree().process_frame
+	hud.show_toast("하루가 끝나 집으로 돌아왔어요. 봄 2일 (화) 아침, 맑음 · 아주 긴 알림 글로 겹침을 확인해요")
+	await get_tree().process_frame
+	var t := hud._toast.get_global_rect()
+	_check(not t.intersects(hud._quest_tracker.get_global_rect()) and not t.intersects(hud._info_box.get_global_rect()), "긴 알림도 퀘스트 추적·시계 칸과 겹치지 않음 (알림 %s)" % t)
+	_check(hud.get_viewport().get_visible_rect().encloses(t), "긴 알림은 줄을 바꿔 화면 안에 (%s)" % t)
+	hud.show_toast("나무 +1")
+	await get_tree().process_frame
+	_check(hud._toast.get_global_rect().size.x < 400, "짧은 알림은 글 길이만큼 (%s)" % hud._toast.get_global_rect().size)
+
+	world.build.load_data(saved_build)
+	farm.load_data(saved_farm)
+	GameState.day = saved_day
+	qm.load_data(saved_story)
+	inv.load_data(saved_inv)
+	await get_tree().process_frame
+
+
+## 5단계 계절 검증 (퀘스트 상태 강제): 겨울(바깥에 못 심음)에 MQ17~MQ20 을 작물 없이 — 수동 가공기 [퀘스트 재료 사용]
+## → 실제 가공 시간 → 벨트 → 창고 (MQ17 가공 1 · MQ18 운송 5 · MQ19 분배 2 · MQ20 입고 5 를 각각 확인)
 func _test_story_winter_mq20(world: FarmWorld) -> void:
 	var qm := world.quests
 	var inv := GameState.inventory
@@ -4081,28 +4197,46 @@ func _test_story_winter_mq20(world: FarmWorld) -> void:
 	var saved_inv := inv.to_data()
 	var saved_day := GameState.day
 	var saved_build := world.build.to_data()
+	world.build.load_data([])
 	GameState.day = 3 * 28 + 5  # 겨울 5일
 	qm.new_game()
 	inv.load_data([])
-	for q: Dictionary in QuestManager.quest_defs():
-		if q.id == "MQ20":
-			break
-		qm.quests[q.id].state = QuestManager.REWARDED
-	qm._activate_ready()
-	_check(Calendar.season_of(GameState.day) == "winter" and inv.count_of("flour") == 3, "겨울에 MQ20 시작: 밀가루 3개 받음")
-	var o := _factory_line_spot(world) + Vector2i(1, 0)
-	var wh := world.build.place(PlaceableDB.get_def("warehouse"), o) as Warehouse
-	var path := [[Vector2i(4, 2), 0], [Vector2i(4, 3), 0], [Vector2i(4, 4), 1], [Vector2i(3, 4), 1], [Vector2i(2, 4), 1], [Vector2i(1, 4), 1], [Vector2i(0, 4), 1],
-		[Vector2i(-1, 4), 2], [Vector2i(-1, 3), 2], [Vector2i(-1, 2), 2], [Vector2i(-1, 1), 3]]
-	var placed := 0
-	for p: Array in path:
-		if world.build.place(PlaceableDB.get_def("conveyor"), o + p[0], p[1]):
-			placed += 1
-	wh.storage.add("flour", 3)
-	wh.set_output_mode("all")
-	for i in 40:
-		Events.time_advanced.emit(10.0)
-	_check(wh != null and placed == 11 and qm.state_of("MQ20") == QuestManager.REWARDED, "겨울: 밀가루 3개를 창고 순환 벨트로 돌려 MQ20 완료 (벨트 %d칸, %s)" % [placed, qm.objective_line(QuestManager.quest_def("MQ20"), 0)])
+	_reach(qm, "MQ17")
+	inv.remove("wheat", inv.count_of("wheat"))  # 받은 밀을 다 팔아 버림
+	var o := _factory_line_spot(world)
+	var proc := world.build.place(PlaceableDB.get_def("manual_processor"), o) as Processor
+	_check(Calendar.season_of(GameState.day) == "winter" and qm.quest_material_usable() and qm.quest_material_left() == 1, "겨울 MQ17 · 밀 0 → 퀘스트 재료 1회")
+	_check(qm.use_quest_material(proc, 9) == 1 and proc.queue.size() == 1 and qm.quest_material_left() == 0 and qm.use_quest_material(proc, 1) == 0, "MQ17: 1회만 시작 (더 못 씀)")
+	_check(qm.state_of("MQ17") == QuestManager.ACTIVE, "시작만으로는 완료 아님 (가공 시간 필요)")
+	Events.time_advanced.emit(30.0)
+	_check(qm.state_of("MQ17") == QuestManager.ACTIVE, "30분: 아직")
+	Events.time_advanced.emit(31.0)
+	_check(qm.state_of("MQ17") == QuestManager.REWARDED and proc.output_count() == 1, "60분 → 밀가루 완성 → MQ17 완료 (결과물 1개 가공기 안)")
+	# MQ18: 벨트 5칸 + 운송 5 (가공기 → 벨트 → 창고)
+	var wh := world.build.place(PlaceableDB.get_def("warehouse"), o + Vector2i(7, 0)) as Warehouse
+	for x in range(2, 7):
+		world.build.place(PlaceableDB.get_def("conveyor"), o + Vector2i(x, 1), 3)
+		Events.facility_placed.emit("conveyor")  # 건설 모드로 놓은 것과 같게 (이 강제 상태에선 컨베이어 기술이 잠겨 있어 직접 놓음)
+	_check(qm.quest_material_left("MQ18") == 5, "MQ18 퀘스트 재료 5회")
+	qm.use_quest_material(proc, 5)
+	for i in 14:
+		Events.time_advanced.emit(30.0)
+	_check(qm.state_of("MQ18") == QuestManager.REWARDED and wh.storage.count_of("flour") >= 5, "MQ18: 퀘스트 재료 밀가루가 벨트로 창고에 (창고 %d)" % wh.storage.count_of("flour"))
+	# MQ19: 분배기 + 옆 벨트, 2회
+	world.build.remove(world.build.object_at(o + Vector2i(4, 1)))
+	world.build.place(PlaceableDB.get_def("splitter"), o + Vector2i(4, 1), 3)
+	world.build.place(PlaceableDB.get_def("conveyor"), o + Vector2i(4, 0), 2)
+	qm.use_quest_material(proc, 2)
+	for i in 8:
+		Events.time_advanced.emit(30.0)
+	_check(qm.state_of("MQ19") == QuestManager.REWARDED, "MQ19: 퀘스트 재료 2회로 분배기 두 출구 (%s)" % qm.objective_line(QuestManager.quest_def("MQ19"), 0))
+	# MQ20: 입고 5 (분배기 옆 막다른 벨트로 빠지는 것이 있어도)
+	var before := wh.storage.count_of("flour")
+	qm.use_quest_material(proc, 5)
+	for i in 16:
+		Events.time_advanced.emit(30.0)
+	_check(qm.state_of("MQ20") == QuestManager.REWARDED and qm.quest_material_left("MQ20") == 0, "MQ20: 퀘스트 재료 5회 → 창고 입고 5 → 완료 (창고 %d → %d)" % [before, wh.storage.count_of("flour")])
+	_check(qm.quest_material_used == {"MQ17": 1, "MQ18": 5, "MQ19": 2, "MQ20": 5}, "쓴 횟수 기록 %s (한 저장 최대 13)" % [qm.quest_material_used])
 	world.build.load_data(saved_build)
 	GameState.day = saved_day
 	qm.load_data(saved_story)
@@ -4191,25 +4325,28 @@ func _test_story_support(world: FarmWorld, hud: HUD) -> void:
 	_check(inv.count_of("wheat") == wheat_max, "자리가 나도 저절로 안 줌")
 	_check(qm.claim_support("MQ17", "wheat") == 2 and inv.count_of("wheat") == wheat_max + 2 and qm._support_left("MQ17").is_empty(), "[받기] → 나머지 2, 모두 4 (중복·유실 없음)")
 
-	# 받기 때 일부만: 밀가루 칸에 1 자리 → 1 받고 2 남음
+	# 받기 때 일부만: 밀 칸에 1 자리 → 1 받고 3 남음
 	qm.new_game()
 	inv.load_data([])
 	_fill_bag(inv)
-	_reach(qm, "MQ20")
-	_check(inv.count_of("flour") == 0 and qm._support_left("MQ20") == {"flour": 3}, "가방이 가득: MQ20 밀가루 3 대기")
+	_reach(qm, "MQ17")
 	inv.remove_at(0, inv.get_slot(0).count)
-	inv.add("flour", ItemDB.get_item("flour").max_stack - 1)
-	var f0 := inv.count_of("flour")
-	_check(qm.claim_support("MQ20", "flour") == 1 and inv.count_of("flour") == f0 + 1 and qm._support_left("MQ20") == {"flour": 2}, "[받기] 때 1 자리 → 1 받고 2 대기")
+	inv.add("wheat", wheat_max - 1)
+	var w0 := inv.count_of("wheat")
+	_check(qm.claim_support("MQ17", "wheat") == 1 and inv.count_of("wheat") == w0 + 1 and qm._support_left("MQ17") == {"wheat": 3}, "[받기] 때 1 자리 → 1 받고 3 대기")
 	world.save_manager.save_game("manual")
 	world.save_manager.load_game()
-	_check(qm._support_left("MQ20") == {"flour": 2} and inv.count_of("flour") == f0 + 1, "재접속해도 준 1 · 남은 2 그대로")
+	_check(qm._support_left("MQ17") == {"wheat": 3} and inv.count_of("wheat") == w0 + 1, "재접속해도 준 1 · 남은 3 그대로")
+	# MQ20 은 가방 지원 없음 (퀘스트 재료로 바뀜)
+	qm.new_game()
+	inv.load_data([])
+	_reach(qm, "MQ20")
+	_check(inv.count_of("flour") == 0 and qm.support_waiting().is_empty() and qm.quest_material_left("MQ20") == 5, "MQ20: 가방 밀가루 지원 없이 퀘스트 재료 5회")
 
 	# 예전 저장 이전 (story.support 없음): granted 로 판단, 못 받은 것은 대기 → 받기
 	inv.load_data([])
 	qm.load_data(_old_story(qm, "MQ20", QuestManager.ACTIVE, false))
-	_check(inv.count_of("flour") == 0 and qm._support_left("MQ20") == {"flour": 3} and qm._support_left("MQ17").is_empty(), "예전 저장: MQ20 진행 중 · 미지급 → 밀가루 3 대기 (MQ17 은 granted 라 이미 받음)")
-	_check(qm.claim_support("MQ20", "flour") == 3 and inv.count_of("flour") == 3, "예전 저장의 대기 물건도 [받기]로")
+	_check(inv.count_of("flour") == 0 and qm.support_waiting().is_empty() and qm.quest_material_left("MQ20") == 5, "예전 저장: MQ20 진행 중 · 밀가루 3 미지급 → 가방 대기 대신 퀘스트 재료 5회 (겹쳐 주지 않음)")
 	inv.load_data([])
 	qm.load_data(_old_story(qm, "MQ20", QuestManager.ACTIVE, true))
 	_check(qm.support_waiting().is_empty(), "예전 저장: MQ20 이미 받음 (granted) → 대기 없음")
@@ -4511,12 +4648,12 @@ func _test_story_play(world: FarmWorld, hud: HUD) -> void:
 	# MQ20 가공품 5개를 컨베이어로 창고에 (진행 중일 때만 셈)
 	var before := wh.storage.count_of("flour")
 	_check(qm.state_of("MQ20") == QuestManager.ACTIVE, "MQ20 시작")
-	_check(qm.quests["MQ20"].granted and inv.count_of("flour") == 3, "MQ20 시작: 밀가루 3개 받음 (%d)" % inv.count_of("flour"))
+	_check(qm.support_waiting().is_empty() and qm.quest_material_left("MQ20") == 5, "MQ20 시작: 가방 지원 없이 퀘스트 재료 5회 (%d)" % qm.quest_material_left("MQ20"))
 	_check(qm.objective_line(QuestManager.quest_def("MQ20"), 0).begins_with("가공품 5개를 컨베이어로 운반해 창고에 저장"), "MQ20 목표 글: %s" % qm.objective_line(QuestManager.quest_def("MQ20"), 0))
 	world.save_manager.save_game("manual")
 	world.save_manager.load_game()
 	qm._activate_ready()
-	_check(inv.count_of("flour") == 3, "저장·불러오기 뒤에도 밀가루 3개 그대로 (중복 지급 없음)")
+	_check(qm.quest_material_left("MQ20") == 5, "저장·불러오기 뒤에도 퀘스트 재료 5회 그대로")
 	wh = world.build.object_at(line + Vector2i(7, 0)) as Warehouse
 	proc = world.build.object_at(line) as Processor
 	var m20: int = qm.progress_of("MQ20")[0]
@@ -4526,8 +4663,20 @@ func _test_story_play(world: FarmWorld, hud: HUD) -> void:
 	Events.belt_delivered.emit(wh, "copper_ore")
 	Events.belt_delivered.emit(wh, "copper_bar")
 	_check(qm.progress_of("MQ20")[0] == m20, "컨베이어로 들어와도 작물·광석·주괴는 안 셈")
-	inv.add("wheat", 14)
-	proc.start(inv, "flour", 7)
+	# 가방에 밀이 없으니 가공기 창의 [퀘스트 재료 사용] → 5회 (재료 없이 실제 가공 시간)
+	inv.remove("wheat", inv.count_of("wheat"))
+	for i in 8:
+		Events.time_advanced.emit(30.0)
+	hud.open_processor(proc)
+	await get_tree().process_frame
+	var pp := hud._processor
+	pp._select("flour")
+	pp._set_runs(5)
+	pp.refresh()
+	_check(pp._quest_btn.visible and pp._quest_btn.text.contains("MQ20 남은 5회"), "가공기 창: [퀘스트 재료 사용] 보임 (%s)" % pp._quest_btn.text)
+	pp._quest_btn.pressed.emit()
+	_check(proc.queue.size() == 5 and inv.count_of("wheat") == 0 and qm.quest_material_left("MQ20") == 0, "퀘스트 재료로 밀가루 5회 시작 (가방 밀 0)")
+	hud._close_panels()
 	for i in 24:
 		Events.time_advanced.emit(30.0)
 	_check(qm.state_of("MQ20") == QuestManager.REWARDED and qm.flags.has("electric_project_open"), "MQ20: 가공 → 컨베이어 → 창고 입고 5 → 완료 (창고 밀가루 %d → %d)" % [before, wh.storage.count_of("flour")])
@@ -4536,15 +4685,11 @@ func _test_story_play(world: FarmWorld, hud: HUD) -> void:
 	qm._activate_ready()
 	_check(GameState.money == money_after and qm.state_of("MQ20") == QuestManager.REWARDED, "보상은 한 번만 (다시 불러도 그대로)")
 	_check(qm.quests.values().all(func(st: Dictionary) -> bool: return st.state == QuestManager.REWARDED), "MQ01 ~ MQ20 모두 완료")
-	# 이미 완료·보상받은 MQ20 은 (granted 기록이 없어도) 밀가루를 주지 않음
-	var flour0 := inv.count_of("flour")
-	for st_name: String in [QuestManager.REWARDED, QuestManager.COMPLETED]:
-		var d := qm.to_data()
-		d.quests["MQ20"].state = st_name
-		d.quests["MQ20"].granted = false
-		qm.load_data(d)
-		qm._activate_ready()
-	_check(inv.count_of("flour") == flour0, "완료·보상받은 MQ20 은 밀가루를 다시 주지 않음")
+	# 끝난 MQ20 은 퀘스트 재료를 쓸 수 없음 (쓴 기록을 지워도)
+	var d20 := qm.to_data()
+	d20.quest_material_used = {}
+	qm.load_data(d20)
+	_check(qm.quest_material_left("MQ20") == 0 and not qm.quest_material_usable(), "끝난 MQ20 은 퀘스트 재료 비활성")
 	_check(qm.project_problem("electric_repair") == "", "MQ20 뒤: 전력 복구 프로젝트를 시작할 수 있음")
 
 	# 기존 저장의 수동 가공기 (belt_out 키 없음): 컨베이어로 저절로 빠져나가지 않음

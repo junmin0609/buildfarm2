@@ -29,6 +29,8 @@ var _count_row: HBoxContainer
 var _toggle: Button
 var _auto_info: Label
 var _belt: Button
+## 퀘스트 재료 사용 (5단계 후속 2): 쓸 수 있을 때만 보인다
+var _quest_btn: Button
 
 
 func _ready() -> void:
@@ -105,6 +107,8 @@ func _ready() -> void:
 
 	_start = _button("가공 시작", _on_start)
 	right.add_child(_start)
+	_quest_btn = _button("", _on_quest_material)
+	right.add_child(_quest_btn)
 	_toggle = _button("자동 가공 켜기", _on_toggle)
 	right.add_child(_toggle)
 	_belt = _button("", func() -> void:
@@ -198,6 +202,13 @@ func refresh() -> void:
 	var busy := p.is_working()
 	_start.disabled = busy or _possible() <= 0 or p.recipe_problem(selected) != ""
 	_start.text = "가공 중이에요" if busy else "가공 시작 (%d회)" % runs
+	# 퀘스트 재료: 수동 가공기 · 쉬는 중 · 그 레시피를 고름 · 남은 횟수 있음 · 가방 재료 부족일 때만
+	var qm := QuestManager.current
+	var qrid := str(QuestManager.quest_material_cfg().get("recipe", "flour"))
+	var qok: bool = qm != null and not auto and not busy and selected == qrid and p.def.id == str(QuestManager.quest_material_cfg().get("machine", "")) and qm.quest_material_usable()
+	_quest_btn.visible = qok
+	if qok:
+		_quest_btn.text = "퀘스트 재료 사용 · %s (%s 남은 %d회)" % [ItemDB.get_item(RecipeDB.get_recipe(qrid).output).name, qm.quest_material_quest(), qm.quest_material_left()]
 
 	# 진행 상태
 	var r := p.recipe()
@@ -325,6 +336,12 @@ func _on_start() -> void:
 		problem = "재료가 부족해요."
 	if problem != "":
 		Events.toast.emit(problem)
+
+
+func _on_quest_material() -> void:
+	# 횟수 선택은 가방 재료 기준이라, 퀘스트 재료는 남은 횟수를 한 번에 쓴다 (버튼에 적힌 '남은 N회')
+	if QuestManager.current == null or QuestManager.current.use_quest_material(processor, QuestManager.current.quest_material_left()) == 0:
+		Events.toast.emit("지금은 퀘스트 재료를 쓸 수 없어요.")
 
 
 func _on_toggle() -> void:

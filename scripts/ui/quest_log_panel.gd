@@ -116,7 +116,8 @@ func refresh() -> void:
 ## 받을 지원 물건 (support_waiting). 아이템 이름 · 남은 수 · [받기] 또는 '가방 공간 부족'
 func _fill_support() -> void:
 	var waiting := quests.support_waiting()
-	if waiting.is_empty():
+	var qmat := quests.quest_material_left() if quests.quest_material_usable() else 0  # 가방에 밀이 없을 때만 안내
+	if waiting.is_empty() and qmat <= 0:
 		return
 	var box := VBoxContainer.new()
 	box.name = "Support"
@@ -149,6 +150,11 @@ func _fill_support() -> void:
 			full.custom_minimum_size = Vector2.ZERO  # _small 의 기본 폭(940)이면 창이 화면 밖으로 넓어진다
 			line.add_child(full)
 		box.add_child(line)
+	if qmat > 0:
+		# 퀘스트 재료 (5단계 후속 2): 받는 물건이 아니라 수동 가공기에서 쓰는 횟수 → 사용 방법 안내
+		var qline := _small("· 퀘스트 재료: %s 남은 %d회 — 가방에 밀이 없을 때 수동 가공기에서 밀가루를 고르고 [퀘스트 재료 사용]" % [quests.quest_material_quest(), qmat], TEXT)
+		qline.name = "QuestMaterial"
+		box.add_child(qline)
 	_list.add_child(box)
 
 

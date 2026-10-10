@@ -40,6 +40,8 @@ var quests := {}
 var support := {}
 ## 지원 물건을 주는 중 (주면서 생긴 가방 신호로 다시 들어오지 않게)
 var _paying := false
+## 퀘스트 재료로 시작한 가공 횟수 {퀘스트 id: 회} (data quest_materials.runs 까지, 취소·철거하면 돌려받음)
+var quest_material_used := {}
 ## 한 번이라도 일어난 일 (예: "visited:plaza") — 상태형 목표가 받기 전 일도 인정하려고
 var flags := {}
 var era := "pioneer"
@@ -79,7 +81,8 @@ func _ready() -> void:
 	current = self
 	new_game()
 	Events.sign_read.connect(func(sign_id: String) -> void: _on_event("talk_sign", sign_id, 1))
-	Events.soil_tilled.connect(func(_cell: Vector2i) -> void: _on_event("till", "", 1))
+	# 밭 갈기 (MQ03): 농장에 갈아 둔 칸 수로 센다 (받기 전에 간 칸도 인정, 같은 칸은 한 번, 5단계 후속)
+	Events.soil_tilled.connect(func(_cell: Vector2i) -> void: _refresh_state_objectives())
 	Events.seed_planted.connect(func(_cell: Vector2i, seed_id: String) -> void: _on_event("plant", seed_id, 1))
 	Events.crop_watered.connect(func(_cell: Vector2i) -> void: _on_event("water", "", 1))
 	Events.watering_can_refilled.connect(func(amount: int) -> void: _on_event("refill", "", 1 if amount > 0 else 0))
@@ -132,6 +135,7 @@ func new_game() -> void:
 	project_given.clear()
 	projects_done.clear()
 	support.clear()
+	quest_material_used.clear()
 	legacy = false
 	era = era_ids()[0] if not era_ids().is_empty() else "pioneer"
 	for tech_id: String in data().get("techs", {}):
@@ -467,6 +471,9 @@ func _refresh_state_objectives() -> void:
 			var key := ("visited:" if o.type == "visit" else str(o.type) + ":") + str(o.get("target", ""))
 			if o.type in STATE_TYPES and flags.has(key):
 				quests[q.id].progress[i] = int(o.get("count", 1))
+			elif o.type == "till" and world and world.farm:
+				# 농장 데이터(FarmGrid.tiles: 갈아 둔 칸 → SoilTile)를 그대로 센다. 칸이 다시 풀밭이 돼도 진행도는 줄지 않음
+				quests[q.id].progress[i] = maxi(int(quests[q.id].progress[i]), mini(int(o.get("count", 1)), world.farm.tiles.size()))
 		_check_complete(q)
 	Events.quest_changed.emit("")
 
@@ -525,8 +532,11 @@ func projects_for_npc(npc_id: String) -> Array[String]:
 	return out
 
 
-## HUD 안내: 지금 따라가는 퀘스트에 넣을 수 있는 복구 프로젝트가 있으면 "Q → 기술·복구 탭에서 납품 (또는 대장장이 철수)"
+## HUD 안내: 지금 따라가는 퀘스트에 넣을 수 있는 복구 프로젝트가 있으면 "Q → 기술·복구 탭에서 납품 (또는 대장장이 철수)",
+## 가공 재료 보충을 받을 수 있으면 "Q → 퀘스트 창에서 가공 재료(밀) 받기"
 func project_hint() -> String:
+	if quest_material_usable():
+		return "가방에 밀이 없으면 수동 가공기에서 [퀘스트 재료 사용] (남은 %d회)" % quest_material_left()
 	var q := tracked()
 	for o: Dictionary in q.get("objectives", []):
 		var pid := str(o.get("target", ""))
@@ -826,6 +836,62 @@ func claim_support(quest_id: String, item_id: String) -> int:
 	return put
 
 
+# ---------- 퀘스트 재료 (5단계 후속 2): 수동 가공기에서 재료 없이 돌릴 수 있는 횟수 (가방 아이템이 아님)
+
+static func quest_material_cfg() -> Dictionary:
+	return data().get("quest_materials", {})
+
+
+## 퀘스트 재료를 쓰는 퀘스트 (지금 진행 중인 것, 없으면 "")
+func quest_material_quest() -> String:
+	var id := str(tracked().get("id", ""))
+	return id if quest_material_cfg().get("runs", {}).has(id) else ""
+
+
+## 이 퀘스트에서 남은 퀘스트 재료 횟수 (진행 중이 아니면 0 — 끝난 퀘스트는 쓸 수 없음)
+func quest_material_left(quest_id := "") -> int:
+	if quest_id == "":
+		quest_id = quest_material_quest()
+	if quest_id == "" or state_of(quest_id) != ACTIVE:
+		return 0
+	return maxi(0, int(quest_material_cfg().get("runs", {}).get(quest_id, 0)) - int(quest_material_used.get(quest_id, 0)))
+
+
+## 지금 수동 가공기에서 [퀘스트 재료 사용]을 보여 줄까: 남은 횟수가 있고, 가방 재료로는 1회도 못 돌릴 때 (가방 밀과 겹쳐 주지 않게)
+func quest_material_usable() -> bool:
+	if quest_material_left() <= 0:
+		return false
+	var r := RecipeDB.get_recipe(str(quest_material_cfg().get("recipe", "flour")))
+	return not r.is_empty() and Processor.runs_possible(GameState.inventory, r, 1) == 0
+
+
+## 이 가공기로 퀘스트 재료를 runs 회까지 쓴다. 실제로 시작한 횟수 (못 하면 0)
+func use_quest_material(processor: Processor, runs: int) -> int:
+	var cfg := quest_material_cfg()
+	if processor == null or processor.def == null or processor.def.id != str(cfg.get("machine", "manual_processor")) or not quest_material_usable():
+		return 0
+	var qid := quest_material_quest()
+	var n := processor.start_quest_runs(str(cfg.get("recipe", "flour")), mini(runs, quest_material_left(qid)), qid)
+	if n > 0:
+		quest_material_used[qid] = int(quest_material_used.get(qid, 0)) + n
+		Events.toast.emit("퀘스트 재료로 %s %d회 가공 시작 (남은 %d회)" % [ItemDB.get_item(RecipeDB.get_recipe(str(cfg.recipe)).output).name, n, quest_material_left(qid)])
+		Events.quest_changed.emit(qid)
+	return n
+
+
+## 가공기에서 퀘스트 재료 회차를 취소·철거했다 → 횟수를 돌려준다 (재료 아이템은 생기지 않음)
+func refund_quest_material(quest_id: String, runs: int) -> void:
+	if runs <= 0 or not quest_material_used.has(quest_id):
+		return
+	quest_material_used[quest_id] = maxi(0, int(quest_material_used[quest_id]) - runs)
+	Events.quest_changed.emit(quest_id)
+
+
+static func refund_quest_material_now(quest_id: String, runs: int) -> void:
+	if is_instance_valid(current):
+		current.refund_quest_material(quest_id, runs)
+
+
 ## 지금 1개라도 받을 수 있는가 (퀘스트 창 표시용)
 static func can_receive(item_id: String) -> bool:
 	return GameState.inventory.can_add(item_id, 1)
@@ -836,7 +902,7 @@ static func can_receive(item_id: String) -> bool:
 func to_data() -> Dictionary:
 	return {"era": era, "techs": techs.duplicate(), "quests": quests.duplicate(true), "flags": flags.duplicate(), "legacy": legacy,
 		"projects": {"given": project_given.duplicate(true), "done": projects_done.duplicate()},
-		"support": support.duplicate(true)}
+		"support": support.duplicate(true), "quest_material_used": quest_material_used.duplicate()}
 
 
 ## 받은 데이터가 통째로 틀리면 false. 퀘스트 id 가 데이터에 없으면 건너뛰고, 데이터에 새로 생긴 퀘스트는 잠긴 상태로 시작
@@ -899,6 +965,13 @@ func load_data(d: Variant) -> bool:
 						keep[str(k)] = (seen[k] as Array).map(func(v: Variant) -> String: return str(v))
 				quests[q.id]["seen"] = keep
 	_load_support(d.get("support", null))
+	# 퀘스트 재료 쓴 횟수 (없는 예전 저장은 0회 → 진행 중인 MQ17~MQ20 도 바로 쓸 수 있음)
+	var qmu: Variant = d.get("quest_material_used", {})
+	if qmu is Dictionary:
+		for k: Variant in qmu:
+			var cap := int(quest_material_cfg().get("runs", {}).get(str(k), 0))
+			if cap > 0 and typeof(qmu[k]) in [TYPE_INT, TYPE_FLOAT]:
+				quest_material_used[str(k)] = clampi(int(qmu[k]), 0, cap)
 	_activate_ready()
 	_try_rewards()
 	Events.quest_changed.emit("")

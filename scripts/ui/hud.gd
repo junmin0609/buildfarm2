@@ -19,6 +19,10 @@ var _prompt: Label
 var _prompt_box: PanelContainer
 var _clock_icon: TextureRect
 var _toast: Label
+## 알림 한 줄의 최대 폭 (기준 화면 1280 안에 들어가게)
+const TOAST_MAX_WIDTH := 1000.0
+## 오른쪽 위 날짜·시계·돈 칸 (토스트 위치 계산용)
+var _info_box: Control
 var _toast_tween: Tween
 var _fade: ColorRect
 var _hotbar: Hotbar
@@ -607,6 +611,20 @@ func _on_day_ending_soon(seconds_left: float) -> void:
 
 func show_toast(text: String) -> void:
 	_toast.text = text
+	# 위쪽 줄(왼쪽 퀘스트 추적 · 오른쪽 시계 칸) 바로 아래에 띄운다 → 긴 알림도 두 칸과 겹치지 않음
+	var top := 20.0
+	for box: Control in [_quest_tracker, _info_box]:
+		if box and box.visible:
+			top = maxf(top, box.get_global_rect().end.y + 8.0)
+	_toast.offset_top = top
+	_toast.offset_bottom = top
+	# 화면보다 긴 알림은 폭 TOAST_MAX_WIDTH 에서 줄을 바꾼다 (짧은 알림은 글 길이 그대로)
+	var w := _toast.get_theme_font("font").get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, _toast.get_theme_font_size("font_size")).x
+	_toast.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if w > TOAST_MAX_WIDTH else TextServer.AUTOWRAP_OFF
+	_toast.custom_minimum_size = Vector2(TOAST_MAX_WIDTH, 0) if w > TOAST_MAX_WIDTH else Vector2.ZERO
+	_toast.offset_left = 0
+	_toast.offset_right = 0
+	_toast.reset_size()
 	_toast.show()
 	_toast.modulate.a = 1.0
 	if _toast_tween:
@@ -658,6 +676,7 @@ func _build_info() -> void:
 	Events.time_changed.connect(func(_d: int, _m: int) -> void: _update_power())  # 전기 양은 시간에 따라 계속 바뀐다
 	panel.custom_minimum_size = Vector2(230, 0)
 	_place(panel, Vector2(1.0, 0.0), Vector2(-16, 16), Control.GROW_DIRECTION_BEGIN, Control.GROW_DIRECTION_END)
+	_info_box = panel
 
 
 ## "전기 350 / 600" (지역 전기 통에 남은 전기 / 통 크기). 비어 있으면 빨간색. 발전기가 없으면 숨김

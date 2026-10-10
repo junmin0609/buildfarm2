@@ -39,6 +39,8 @@ func _ready() -> void:
 	box.add_child(_hint)
 	Events.quest_changed.connect(func(_id: String) -> void: refresh())
 	Events.game_loaded.connect(refresh)
+	Events.inventory_changed.connect(refresh)
+	Events.day_started.connect(func(_d: int) -> void: refresh())
 	refresh()
 
 

@@ -4,8 +4,13 @@ extends Node
 ## 2단계: --verify 로 다시 켜서 대기 파일을 불러와 저절로 안 주는지 · [받기] 한 번만 되는지 확인
 
 func _ready() -> void:
+	# 감시 타이머: 스크립트 오류로 quit 에 못 닿아도 60초 뒤 끝낸다 (5단계 후속 2)
+	get_tree().create_timer(60.0, true, false, true).timeout.connect(func() -> void:
+		print("SUPPORT_TIMEOUT")
+		get_tree().quit(3))
 	var verify := "--verify" in OS.get_cmdline_user_args()
-	SaveManager.slot_path = "user://ckpt_support_space.json" if verify else "user://support_tmp.json"
+	var tmp := "user://support_tmp_%d.json" % OS.get_process_id()
+	SaveManager.slot_path = "user://ckpt_support_space.json" if verify else tmp
 	SaveManager.load_on_start = verify
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
@@ -36,6 +41,6 @@ func _ready() -> void:
 	world.save_manager.save_game("manual")
 	DirAccess.copy_absolute(ProjectSettings.globalize_path(SaveManager.slot_path), ProjectSettings.globalize_path("user://ckpt_support_space.json"))
 	print("SUPPORT_CKPT pending=%s wheat=%d" % [qm._support_left("MQ17"), inv.count_of("wheat")])
-	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://support_tmp.json"))
-	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://support_tmp.json.bak"))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(tmp + ".bak"))
 	get_tree().quit()
