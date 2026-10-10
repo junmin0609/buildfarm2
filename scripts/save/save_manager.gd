@@ -17,7 +17,7 @@ extends Node
 ## 3: 가게 실내를 12x9 로 키우며 방 자리를 옮김 (무드 개편)
 ## 4: 농장을 동쪽·남쪽으로 넓히고 개울·광장·하늘섬·실내를 동쪽으로 옮김
 ## 5: 카메라를 넓게 보면서 하늘섬·가게 실내의 여백을 넓히고 자리를 옮김
-const VERSION := 5
+const VERSION := 6
 
 ## 세이브 파일 위치 (점검·화면 확인 스크립트는 다른 파일을 쓰도록 바꾼다)
 static var slot_path := "user://save_slot_1.json"
@@ -43,6 +43,7 @@ func _ready() -> void:
 	register("player", world.player.to_data, world.player.load_data)
 	if world.shipping_bin:
 		register("shipping_bin", world.shipping_bin.to_data, world.shipping_bin.load_data)
+	register("story", world.quests.to_data, world.quests.load_data)
 	world.day_cycle.add_step(DayCycle.SAVE, func(_report: Dictionary) -> void: save_game("auto"))
 	Events.save_requested.connect(_on_save_requested)
 	Events.load_requested.connect(_on_load_requested)
@@ -164,6 +165,10 @@ func _migrate(data: Dictionary) -> Dictionary:
 		var p4: Variant = data.sections.get("player")
 		if p4 is Dictionary and p4.get("position") is Array and p4.position.size() == 2 and float(p4.position[0]) >= MapLayout.size().x * FarmWorld.TILE:
 			p4.position = [world.home_position.x, world.home_position.y]
+	if int(data.version) < 6:
+		# 스토리·퀘스트·기술 발전 이전의 저장: 돈·아이템·건물·해금은 그대로, 기술 제한 없음 (legacy).
+		# 퀘스트는 MQ01 부터 직접 진행해 보상을 받는다 (사용자 결정 3: 지난 기록만으로 보상하지 않음)
+		data.sections["story"] = {"legacy": true}
 	data.version = VERSION
 	return data
 

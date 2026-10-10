@@ -39,6 +39,15 @@ signal travelled(to: String)
 signal sky_station_restored
 ## 가게 건물 문 [E] → 그 실내로 (room_id: "store" · "smith" · "machine")
 signal enter_requested(room_id: String)
+## 스토리·퀘스트 (QuestManager 가 듣는다). 농사 행동은 실제로 일어났을 때만 보낸다
+signal sign_read(sign_id: String)
+signal soil_tilled(cell: Vector2i)
+signal seed_planted(cell: Vector2i, seed_id: String)
+signal crop_watered(cell: Vector2i)
+signal watering_can_refilled(amount: int)
+signal crop_harvested(item_id: String, count: int)
+## 퀘스트 상태가 바뀜 (HUD 추적용, 2단계)
+signal quest_changed(quest_id: String)
 ## 광산 n 층으로 (0 = 입구층). 동굴 입구 · 사다리 · 엘리베이터가 보낸다 (Mine.go_to)
 signal mine_requested(floor_no: int)
 ## 실내 NPC [E] → 대화 창

@@ -128,6 +128,7 @@ func advance(minutes: float) -> Array[Dictionary]:
 		_world.farm.finish_harvest(target)
 		_add(output, str(res.id), str(res.quality), int(res.count))
 		GameState.discover(str(res.id))
+		Events.crop_harvested.emit(str(res.id), int(res.count))
 		got.append(res)
 		progress = 0.0
 	if not got.is_empty() or was_starved != starved:

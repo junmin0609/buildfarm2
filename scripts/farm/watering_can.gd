@@ -73,6 +73,7 @@ static func refill(inv: Inventory, index: int, source: Node) -> int:
 	var got: int = source.provide_water(need)
 	if got > 0:
 		inv.set_slot_value(index, "water", water_left(inv, index) + got)
+		Events.watering_can_refilled.emit(got)
 	return got
 
 

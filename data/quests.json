@@ -1,0 +1,103 @@
+{
+	"_comment": "스토리·메인 퀘스트·기술 발전 (Buildfarm_스토리_퀘스트_기술발전_개발명세서_v1.0, 사용자 결정 반영). QuestManager(scripts/story/quest_manager.gd) 가 읽는다. 아이템 id 는 실제 id. 1단계: MQ01~MQ05 목표 판정만 연결 (나머지 목표 종류는 다음 단계에서 연결)",
+
+	"_eras": "시대 순서. 시대는 해금 상태일 뿐 맵·건물을 바꾸지 않는다",
+	"eras": [
+		{"id": "pioneer", "name": "개척시대"},
+		{"id": "metal", "name": "금속시대"},
+		{"id": "mechanical", "name": "기계시대"},
+		{"id": "electric", "name": "전기시대"},
+		{"id": "advanced", "name": "첨단시대"}
+	],
+
+	"_techs": "기술 (사용자 결정 8). items = 이 기술이 여는 아이템·시설 id. start = 새 게임 시작부터. 새 게임에만 제한을 건다 (기존 저장은 모두 열림, 사용자 결정 3). 실제 구매·설치 제한은 3단계",
+	"techs": {
+		"basic_farming": {"name": "기본 농사", "era": "pioneer", "start": true, "items": ["hoe", "watering_can", "axe", "pickaxe", "shipping_bin"]},
+		"basic_buildings": {"name": "기본 건설 시설", "era": "pioneer", "items": ["scarecrow", "shed", "compost_bin", "greenhouse"], "_note": "MQ08 '낡은 제작대' 를 이 시설들을 여는 프로젝트로 (사용자 결정 4)"},
+		"mine_access": {"name": "광산 입장", "era": "metal"},
+		"basic_smelting": {"name": "제련", "era": "metal", "items": ["furnace"], "_note": "용광로는 금속시대부터 대장간에서 판매 (사용자 결정 6)"},
+		"tool_upgrade": {"name": "도구 강화", "era": "metal"},
+		"manual_processing": {"name": "수동 가공", "era": "mechanical", "items": ["manual_processor"]},
+		"conveyor": {"name": "컨베이어", "era": "mechanical", "items": ["conveyor"]},
+		"warehouse_basic": {"name": "창고", "era": "mechanical", "items": ["warehouse"]},
+		"sprinkler_basic": {"name": "하급 스프링클러", "era": "mechanical", "items": ["sprinkler_1"]},
+		"splitter": {"name": "분배기", "era": "mechanical", "items": ["splitter"]},
+		"merger": {"name": "합류기", "era": "mechanical", "items": ["merger"]},
+		"electric_grid": {"name": "전력", "era": "electric", "items": ["small_generator"]},
+		"electric_processing": {"name": "전기 가공", "era": "electric", "items": ["electric_processor", "mid_processor"]},
+		"water_supply": {"name": "물 공급", "era": "electric", "items": ["pump", "water_tank"]},
+		"filter_routing": {"name": "필터 분배", "era": "electric", "items": ["filter_splitter"]},
+		"sprinkler_mid": {"name": "중급 스프링클러", "era": "electric", "items": ["sprinkler_2"]},
+		"auto_harvest": {"name": "자동 수확", "era": "electric", "items": ["harvester_1", "harvester_2"]},
+		"advanced_automation": {"name": "상급 자동화", "era": "advanced", "items": ["sprinkler_3", "harvester_3"]},
+		"sky_station": {"name": "하늘섬 정류장", "era": "advanced", "_note": "하늘섬·정류장 기존 구현 보존 (사용자 결정 10)"}
+	},
+
+	"_projects": "기술 복구 프로젝트 (명세 4장, 사용자 결정 9: 기계 연구는 구리 주괴 8 + 500 G, 철 없음). advanced_research 의 조건은 나중에 (사용자 결정 10)",
+	"projects": {
+		"workbench_repair": {"name": "낡은 제작대 복구", "items": {"wood": 15, "stone": 10}, "money": 0, "unlock": ["basic_buildings"]},
+		"mine_repair": {"name": "광산 입구 수리", "items": {"wood": 10, "stone": 10}, "money": 0, "unlock": ["mine_access", "basic_smelting", "tool_upgrade"], "era": "metal"},
+		"mechanical_research": {"name": "기계 기술 복구", "items": {"copper_bar": 8}, "money": 500, "unlock": ["manual_processing", "conveyor", "warehouse_basic", "sprinkler_basic"], "era": "mechanical"},
+		"electric_repair": {"name": "전력 복구", "items": {"iron_bar": 10, "copper_bar": 10}, "money": 2000, "unlock": ["electric_grid", "electric_processing", "water_supply", "filter_routing", "sprinkler_mid", "auto_harvest"], "era": "electric"},
+		"advanced_research": {"name": "첨단 연구", "items": {}, "money": 10000, "unlock": ["advanced_automation", "sky_station"], "era": "advanced", "_todo": "희귀 광물·자동 생산 100개·지역 복구 조건은 나중에 (사용자 결정 10)"}
+	},
+
+	"_areas": "방문 판정 영역 (농장 맵 칸). plaza = 개울 다리 동쪽",
+	"areas": {"plaza": {"min_x": 51}},
+
+	"_quests": "objectives: type (talk_sign · visit · clear_obstacle · till · plant · water · refill · harvest · ship · deliver · talk_npc · collect · mine_floor · smelt · upgrade_tool · project · place · convey · split · store_processed · process ...), target, count. 이벤트형은 퀘스트가 진행 중일 때만 센다, visit 같은 상태형은 그 전에 해 둔 것도 인정. rewards: money · items · unlock(기술) · era. on_activate_items 는 퀘스트를 받을 때 한 번 (저장에 기록)",
+	"quests": [
+		{"id": "MQ01", "chapter": 1, "title": "낯선 고향", "description": "농장 앞 안내판을 읽고 광장에 가 보자.",
+			"objectives": [{"type": "talk_sign", "target": "farm_sign", "count": 1, "text": "농장 안내판 읽기"}, {"type": "visit", "target": "plaza", "count": 1, "text": "광장에 가 보기"}],
+			"rewards": {"items": {"potato_seed": 5}}, "_reward": "기본 도구는 처음 지급과 겹쳐서 감자 씨앗 5 (사용자 결정 1)"},
+		{"id": "MQ02", "chapter": 1, "title": "엉망이 된 밭", "description": "밭을 덮은 잡초와 나뭇가지를 치우자.", "prerequisites": ["MQ01"],
+			"objectives": [{"type": "clear_obstacle", "target": "weed", "count": 10, "text": "잡초 치우기"}, {"type": "clear_obstacle", "target": "branch", "count": 5, "text": "나뭇가지 치우기"}],
+			"rewards": {"items": {"potato_seed": 5}}},
+		{"id": "MQ03", "chapter": 1, "title": "첫 번째 씨앗", "description": "괭이로 땅을 갈고 씨앗을 심자.", "prerequisites": ["MQ02"],
+			"objectives": [{"type": "till", "count": 5, "text": "밭 갈기"}, {"type": "plant", "count": 5, "text": "씨앗 심기"}],
+			"rewards": {"items": {"carrot_seed": 3}}},
+		{"id": "MQ04", "chapter": 1, "title": "물이 닿는 곳", "description": "심은 씨앗에 물을 주고, 우물에서 물뿌리개를 채우자.", "prerequisites": ["MQ03"],
+			"objectives": [{"type": "water", "count": 5, "text": "밭에 물 주기"}, {"type": "refill", "count": 1, "text": "물뿌리개 채우기"}],
+			"rewards": {"money": 100}},
+		{"id": "MQ05", "chapter": 1, "title": "첫 수확의 기쁨", "description": "다 자란 작물을 거두자.", "prerequisites": ["MQ04"],
+			"objectives": [{"type": "harvest", "count": 5, "text": "작물 거두기"}],
+			"rewards": {"money": 200}},
+
+		{"id": "MQ06", "chapter": 2, "title": "첫 거래", "description": "출하함에 작물을 넣어 팔자.", "prerequisites": ["MQ05"],
+			"objectives": [{"type": "ship", "target": "kind:crop", "count": 3, "text": "출하함으로 작물 팔기"}], "rewards": {"money": 150}},
+		{"id": "MQ07", "chapter": 2, "title": "씨앗상점의 부탁", "description": "잡화점 하나에게 작물을 가져다주자.", "prerequisites": ["MQ06"],
+			"objectives": [{"type": "talk_npc", "target": "store", "count": 1, "text": "잡화점 주인과 이야기"}, {"type": "deliver", "target": "kind:crop", "count": 3, "npc": "store", "text": "작물 아무거나 3개 납품"}],
+			"rewards": {"money": 200}, "_note": "감자 대신 작물 아무거나 (사용자 결정 2)"},
+		{"id": "MQ08", "chapter": 2, "title": "낡은 제작대", "description": "목재와 돌을 모아 낡은 제작대를 고치면 건설 시설을 지을 수 있다.", "prerequisites": ["MQ07"],
+			"objectives": [{"type": "project", "target": "workbench_repair", "count": 1, "text": "목재 15 · 돌 10 납품"}], "rewards": {}},
+		{"id": "MQ09", "chapter": 2, "title": "꺼진 대장간", "description": "대장장이 철수가 석탄을 찾는다. 광산 입구의 폐탄더미를 뒤져 보자.", "prerequisites": ["MQ08"],
+			"objectives": [{"type": "talk_npc", "target": "smith", "count": 1, "text": "대장장이와 이야기"}, {"type": "deliver", "target": "coal", "count": 3, "npc": "smith", "text": "석탄 3개 전달 (폐탄더미)"}],
+			"rewards": {"flags": ["mine_hint"]}},
+		{"id": "MQ10", "chapter": 2, "title": "광산으로 향하는 길", "description": "광산 입구를 막은 잔해를 치우자.", "prerequisites": ["MQ09"],
+			"objectives": [{"type": "visit", "target": "mine_entrance", "count": 1, "text": "광산 입구 가 보기"}, {"type": "clear_obstacle", "target": "mine_debris", "count": 5, "text": "입구 잔해 치우기"}],
+			"rewards": {"money": 300}},
+
+		{"id": "MQ11", "chapter": 3, "title": "닫혀 있던 문", "description": "광산 입구를 고쳐 다시 열자.", "prerequisites": ["MQ10"],
+			"objectives": [{"type": "project", "target": "mine_repair", "count": 1, "text": "목재 10 · 돌 10 납품"}], "rewards": {}},
+		{"id": "MQ12", "chapter": 3, "title": "첫 번째 광맥", "description": "광산에서 구리 광석을 캐자.", "prerequisites": ["MQ11"],
+			"objectives": [{"type": "collect", "target": "copper_ore", "count": 6, "text": "구리 광석 캐기"}], "rewards": {"money": 200}},
+		{"id": "MQ13", "chapter": 3, "title": "다시 타오르는 불", "description": "대장간에서 용광로를 사서 구리 주괴를 구워 보자.", "prerequisites": ["MQ12"],
+			"objectives": [{"type": "smelt", "target": "copper_bar", "count": 1, "text": "구리 주괴 굽기"}], "rewards": {}},
+		{"id": "MQ14", "chapter": 3, "title": "대장장이의 시험", "description": "구리 주괴로 도구 하나를 구리 단계로 강화하자.", "prerequisites": ["MQ13"],
+			"objectives": [{"type": "upgrade_tool", "target": "copper", "count": 1, "text": "도구 구리 강화"}], "rewards": {"money": 300}},
+		{"id": "MQ15", "chapter": 3, "title": "오래된 설계도", "description": "광산 5층까지 내려가 옛 기계 설계도를 찾자.", "prerequisites": ["MQ14"],
+			"objectives": [{"type": "mine_floor", "count": 5, "text": "광산 5층 도달"}, {"type": "find_blueprint", "count": 1, "text": "기계 설계도 조사"}], "rewards": {}},
+
+		{"id": "MQ16", "chapter": 4, "title": "기계상점의 설계도", "description": "설계도를 기계상점 미나에게 보여 주고 기계 기술을 되살리자.", "prerequisites": ["MQ15"],
+			"objectives": [{"type": "project", "target": "mechanical_research", "count": 1, "text": "구리 주괴 8 · 500 G"}, {"type": "talk_npc", "target": "machine", "count": 1, "text": "설계도 전달"}], "rewards": {}},
+		{"id": "MQ17", "chapter": 4, "title": "첫 번째 가공품", "description": "수동 가공기로 밀가루를 만들자.", "prerequisites": ["MQ16"],
+			"on_activate_items": {"wheat": 4}, "_note": "계절 상관없이 밀 4개를 한 번 (사용자 결정 2)",
+			"objectives": [{"type": "process", "target": "flour", "machine": "manual_processor", "count": 1, "text": "수동 가공기로 밀가루 만들기"}], "rewards": {"money": 300}},
+		{"id": "MQ18", "chapter": 4, "title": "움직이는 물건들", "description": "컨베이어를 놓고 물건을 옮겨 보자.", "prerequisites": ["MQ17"],
+			"objectives": [{"type": "place", "target": "conveyor", "count": 5, "text": "컨베이어 5칸 설치"}, {"type": "convey", "count": 5, "text": "컨베이어로 물건 옮기기"}], "rewards": {"unlock": ["splitter"]}},
+		{"id": "MQ19", "chapter": 4, "title": "갈라지는 길", "description": "분배기로 물건을 두 길로 나눠 보내자.", "prerequisites": ["MQ18"],
+			"objectives": [{"type": "split", "count": 2, "text": "분배기 두 출구로 보내기"}], "rewards": {"unlock": ["merger"]}},
+		{"id": "MQ20", "chapter": 4, "title": "첫 번째 생산라인", "description": "가공기에서 나온 가공품을 컨베이어로 창고까지 보내자.", "prerequisites": ["MQ19"],
+			"objectives": [{"type": "store_processed", "count": 5, "text": "가공품 5개 창고 입고 (가공기 → 컨베이어 → 창고)"}], "rewards": {"money": 1000, "flags": ["electric_project_open"]}}
+	]
+}

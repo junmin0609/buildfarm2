@@ -77,6 +77,7 @@ func till(cell: Vector2i) -> bool:
 	tile.watered = not is_indoor(cell) and Weather.waters_soil(GameState.weather)
 	tiles[cell] = tile
 	_changed(cell)
+	Events.soil_tilled.emit(cell)
 	return true
 
 
@@ -96,6 +97,7 @@ func water(cell: Vector2i) -> bool:
 		return false
 	tile.watered = true
 	_changed(cell)
+	Events.crop_watered.emit(cell)
 	return true
 
 
@@ -142,6 +144,7 @@ func plant(cell: Vector2i, seed_def: ItemDef) -> bool:
 	tile.days_grown = 0
 	tile.regrowing = false
 	_changed(cell)
+	Events.seed_planted.emit(cell, seed_def.id)
 	return true
 
 

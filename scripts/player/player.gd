@@ -262,6 +262,7 @@ func _try_harvest(cell: Vector2i) -> bool:
 		return true
 	farm.finish_harvest(cell)
 	GameState.inventory.add(got.id, got.count, got.quality)
+	Events.crop_harvested.emit(str(got.id), int(got.count))
 	Events.toast.emit("%s(%s) %d개 수확!" % [ItemDB.get_item(got.id).name, Quality.name_of(got.quality), got.count])
 	return true
 

@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://scripts/world/prop.gd" id="1_prop"]
+[ext_resource type="Script" path="res://scripts/world/info_sign.gd" id="1_prop"]
 [ext_resource type="Texture2D" path="res://assets/art/farm_sign.png" id="2_tex"]
 
 [node name="FarmSign" type="Node2D"]
@@ -10,3 +10,5 @@ foot = Vector2(32, 32)
 collision = Rect2(-18, -3, 36, 3)
 sign_text = "내 농장"
 sign_rect = Rect2(6, 3, 56, 18)
+sign_id = "farm_sign"
+message = "← 내 농장. 할아버지가 남긴 밭이다. 잡초부터 치우고, 다리 건너 광장에서 씨앗을 사자."

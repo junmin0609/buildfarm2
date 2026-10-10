@@ -245,6 +245,7 @@ func _ready() -> void:
 	await _test_townsfolk(world, hud)
 	_test_mine(world, hud)
 	_test_furnace_tools(world)
+	await _test_story(world)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -3765,6 +3766,174 @@ func _test_furnace_tools(world: FarmWorld) -> void:
 	_check(ItemDB.get_item("pickaxe_4").power > ItemDB.get_item("pickaxe_3").power and ItemDB.get_item("pickaxe_3").power > ItemDB.get_item("pickaxe_2").power, "곡괭이 세기 2 → 3 → 5")
 	inv.load_data(saved_inv)
 	GameState.money = saved_money
+
+
+## 스토리·메인 퀘스트·기술 발전 1단계 (명세 v1.0 + 사용자 결정): 데이터 · 퀘스트 상태 · MQ01~05 · 보상 한 번 · 저장 · 기존 저장(legacy)
+func _test_story(world: FarmWorld) -> void:
+	var qm := world.quests
+	var inv := GameState.inventory
+	var farm := world.farm
+	var player := world.player
+	var saved_story := qm.to_data()
+	var saved_inv := inv.to_data()
+	var saved_money := GameState.money
+	var saved_pos := player.global_position
+
+	# 데이터
+	var ids := QuestManager.quest_defs().map(func(q: Dictionary) -> String: return q.id)
+	var want_ids := []
+	for i in 20:
+		want_ids.append("MQ%02d" % (i + 1))
+	_check(ids == want_ids, "메인 퀘스트 20개 (MQ01~MQ20)")
+	_check(QuestManager.era_ids() == ["pioneer", "metal", "mechanical", "electric", "advanced"], "시대 5개 (개척·금속·기계·전기·첨단)")
+	var mech: Dictionary = QuestManager.data().projects.mechanical_research
+	_check(mech.items == {"copper_bar": 8.0} and int(mech.money) == 500, "기계 기술 복구 = 구리 주괴 8 + 500 G (철 없음, 사용자 결정)")
+	var missing := []
+	for it: ItemDef in ItemDB.shop_items():
+		if it.kind == ItemDef.Kind.MACHINE and QuestManager.tech_for_item(it.id) == "":
+			missing.append(it.id)
+	for pid: String in ["scarecrow", "shed", "compost_bin", "greenhouse", "conveyor"]:
+		if QuestManager.tech_for_item(pid) == "":
+			missing.append(pid)
+	_check(missing.is_empty(), "기계·건설 시설은 모두 어느 기술에 속함 (빠진 것 %s)" % [missing])
+	_check(QuestManager.tech_for_item("furnace") == "basic_smelting" and QuestManager.tech_for_item("sprinkler_3") == "advanced_automation" and QuestManager.tech_for_item("carrot_seed") == "", "용광로 = 금속시대, 상급 스프링클러 = 첨단, 씨앗은 제한 없음")
+
+	# 새 게임: 개척시대, MQ01 만 진행 중
+	qm.new_game()
+	_check(qm.state_of("MQ01") == QuestManager.ACTIVE and qm.state_of("MQ02") == QuestManager.LOCKED and qm.active_quests().size() == 1, "새 게임: MQ01 만 진행 중")
+	_check(qm.era == "pioneer" and qm.is_unlocked("basic_farming") and not qm.is_unlocked("conveyor") and not qm.item_unlocked("manual_processor") and qm.item_unlocked("carrot_seed"), "새 게임: 개척시대, 기본 농사만 열림")
+
+	# MQ01: 농장 안내판 읽기 + 광장 가 보기 → 감자 씨앗 5 (기본 도구 대신, 사용자 결정)
+	var signs := world.objects.get_children().filter(func(n: Node) -> bool: return n is InfoSign)
+	_check(signs.size() == 1 and (signs[0] as InfoSign).sign_id == "farm_sign" and signs[0].is_in_group("interactables"), "농장 안내판은 [E] 로 읽을 수 있음")
+	var potato0 := inv.count_of("potato_seed")
+	(signs[0] as InfoSign).interact(player)
+	_check(qm.progress_of("MQ01") == [1, 0] and qm.state_of("MQ01") == QuestManager.ACTIVE, "안내판 읽기 1/1, 광장은 아직")
+	player.global_position = world.cell_center(Vector2i(60, 20))
+	qm._process(0.0)
+	_check(qm.state_of("MQ01") == QuestManager.REWARDED and inv.count_of("potato_seed") == potato0 + 5 and qm.state_of("MQ02") == QuestManager.ACTIVE, "광장 도착 → MQ01 완료, 감자 씨앗 +5, MQ02 시작")
+	player.global_position = saved_pos
+
+	# MQ02: 잡초 10 · 나뭇가지 5 (진행 중일 때 치운 것만)
+	var spot := _free_clear_cell(world)
+	var hoe := ItemDB.get_item("hoe")
+	var axe := ItemDB.get_item("axe")
+	for i in 10:
+		world.obstacles.spawn(spot, "weed", i)
+		world.obstacles.try_clear(spot, hoe)
+	for i in 4:
+		world.obstacles.spawn(spot, "branch", i)
+		world.obstacles.try_clear(spot, axe)
+	_check(qm.progress_of("MQ02") == [10, 4] and qm.state_of("MQ02") == QuestManager.ACTIVE, "잡초 10 · 나뭇가지 4/5")
+	# 가방이 가득 차면 보상은 미뤄짐 (완료로 남음)
+	var keep := inv.to_data()
+	for i in inv.size():
+		if inv.get_slot(i) == null:
+			inv.slots[i] = {"id": "stone", "count": 99, "quality": ""}
+	for i in inv.size():
+		var sl: Variant = inv.get_slot(i)
+		if sl != null and sl.id == "potato_seed":
+			sl.count = 99
+	world.obstacles.spawn(spot, "branch", 9)
+	world.obstacles.try_clear(spot, axe)
+	_check(qm.state_of("MQ02") == QuestManager.COMPLETED and qm.state_of("MQ03") == QuestManager.LOCKED, "가방이 가득 차면 보상을 미루고 완료로 남음")
+	inv.load_data(keep)
+	_check(qm.state_of("MQ02") == QuestManager.REWARDED and inv.count_of("potato_seed") == potato0 + 10 and qm.state_of("MQ03") == QuestManager.ACTIVE, "자리가 생기면 보상 (감자 씨앗 +5), MQ03 시작")
+
+	# MQ03: 밭 5칸 갈기 · 씨앗 5칸 심기
+	var season := Calendar.season_of(GameState.day)
+	var seed: ItemDef = null
+	for it: ItemDef in ItemDB.shop_items():
+		if it.kind == ItemDef.Kind.SEED and Calendar.crop_allowed(it, season) and not it.regrows():
+			seed = it
+			break
+	var plots: Array[Vector2i] = []
+	for c: Vector2i in farm.farmable_cells.keys():
+		if plots.size() >= 5:
+			break
+		if not world.obstacles.is_blocked(c) and not farm.tiles.has(c) and not world.build.is_occupied(c) and c.distance_to(spot) > 1:
+			plots.append(c)
+	var carrot0 := inv.count_of("carrot_seed")
+	for c in plots:
+		farm.till(c)
+	_check(qm.progress_of("MQ03") == [5, 0], "밭 갈기 5/5")
+	for c in plots:
+		farm.plant(c, seed)
+	_check(qm.state_of("MQ03") == QuestManager.REWARDED and inv.count_of("carrot_seed") == carrot0 + 3, "씨앗 5칸 심기 → MQ03 완료, 당근 씨앗 +3")
+
+	# MQ04: 물 주기 5칸 · 물뿌리개 채우기 1번
+	var money0 := GameState.money
+	for c in plots:
+		farm.get_tile(c).watered = false
+		farm.water(c)
+	_check(qm.progress_of("MQ04") == [5, 0], "물 주기 5/5, 채우기는 아직")
+	var well: Well = world.buildings.filter(func(b: Interactable) -> bool: return b is Well)[0]
+	var can_i := -1
+	for i in inv.size():
+		if inv.item_at(i) and inv.item_at(i).tool_type == "watering_can":
+			can_i = i
+	inv.set_slot_value(can_i, "water", WateringCan.capacity_of(inv, can_i))
+	WateringCan.refill(inv, can_i, well)
+	_check(qm.progress_of("MQ04")[1] == 0, "가득 찬 물뿌리개는 채운 것으로 안 침")
+	inv.set_slot_value(can_i, "water", 0)
+	WateringCan.refill(inv, can_i, well)
+	_check(qm.state_of("MQ04") == QuestManager.REWARDED and GameState.money == money0 + 100, "우물에서 채우기 → MQ04 완료, +100 G")
+
+	# MQ05: 작물 5개 거두기 (수확량 합계)
+	player.facing = Vector2i.DOWN
+	var harvested := 0
+	for c in plots:
+		farm.get_tile(c).days_grown = seed.grow_days
+		var before := inv.count_of(seed.grows)
+		player._try_harvest(c)
+		harvested += inv.count_of(seed.grows) - before
+		if harvested >= 5:
+			break
+	_check(harvested >= 5 and qm.state_of("MQ05") == QuestManager.REWARDED and GameState.money == money0 + 300 and qm.state_of("MQ06") == QuestManager.ACTIVE, "작물 %d개 거둠 → MQ05 완료, +200 G, MQ06 시작" % harvested)
+
+	# 보상은 한 번만: 같은 행동을 더 해도 돈이 그대로
+	Events.crop_harvested.emit("carrot", 9)
+	Events.sign_read.emit("farm_sign")
+	qm._try_rewards()
+	_check(GameState.money == money0 + 300 and inv.count_of("potato_seed") == potato0 + 10, "끝난 퀘스트는 다시 보상하지 않음")
+
+	# 저장 · 불러오기: 상태 그대로, 다시 보상하지 않음
+	world.save_manager.save_game("manual")
+	qm.new_game()
+	var money_saved := GameState.money
+	world.save_manager.load_game()
+	var states := ["MQ01", "MQ02", "MQ03", "MQ04", "MQ05", "MQ06", "MQ07"].map(func(id: String) -> String: return qm.state_of(id))
+	_check(states == ["rewarded", "rewarded", "rewarded", "rewarded", "rewarded", "active", "locked"] and not qm.legacy and qm.era == "pioneer", "저장·불러오기 후 퀘스트 상태 그대로 %s" % [states])
+	_check(GameState.money == money_saved, "불러와도 보상을 다시 주지 않음")
+
+	# MQ17: 받을 때 밀 4개 한 번 (저장에 기록, 사용자 결정 2)
+	for id: String in ["MQ06", "MQ07", "MQ08", "MQ09", "MQ10", "MQ11", "MQ12", "MQ13", "MQ14", "MQ15", "MQ16"]:
+		qm.quests[id].state = QuestManager.REWARDED
+	var wheat0 := inv.count_of("wheat")
+	qm._activate_ready()
+	_check(qm.state_of("MQ17") == QuestManager.ACTIVE and inv.count_of("wheat") == wheat0 + 4 and qm.quests.MQ17.granted, "MQ17 을 받으면 밀 4개 (계절 상관없이)")
+	qm._activate_ready()
+	world.save_manager.save_game("manual")
+	world.save_manager.load_game()
+	_check(inv.count_of("wheat") == wheat0 + 4 and qm.quests.MQ17.granted, "다시 열거나 불러와도 밀은 한 번만")
+
+	# 기존 저장 (버전 5): 돈·아이템·건물 그대로, 기술 제한 없음, 퀘스트는 MQ01 부터 (지난 기록으로 보상 안 함)
+	var migrated: Dictionary = world.save_manager._migrate({"version": 5, "sections": {"game": {"money": 1234}}})
+	_check(migrated.version == SaveManager.VERSION and migrated.sections.story == {"legacy": true} and migrated.sections.game.money == 1234, "버전 5 저장 → 6: story = legacy, 나머지 그대로")
+	var m0 := GameState.money
+	var inv0 := inv.to_data()
+	qm.load_data(migrated.sections.story)
+	_check(qm.legacy and qm.is_unlocked("conveyor") and qm.is_unlocked("sky_station") and qm.item_unlocked("harvester_3"), "기존 저장: 모든 기술 열림 (새 게임에만 제한)")
+	_check(qm.state_of("MQ01") == QuestManager.ACTIVE and qm.state_of("MQ02") == QuestManager.LOCKED and GameState.money == m0 and inv.to_data() == inv0, "기존 저장: MQ01 부터 직접 진행, 지난 기록으로 보상하지 않음")
+
+	# 정리
+	qm.load_data(saved_story)
+	inv.load_data(saved_inv)
+	GameState.money = saved_money
+	for c in plots:
+		farm.tiles.erase(c)
+	farm.queue_redraw()
+	await get_tree().process_frame
 
 
 ## 광산 (사용자 결정: 북쪽 숲길 끝 입구 · 아래로 내려가는 층 · 엘리베이터 · 사다리 찾기 · 10층마다 보물 층 · 광석 4종)

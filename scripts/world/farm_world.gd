@@ -29,6 +29,8 @@ var shipping_bin: ShippingBin
 var fixture_buildings := {}
 ## 광장 주민·동물 (Townsfolk)
 var townsfolk: Array[Townsfolk] = []
+## 메인 퀘스트 · 기술 발전 (scripts/story/quest_manager.gd)
+var quests: QuestManager
 ## 하루 마감 흐름 (scripts/time/day_cycle.gd)
 var day_cycle: DayCycle
 ## 저장 / 불러오기 (scripts/save/save_manager.gd)
@@ -95,6 +97,9 @@ func _ready() -> void:
 	# 하루가 끝나 집에서 깨어나거나 저장을 불러오면, 플레이어가 있는 곳(농장/하늘섬)에 카메라 범위를 맞춘다
 	Events.day_ended.connect(func(_r: Dictionary) -> void: _apply_camera_area())
 	Events.game_loaded.connect(_apply_camera_area)
+	quests = QuestManager.new()
+	quests.world = self
+	add_child(quests)
 	# 맵·장애물을 새 게임 상태로 다 만든 뒤에 붙인다 (저장이 있으면 여기서 불러온다)
 	save_manager = SaveManager.new()
 	save_manager.name = "SaveManager"
