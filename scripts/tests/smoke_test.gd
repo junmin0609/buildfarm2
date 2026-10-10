@@ -253,6 +253,7 @@ func _ready() -> void:
 	await _test_story_tech(world, hud)
 	await _test_story_play(world, hud)
 	await _test_story_support(world, hud)
+	await _test_story_winter_mq20(world)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -4068,6 +4069,44 @@ func _test_story_ui(world: FarmWorld, hud: HUD) -> void:
 	inv.load_data(saved_inv)
 	GameState.money = saved_money
 	player.global_position = saved_pos
+	await get_tree().process_frame
+
+
+## 5단계 계절 검증 (퀘스트 상태 강제): 겨울(바깥에 못 심음)에 MQ20 을 받아도, 받을 때 주는 밀가루 3개만으로
+## 창고 출구 → 벨트 → 같은 창고 입구 순환으로 '가공품 5개 컨베이어 입고'를 채울 수 있는가 (작물 없이)
+func _test_story_winter_mq20(world: FarmWorld) -> void:
+	var qm := world.quests
+	var inv := GameState.inventory
+	var saved_story := qm.to_data()
+	var saved_inv := inv.to_data()
+	var saved_day := GameState.day
+	var saved_build := world.build.to_data()
+	GameState.day = 3 * 28 + 5  # 겨울 5일
+	qm.new_game()
+	inv.load_data([])
+	for q: Dictionary in QuestManager.quest_defs():
+		if q.id == "MQ20":
+			break
+		qm.quests[q.id].state = QuestManager.REWARDED
+	qm._activate_ready()
+	_check(Calendar.season_of(GameState.day) == "winter" and inv.count_of("flour") == 3, "겨울에 MQ20 시작: 밀가루 3개 받음")
+	var o := _factory_line_spot(world) + Vector2i(1, 0)
+	var wh := world.build.place(PlaceableDB.get_def("warehouse"), o) as Warehouse
+	var path := [[Vector2i(4, 2), 0], [Vector2i(4, 3), 0], [Vector2i(4, 4), 1], [Vector2i(3, 4), 1], [Vector2i(2, 4), 1], [Vector2i(1, 4), 1], [Vector2i(0, 4), 1],
+		[Vector2i(-1, 4), 2], [Vector2i(-1, 3), 2], [Vector2i(-1, 2), 2], [Vector2i(-1, 1), 3]]
+	var placed := 0
+	for p: Array in path:
+		if world.build.place(PlaceableDB.get_def("conveyor"), o + p[0], p[1]):
+			placed += 1
+	wh.storage.add("flour", 3)
+	wh.set_output_mode("all")
+	for i in 40:
+		Events.time_advanced.emit(10.0)
+	_check(wh != null and placed == 11 and qm.state_of("MQ20") == QuestManager.REWARDED, "겨울: 밀가루 3개를 창고 순환 벨트로 돌려 MQ20 완료 (벨트 %d칸, %s)" % [placed, qm.objective_line(QuestManager.quest_def("MQ20"), 0)])
+	world.build.load_data(saved_build)
+	GameState.day = saved_day
+	qm.load_data(saved_story)
+	inv.load_data(saved_inv)
 	await get_tree().process_frame
 
 
