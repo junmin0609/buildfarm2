@@ -167,6 +167,7 @@ func advance(minutes: float) -> int:
 		left -= minutes_left
 		output_id = str(recipe_of(smelting).get("output", ""))
 		output += 1
+		Events.item_made.emit(output_id, "furnace", 1)
 		made += 1
 		smelting = ""
 		minutes_left = 0.0

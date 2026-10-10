@@ -299,6 +299,8 @@
 		"solid": true,
 		"rotatable": false,
 		"script": "res://scripts/factory/processor.gd",
+		"_ports": "스토리 MQ20 (4단계): 오른쪽 아래 칸 출구로 결과물을 컨베이어에 내보낸다. 예전 저장의 가공기는 [컨베이어로 내보내기]를 켜야 내보냄",
+		"ports": [{"type": "out", "cell": [1, 1], "side": "right"}],
 		"processor": {
 			"tier": 1,
 			"automatic": false,

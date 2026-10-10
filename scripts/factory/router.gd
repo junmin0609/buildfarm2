@@ -127,6 +127,7 @@ func on_sent(d: Vector2i) -> void:
 	match kind():
 		"split":
 			turn = ([left_dir(), facing(), right_dir()].find(d) + 1) % 3
+			Events.item_split.emit(self, d)  # 스토리 MQ19
 		"filter":
 			if d == left_dir() or d == right_dir():
 				turn = (turn + 1) % 2

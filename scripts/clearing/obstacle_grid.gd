@@ -144,6 +144,7 @@ func try_clear(cell: Vector2i, item: ItemDef) -> bool:
 	for item_id: String in drops:
 		GameState.inventory.add(item_id, drops[item_id])
 		got.append("%s +%d" % [ItemDB.get_item(item_id).name, drops[item_id]])
+		Events.item_collected.emit(item_id, int(drops[item_id]))
 	var def := ob.def
 	remove(cell)
 	cleared.emit(cell, def)

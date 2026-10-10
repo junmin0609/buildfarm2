@@ -48,6 +48,16 @@ signal watering_can_refilled(amount: int)
 signal crop_harvested(item_id: String, count: int)
 ## 퀘스트 상태가 바뀜 (HUD 추적용, 2단계)
 signal quest_changed(quest_id: String)
+## 스토리 4단계: 퀘스트 목표용 (게임 규칙은 바꾸지 않고 알리기만)
+signal item_shipped(item_id: String, count: int)            # 출하함 정산
+signal item_collected(item_id: String, count: int)          # 장애물·광산 바위를 깨서 얻음
+signal item_made(item_id: String, machine_id: String, count: int)  # 용광로·가공기가 만듦
+signal tool_upgraded(item_id: String)                       # 대장간 강화 (새 도구 id)
+signal mine_floor_reached(floor_no: int)
+signal blueprint_found
+signal facility_placed(def_id: String)                      # 건설 모드로 새로 놓음
+signal belt_delivered(facility: Node, item_id: String)      # 컨베이어가 시설 입구에 넣음
+signal item_split(router: Node, dir: Vector2i)              # 분배기가 한 출구로 내보냄
 ## 광산 n 층으로 (0 = 입구층). 동굴 입구 · 사다리 · 엘리베이터가 보낸다 (Mine.go_to)
 signal mine_requested(floor_no: int)
 ## 실내 NPC [E] → 대화 창

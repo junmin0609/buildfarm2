@@ -216,4 +216,7 @@ func _send(b: Conveyor, d: Vector2i, leftover: float) -> bool:
 	if obj is Conveyor:
 		return obj.can_take(d, grid) and obj.put(str(b.item.id), str(b.item.quality), leftover, d)
 	var fac := _input_facility(at, d)
-	return fac != null and fac.accept_item(str(b.item.id), str(b.item.quality))
+	if fac == null or not fac.accept_item(str(b.item.id), str(b.item.quality)):
+		return false
+	Events.belt_delivered.emit(fac, str(b.item.id))  # 스토리 MQ18·MQ20
+	return true

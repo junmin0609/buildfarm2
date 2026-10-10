@@ -107,6 +107,8 @@
 			"solid": true,
 			"drops": [{"item": "gold_ore", "min": 1, "max": 2}]
 		},
+		"mine_debris": {"_comment": "광산 입구 잔해 (스토리 MQ10). 광산 바위 그림을 다시 씀. QuestManager 가 MQ10 진행 중에만 입구 앞에 깐다", "name": "무너진 잔해", "textures": ["res://assets/art/mine_stone.png"], "tools": ["pickaxe"], "tier": 1, "hits": 2, "solid": true, "drops": [{"item": "stone", "min": 1, "max": 1}]},
+		"coal_pile": {"_comment": "광산 밖 폐탄더미 (스토리 MQ09). 석탄 바위 그림을 다시 씀. QuestManager 가 MQ09 진행 중에 숲길 옆에 깐다", "name": "폐탄더미", "textures": ["res://assets/art/mine_coal.png"], "tools": ["pickaxe"], "tier": 1, "hits": 2, "solid": true, "drops": [{"item": "coal", "min": 1, "max": 2}]},
 		"big_stump": {
 			"name": "큰 그루터기",
 			"textures": ["res://assets/art/big_stump.png"],

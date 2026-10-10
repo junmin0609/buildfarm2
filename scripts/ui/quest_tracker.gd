@@ -11,6 +11,8 @@ const DONE := Color("5f9a5d")
 var quests: QuestManager
 var _title: Label
 var _lines: Array[Label] = []
+## 복구 프로젝트 안내 (4단계): "Q → 기술·복구 탭에서 납품 (또는 …)"
+var _hint: Label
 
 
 func _ready() -> void:
@@ -33,6 +35,8 @@ func _ready() -> void:
 		var l := _label(Art.FONT_SIZE_SMALL, TEXT_SOFT)
 		_lines.append(l)
 		box.add_child(l)
+	_hint = _label(Art.FONT_SIZE_SMALL, Color("c98a2e"))
+	box.add_child(_hint)
 	Events.quest_changed.connect(func(_id: String) -> void: refresh())
 	Events.game_loaded.connect(refresh)
 	refresh()
@@ -64,4 +68,6 @@ func refresh() -> void:
 		var done := int(quests.progress_of(q.id)[i]) >= int(objs[i].get("count", 1))
 		l.text = "· " + line
 		l.add_theme_color_override("font_color", DONE if done else TEXT_SOFT)
+	_hint.text = quests.project_hint()
+	_hint.visible = _hint.text != ""
 	reset_size()

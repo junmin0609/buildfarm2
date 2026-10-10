@@ -250,6 +250,7 @@ func _ready() -> void:
 	await _test_story(world)
 	await _test_story_ui(world, hud)
 	await _test_story_tech(world, hud)
+	await _test_story_play(world, hud)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -4038,7 +4039,7 @@ func _test_story_ui(world: FarmWorld, hud: HUD) -> void:
 	_check(qm.state_of("MQ07") == QuestManager.REWARDED and GameState.money == money0 + 200 and qm.state_of("MQ08") == QuestManager.ACTIVE, "MQ07 완료, +200 G, MQ08 시작")
 	hud._on_dialog_chosen("quest:MQ07:1")
 	store.interact(player)
-	var has_quest_btn := hud._dialog._buttons.get_children().any(func(b: Button) -> bool: return b.text.begins_with("납품"))
+	var has_quest_btn := hud._dialog._buttons.get_children().any(func(b: Button) -> bool: return b.text.begins_with("납품:"))
 	_check(GameState.money == money0 + 200 and inv.count_of("carrot") == 1 and not has_quest_btn, "끝난 납품은 다시 안 됨 (버튼도 없음, 보상 한 번)")
 	hud._close_panels()
 	# MQ09: 대장장이에게 석탄 3개
@@ -4066,6 +4067,330 @@ func _test_story_ui(world: FarmWorld, hud: HUD) -> void:
 	GameState.money = saved_money
 	player.global_position = saved_pos
 	await get_tree().process_frame
+
+
+## 스토리 4단계: 새 게임으로 MQ06 → MQ20 을 실제 기능으로 끝까지 (출하·납품·프로젝트·폐탄더미·잔해·광산·용광로·강화·설계도·가공·컨베이어·분배기·창고)
+func _test_story_play(world: FarmWorld, hud: HUD) -> void:
+	var qm := world.quests
+	var inv := GameState.inventory
+	var player := world.player
+	var saved_story := qm.to_data()
+	var saved_inv := inv.to_data()
+	var saved_money := GameState.money
+	var saved_pos := player.global_position
+	var saved_unlocks := GameState.unlocks.duplicate(true)
+	var saved_obstacles := world.obstacles.to_data()
+	var saved_build := world.build.to_data()
+	player.global_position = world.home_position
+	qm.new_game()
+	inv.load_data([])
+	inv.add("hoe")
+	inv.add("pickaxe")
+	GameState.money = 0
+	for id: String in ["MQ01", "MQ02", "MQ03", "MQ04", "MQ05"]:
+		qm.quests[id].state = QuestManager.REWARDED
+	qm._activate_ready()
+	await get_tree().process_frame
+	_check(qm.state_of("MQ06") == QuestManager.ACTIVE, "MQ06 시작 (MQ01~05 끝낸 뒤)")
+	_check(qm.lock_short("conveyor") == "잠김 · MQ16 · 기계 기술 복구" and qm.lock_short("splitter") == "잠김 · MQ18 보상", "짧은 잠김 글 (%s / %s)" % [qm.lock_short("conveyor"), qm.lock_short("splitter")])
+
+	# MQ06 출하함 정산: 작물 3개
+	inv.add("carrot", 3)
+	var cq := str(inv.stacks().filter(func(st: Dictionary) -> bool: return st.id == "carrot")[0].get("quality", ""))
+	world.shipping_bin.deposit(inv, "carrot", cq, 3)
+	_check(qm.state_of("MQ06") == QuestManager.ACTIVE, "출하함에 넣기만 하면 아직 (정산 때)")
+	world.shipping_bin.settle()
+	_check(qm.state_of("MQ06") == QuestManager.REWARDED and qm.state_of("MQ07") == QuestManager.ACTIVE, "MQ06: 출하함 정산 → 완료")
+
+	# MQ07 잡화점 주인과 대화 + 작물 3개 납품 (계절 상관없이: 겨울 작물로)
+	var store_npc: Node = world.interiors["store"].npc
+	store_npc.interact(player)
+	hud._close_panels()
+	inv.add("spinach", 3)
+	store_npc.interact(player)
+	var opts := _dialog_options(hud)
+	_check(opts.any(func(t: String) -> bool: return t.begins_with("납품: ")), "잡화점 대화에 작물 납품 선택지 %s" % [opts])
+	hud._dialog.choose("quest:MQ07:1")
+	_check(qm.state_of("MQ07") == QuestManager.REWARDED and inv.count_of("spinach") == 0, "MQ07: 아무 작물 3개 납품 (시금치, 겨울 작물)")
+
+	# MQ08 낡은 제작대: NPC 납품과 기술 탭 납품이 같은 데이터
+	_check(qm.project_hint() == "Q → 기술·복구 탭에서 납품 (또는 잡화점 하나)", "HUD 안내: %s" % qm.project_hint())
+	await get_tree().process_frame
+	_check(hud._quest_tracker._hint.visible and hud._quest_tracker._hint.text.begins_with("Q → 기술·복구 탭"), "HUD 추적 칸에 납품 안내 줄")
+	inv.add("wood", 9)
+	inv.add("stone", 10)
+	store_npc.interact(player)
+	opts = _dialog_options(hud)
+	_check(opts.has("납품 나무 0/15 (가진 9)") and opts.has("납품 돌 0/10 (가진 10)"), "잡화점 대화: 복구 납품 선택지 %s" % [opts])
+	hud._dialog.choose("project:workbench_repair:wood")
+	_check(qm.project_rows("workbench_repair")[0].given == 9 and inv.count_of("wood") == 0, "NPC 로 목재 9 넣음")
+	inv.add("wood", 10)
+	hud.open_quest_log()
+	hud._quest_log.show_tab("tech")
+	var wb_box := hud._quest_log._list.get_node("workbench_repair")
+	var wood_btn := (wb_box.get_child(1) as HBoxContainer).get_child(1) as Button
+	wood_btn.pressed.emit()
+	_check(qm.project_rows("workbench_repair")[0].given == 15 and inv.count_of("wood") == 4, "기술 탭으로 남은 6 만 넣음 (같은 프로젝트, 4개는 가방에)")
+	hud._close_panels()
+	store_npc.interact(player)
+	opts = _dialog_options(hud)
+	_check(not opts.any(func(t: String) -> bool: return t.begins_with("납품 나무")) and opts.any(func(t: String) -> bool: return t.begins_with("납품 돌")), "다 넣은 목재는 대화에서 사라짐 %s" % [opts])
+	_check(qm.donate("workbench_repair", "wood") == 0 and inv.count_of("wood") == 4, "다 찬 목재는 더 안 빠짐")
+	hud._dialog.choose("project:workbench_repair:stone")
+	_check(qm.project_done("workbench_repair") and qm.state_of("MQ08") == QuestManager.REWARDED and inv.count_of("stone") == 0, "MQ08: 제작대 복구 완료 (돌 정확히 10)")
+	store_npc.interact(player)
+	opts = _dialog_options(hud)
+	_check(not opts.any(func(t: String) -> bool: return t.begins_with("납품 ")), "끝난 프로젝트는 대화에 안 나옴 %s" % [opts])
+	hud._close_panels()
+
+	# MQ09 대장장이 + 폐탄더미에서 석탄 3
+	await get_tree().process_frame
+	var piles := world.obstacles.all().filter(func(o: Obstacle) -> bool: return o.def.id == "coal_pile")
+	_check(piles.size() == 3, "MQ09 진행 중: 숲길 옆 폐탄더미 3개 (%d)" % piles.size())
+	var smith_npc: Node = world.interiors["smith"].npc
+	smith_npc.interact(player)
+	hud._close_panels()
+	for ob: Obstacle in piles:
+		await _break(world.obstacles, ob.cell, "pickaxe")
+	_check(inv.count_of("coal") >= 3 and world.obstacles.all().filter(func(o: Obstacle) -> bool: return o.def.id == "coal_pile").is_empty(), "곡괭이로 폐탄더미 → 석탄 %d" % inv.count_of("coal"))
+	smith_npc.interact(player)
+	hud._dialog.choose("quest:MQ09:1")
+	_check(qm.state_of("MQ09") == QuestManager.REWARDED and qm.flags.has("mine_hint"), "MQ09: 대장장이에게 석탄 3 전달")
+	qm.ensure_quest_objects()
+	_check(world.obstacles.all().filter(func(o: Obstacle) -> bool: return o.def.id == "coal_pile").is_empty(), "MQ09 뒤에는 폐탄더미를 더 깔지 않음")
+
+	# MQ10 광산 입구 도착 + 잔해 5
+	await get_tree().process_frame
+	var debris := world.obstacles.all().filter(func(o: Obstacle) -> bool: return o.def.id == "mine_debris")
+	_check(debris.size() == 5, "MQ10 진행 중: 입구 앞 잔해 5개 (%d)" % debris.size())
+	player.global_position = world.cell_center(Vector2i(85, 6))
+	await get_tree().process_frame
+	_check(qm.progress_of("MQ10")[0] == 1, "광산 입구 앞 도착")
+	for ob: Obstacle in debris:
+		await _break(world.obstacles, ob.cell, "pickaxe")
+	_check(qm.state_of("MQ10") == QuestManager.REWARDED, "MQ10: 잔해 5개 치움")
+	world.mine_entrance.interact(player)
+	_check(world.area == "farm", "MQ11 전에는 아직 광산이 막혀 있음")
+
+	# MQ11 광산 입구 수리 (대장장이에게 납품)
+	inv.add("wood", 10)
+	inv.add("stone", 10)
+	smith_npc.interact(player)
+	hud._dialog.choose("project:mine_repair:wood")
+	smith_npc.interact(player)
+	hud._dialog.choose("project:mine_repair:stone")
+	_check(qm.state_of("MQ11") == QuestManager.REWARDED and qm.era == "metal", "MQ11: 대장장이 납품으로 광산 입구 수리 → 금속시대")
+
+	# MQ12 광산에서 구리 광석 6 (곡괭이로 구리 바위)
+	world.mine_entrance.interact(player)
+	_check(world.area == "mine", "광산 입구 열림")
+	Events.mine_requested.emit(1)
+	await get_tree().process_frame
+	world.mine.rocks.clear()
+	for x in 6:
+		world.mine.rocks.spawn(Mine.ORIGIN + Vector2i(5 + x * 2, 9), "mine_copper", x)
+	for ob: Obstacle in world.mine.rocks.all():
+		await _break(world.mine.rocks, ob.cell, "pickaxe")
+	_check(qm.state_of("MQ12") == QuestManager.REWARDED and inv.count_of("copper_ore") >= 6, "MQ12: 구리 광석 %d 캠" % inv.count_of("copper_ore"))
+
+	# MQ13 대장간에서 용광로 사서 구리 주괴
+	world.exit_mine()
+	GameState.money += 1000
+	inv.add("stone", 30)
+	smith_npc.interact(player)
+	hud._dialog.choose("smith_shop")
+	hud._shop._buy("furnace", 1)
+	hud._close_panels()
+	_check(inv.count_of("furnace") == 1, "금속시대: 대장간에서 용광로 구매")
+	var fspot := _free_origin(world, PlaceableDB.get_def("furnace"), Vector2i(-1, -1))
+	world.build_mode.start_place("furnace")
+	_check(world.build_mode.try_place(fspot), "용광로 설치")
+	world.build_mode.stop()
+	var furnace := world.build.object_at(fspot) as Furnace
+	inv.add("coal", 1)
+	_check(furnace.start(inv, "copper_ore") == "", "용광로에 구리 광석 3 + 석탄 1")
+	Events.time_advanced.emit(61.0)
+	_check(qm.state_of("MQ13") == QuestManager.REWARDED, "MQ13: 구리 주괴 제련")
+	furnace.take_output(inv)
+
+	# MQ14 구리 도구 강화
+	inv.add("copper_bar", 3)
+	GameState.money += 500
+	var hoe_i := -1
+	for i in inv.size():
+		if inv.item_at(i) and inv.item_at(i).id == "hoe":
+			hoe_i = i
+	_check(ToolUpgrade.apply(inv, hoe_i) and inv.item_at(hoe_i).id == "hoe_2", "괭이 → 구리 괭이")
+	_check(qm.state_of("MQ14") == QuestManager.REWARDED, "MQ14: 구리 도구 강화")
+
+	# MQ15 광산 5층 + 오래된 설계도
+	Events.mine_requested.emit(5)
+	await get_tree().process_frame
+	var bps := world.objects.get_children().filter(func(n: Node) -> bool: return n is MineFeature and n.kind == MineFeature.Kind.BLUEPRINT)
+	_check(bps.size() == 1 and qm.progress_of("MQ15")[0] == 5, "광산 5층 도달, 오래된 설계도가 있음")
+	if not bps.is_empty():
+		bps[0].interact(player)
+	await get_tree().process_frame
+	_check(qm.state_of("MQ15") == QuestManager.REWARDED and not is_instance_valid(bps[0]) or bps[0].is_queued_for_deletion(), "MQ15: 설계도 조사 → 완료, 설계도 사라짐")
+	Events.mine_requested.emit(5)
+	await get_tree().process_frame
+	_check(world.objects.get_children().filter(func(n: Node) -> bool: return n is MineFeature and n.kind == MineFeature.Kind.BLUEPRINT and not n.is_queued_for_deletion()).is_empty(), "찾은 설계도는 다시 안 나옴")
+	world.exit_mine()
+
+	# MQ16 기계 기술 복구 (기계상점 미나에게 구리 주괴 8 + 500 G) + 설계도 전달(대화)
+	var machine_npc: Node = world.interiors["machine"].npc
+	inv.add("copper_bar", 8)
+	GameState.money += 500
+	machine_npc.interact(player)
+	hud._dialog.choose("project:mechanical_research:copper_bar")
+	machine_npc.interact(player)
+	var m0 := GameState.money
+	hud._dialog.choose("project:mechanical_research:money")
+	_check(GameState.money == m0 - 500 and qm.project_done("mechanical_research"), "기계 기술 복구: 주괴 8 + 정확히 500 G")
+	machine_npc.interact(player)
+	hud._close_panels()
+	_check(qm.state_of("MQ16") == QuestManager.REWARDED and qm.era == "mechanical", "MQ16: 기계시대")
+
+	# MQ17 밀 4 (한 번만) → 수동 가공기로 밀가루
+	_check(inv.count_of("wheat") == 4 and qm.quests["MQ17"].granted, "MQ17 시작: 밀 4개 받음")
+	qm._activate_ready()
+	world.save_manager.save_game("manual")
+	world.save_manager.load_game()
+	_check(inv.count_of("wheat") == 4, "저장·불러오기·다시 확인해도 밀은 4개 그대로 (중복 지급 없음)")
+	GameState.money += 5000
+	inv.add("wood", 130)
+	inv.add("stone", 70)
+	Events.shop_requested.emit("machine")
+	hud._shop._buy("manual_processor", 1)
+	hud._shop._buy("conveyor", 5)
+	hud._shop._buy("warehouse", 1)
+	hud._close_panels()
+	_check(inv.count_of("manual_processor") == 1 and inv.count_of("conveyor") == 5 and inv.count_of("warehouse") == 1, "기계시대: 수동 가공기·컨베이어·창고 구매")
+	# 가공기 → 벨트 5칸 → 창고 가 들어갈 자리
+	var line := _factory_line_spot(world)
+	_check(line != Vector2i(-1, -1), "가공 라인 자리 찾음 %s" % line)
+	world.build_mode.start_place("manual_processor")
+	world.build_mode.try_place(line)
+	world.build_mode.stop()
+	var proc := world.build.object_at(line) as Processor
+	_check(proc != null and proc.belt_out, "새로 놓은 수동 가공기: 컨베이어로 내보내기 켜짐")
+	_check(proc.start(inv, "flour", 2) == 2, "밀가루 2회 시작 (밀 4)")
+	Events.time_advanced.emit(121.0)
+	_check(qm.state_of("MQ17") == QuestManager.REWARDED and proc.output_count() == 2, "MQ17: 수동 가공기 밀가루 → 완료 (결과물 2개는 가공기 안)")
+
+	# MQ18 컨베이어 5칸 설치 + 실제 운송 (가공기 → 벨트 → 창고)
+	world.build_mode.start_place("warehouse")
+	world.build_mode.try_place(line + Vector2i(7, 0))
+	world.build_mode.stop()
+	var wh := world.build.object_at(line + Vector2i(7, 0)) as Warehouse
+	world.build_mode.start_place("conveyor")
+	var belts := world.build_mode.place_belts(line + Vector2i(2, 1), line + Vector2i(6, 1))
+	world.build_mode.stop()
+	_check(belts == 5 and qm.progress_of("MQ18")[0] == 5, "컨베이어 5칸 설치 (%d)" % belts)
+	inv.add("wheat", 6)
+	proc.start(inv, "flour", 3)
+	for i in 12:
+		Events.time_advanced.emit(30.0)
+	_check(qm.state_of("MQ18") == QuestManager.REWARDED and wh.storage.count_of("flour") == 5, "MQ18: 밀가루 5개가 벨트로 창고까지 (창고 %d)" % wh.storage.count_of("flour"))
+	_check(qm.is_unlocked("splitter"), "MQ18 보상: 분배기 해금")
+
+	# MQ19 분배기의 서로 다른 두 출구
+	inv.add("wood", 10)
+	inv.add("stone", 5)
+	Events.shop_requested.emit("machine")
+	hud._shop._buy("splitter", 1)
+	hud._shop._buy("conveyor", 1)
+	hud._close_panels()
+	var mid := line + Vector2i(4, 1)
+	world.build.remove(world.build.object_at(mid))
+	inv.add("conveyor", 1)
+	world.build_mode.start_place("splitter")
+	world.build_mode.turns = 3  # 오른쪽 (벨트와 같은 방향)
+	_check(world.build_mode.try_place(mid), "벨트 한 칸을 분배기로 바꿈")
+	world.build_mode.stop()
+	world.build_mode.start_place("conveyor")
+	world.build_mode.turns = 2  # 위로 (분배기 왼쪽 출구)
+	world.build_mode.try_place(mid + Vector2i.UP)
+	world.build_mode.stop()
+	inv.add("wheat", 4)
+	proc.start(inv, "flour", 2)
+	for i in 10:
+		Events.time_advanced.emit(30.0)
+	_check(qm.state_of("MQ19") == QuestManager.REWARDED and qm.is_unlocked("merger"), "MQ19: 분배기 두 출구 → 합류기 해금 (출구 %s)" % [qm.quests["MQ19"].get("seen", {})])
+
+	# MQ20 가공품 5개를 컨베이어로 창고에 (진행 중일 때만 셈)
+	var before := wh.storage.count_of("flour")
+	_check(qm.state_of("MQ20") == QuestManager.ACTIVE, "MQ20 시작")
+	var m20: int = qm.progress_of("MQ20")[0]
+	wh.insert("flour", 3, Quality.NONE)
+	_check(qm.progress_of("MQ20")[0] == m20, "손으로/직접 창고에 넣은 건 안 셈")
+	inv.add("wheat", 14)
+	proc.start(inv, "flour", 7)
+	for i in 24:
+		Events.time_advanced.emit(30.0)
+	_check(qm.state_of("MQ20") == QuestManager.REWARDED and qm.flags.has("electric_project_open"), "MQ20: 가공 → 컨베이어 → 창고 입고 5 → 완료 (창고 밀가루 %d → %d)" % [before, wh.storage.count_of("flour")])
+	var money_after := GameState.money
+	qm._try_rewards()
+	qm._activate_ready()
+	_check(GameState.money == money_after and qm.state_of("MQ20") == QuestManager.REWARDED, "보상은 한 번만 (다시 불러도 그대로)")
+	_check(qm.quests.values().all(func(st: Dictionary) -> bool: return st.state == QuestManager.REWARDED), "MQ01 ~ MQ20 모두 완료")
+	_check(qm.project_problem("electric_repair") == "", "MQ20 뒤: 전력 복구 프로젝트를 시작할 수 있음")
+
+	# 기존 저장의 수동 가공기 (belt_out 키 없음): 컨베이어로 저절로 빠져나가지 않음
+	var old := Processor.new()
+	old.setup(PlaceableDB.get_def("manual_processor"), Vector2i(-50, -50), 0)
+	old.load_state({"recipe": "flour", "output": [{"id": "flour", "count": 2, "quality": Quality.NONE}]})
+	_check(not old.belt_out and old.provide_item().is_empty() and old.output_count() == 2, "예전 저장 가공기: 컨베이어 출력 꺼짐 (결과물 그대로)")
+	old.belt_out = true
+	_check(not old.provide_item().is_empty(), "켜면 컨베이어로 내보냄")
+	old.free()
+
+	# 정리
+	world.build.load_data(saved_build)
+	world.obstacles.load_data(saved_obstacles)
+	qm.load_data(saved_story)
+	inv.load_data(saved_inv)
+	GameState.money = saved_money
+	GameState.unlocks = saved_unlocks
+	player.global_position = saved_pos
+	await get_tree().process_frame
+
+
+## 대화 창 버튼 글
+func _dialog_options(hud: HUD) -> Array:
+	return hud._dialog._buttons.get_children().map(func(b: Node) -> String: return (b as Button).text)
+
+
+## 장애물을 도구로 깰 때까지 친다
+func _break(grid: ObstacleGrid, cell: Vector2i, tool_id: String) -> void:
+	var tool := ItemDB.get_item(tool_id)
+	for i in 20:
+		if grid.obstacle_at(cell) == null:
+			return
+		grid.try_clear(cell, tool)
+	await get_tree().process_frame
+
+
+## 가공기(2x2) → 벨트 5칸 → 창고(4x4) 가 들어갈 자리 (장애물은 치움). 위아래 한 줄 여유
+func _factory_line_spot(world: FarmWorld) -> Vector2i:
+	var cells: Array = world.farm.farmable_cells.keys()
+	cells.sort()
+	for c: Vector2i in cells:
+		var ok := true
+		for y in range(-1, 5):
+			for x in 11:
+				var cc := c + Vector2i(x, y)
+				if not world.farm.farmable_cells.has(cc) or world.build.is_occupied(cc) or world.farm.tiles.has(cc):
+					ok = false
+					break
+			if not ok:
+				break
+		if ok:
+			for y in range(-1, 5):
+				for x in 11:
+					world.obstacles.remove(c + Vector2i(x, y))
+			return c
+	return Vector2i(-1, -1)
 
 
 ## 스토리 3단계: 새 게임 시대 제한 (상점·대장간·건설·광산·정류장) · 복구 프로젝트 · 기술 탭 · 기존 저장

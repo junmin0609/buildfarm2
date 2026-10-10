@@ -134,6 +134,7 @@ func go_to(n: int) -> void:
 	_setup_floor(n)
 	world.player.wake_at(arrive_position())
 	world.player.facing = Vector2i.DOWN
+	Events.mine_floor_reached.emit(n)
 	if n > deepest():
 		GameState.unlocks["mine_deepest"] = n
 		if n % elevator_every() == 0:
@@ -181,6 +182,9 @@ func _setup_floor(n: int) -> void:
 			_add_feature(MineFeature.Kind.ELEVATOR, FLOOR_ELEVATOR_AT)
 		if is_treasure_floor(n) and not GameState.unlocks.get("mine_chest:%d" % n, false):
 			_add_feature(MineFeature.Kind.CHEST, CHEST_AT)
+		var bp := blueprint_cell()
+		if n == blueprint_floor() and QuestManager.blueprint_wanted_now():
+			_add_feature(MineFeature.Kind.BLUEPRINT, bp)
 		_place_rocks(n)
 	_build_wall_body()
 	queue_redraw()
@@ -223,6 +227,7 @@ func _make_walls() -> void:
 			keep.append(c + Vector2i.UP)
 	else:
 		keep = [UP_LADDER_AT, UP_LADDER_AT + Vector2i.DOWN, UP_LADDER_AT + Vector2i(1, 1), CHEST_AT, CHEST_AT + Vector2i.DOWN,
+				blueprint_cell(), blueprint_cell() + Vector2i.DOWN,
 				FLOOR_ELEVATOR_AT, FLOOR_ELEVATOR_AT + Vector2i.RIGHT, FLOOR_ELEVATOR_AT + Vector2i.DOWN, FLOOR_ELEVATOR_AT + Vector2i(1, 1)]
 	for c in keep:
 		_walls.erase(c)
@@ -291,6 +296,25 @@ func _on_rock_cleared(cell: Vector2i, _def: ObstacleDef) -> void:
 		_ladder_found = true
 		_add_feature(MineFeature.Kind.DOWN, cell - ORIGIN)
 		Events.toast.emit("아래로 내려가는 사다리를 찾았어요!")
+
+
+## 오래된 설계도 (스토리 MQ15): 놓이는 층과 칸 (data/quests.json areas.blueprint)
+static func blueprint_floor() -> int:
+	return int(QuestManager.data().get("areas", {}).get("blueprint", {}).get("floor", 5))
+
+
+static func blueprint_cell() -> Vector2i:
+	return DataFile.to_vector2i(QuestManager.data().get("areas", {}).get("blueprint", {}).get("cell"), Vector2i(11, 2))
+
+
+## 설계도를 조사한다: MQ15 진행 중이면 찾음 (설계도는 사라짐), 아니면 안내만
+func read_blueprint(feature: MineFeature) -> void:
+	if QuestManager.current and QuestManager.current.find_blueprint():
+		_features.erase(feature)
+		feature.queue_free()
+		Events.toast.emit("오래된 설계도를 찾았어요! 기계상점에 가져가 보세요.")
+	else:
+		Events.toast.emit("바랜 기계 설계도예요. 아직은 무슨 뜻인지 모르겠어요.")
 
 
 ## 보물 상자를 연다 (처음 한 번만). 가방이 모자라면 열지 않는다

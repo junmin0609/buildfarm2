@@ -35,15 +35,18 @@
 
 	"_projects": "기술 복구 프로젝트 (명세 4장, 사용자 결정 9: 기계 연구는 구리 주괴 8 + 500 G, 철 없음). quest = 이 퀘스트가 진행 중일 때 납품할 수 있음, flag = 이 기록이 생기면. 재료·돈은 나눠서 넣을 수 있고, 다 차면 한 번 완료 (해금·시대). advanced_research 는 구조만 (todo, 사용자 결정 10)",
 	"projects": {
-		"workbench_repair": {"name": "낡은 제작대 복구", "quest": "MQ08", "items": {"wood": 15, "stone": 10}, "money": 0, "unlock": ["basic_buildings"]},
-		"mine_repair": {"name": "광산 입구 수리", "quest": "MQ11", "items": {"wood": 10, "stone": 10}, "money": 0, "unlock": ["mine_access", "basic_smelting", "tool_upgrade"], "era": "metal"},
-		"mechanical_research": {"name": "기계 기술 복구", "quest": "MQ16", "items": {"copper_bar": 8}, "money": 500, "unlock": ["manual_processing", "conveyor", "warehouse_basic", "sprinkler_basic"], "era": "mechanical"},
-		"electric_repair": {"name": "전력 복구", "flag": "electric_project_open", "items": {"iron_bar": 10, "copper_bar": 10}, "money": 2000, "unlock": ["electric_grid", "electric_processing", "water_supply", "filter_routing", "sprinkler_mid", "auto_harvest"], "era": "electric"},
+		"workbench_repair": {"name": "낡은 제작대 복구", "quest": "MQ08", "npc": "store", "items": {"wood": 15, "stone": 10}, "money": 0, "unlock": ["basic_buildings"]},
+		"mine_repair": {"name": "광산 입구 수리", "quest": "MQ11", "npc": "smith", "items": {"wood": 10, "stone": 10}, "money": 0, "unlock": ["mine_access", "basic_smelting", "tool_upgrade"], "era": "metal"},
+		"mechanical_research": {"name": "기계 기술 복구", "quest": "MQ16", "npc": "machine", "items": {"copper_bar": 8}, "money": 500, "unlock": ["manual_processing", "conveyor", "warehouse_basic", "sprinkler_basic"], "era": "mechanical"},
+		"electric_repair": {"name": "전력 복구", "flag": "electric_project_open", "npc": "machine", "items": {"iron_bar": 10, "copper_bar": 10}, "money": 2000, "unlock": ["electric_grid", "electric_processing", "water_supply", "filter_routing", "sprinkler_mid", "auto_harvest"], "era": "electric"},
 		"advanced_research": {"name": "첨단 연구", "todo": true, "items": {}, "money": 10000, "unlock": ["advanced_automation", "sky_station"], "era": "advanced", "_todo": "희귀 광물·자동 생산 100개·지역 복구 조건은 나중에 (사용자 결정 10)"}
 	},
 
-	"_areas": "방문 판정 영역 (농장 맵 칸). plaza = 개울 다리 동쪽",
-	"areas": {"plaza": {"min_x": 51}},
+	"_areas": "방문 판정 영역 (농장 맵 칸). plaza = 개울 다리 동쪽. mine_entrance = 광산 입구 앞 (rect: x0, y0, x1, y1 포함). 4단계: debris = MQ10 입구 잔해 자리 (MQ10 진행 중 모자라면 채움), coal_piles = MQ09 폐탄더미 자리 (진행 중 3개까지), blueprint = MQ15 오래된 설계도 (광산 층·층 기준 칸)",
+	"areas": {"plaza": {"min_x": 51}, "mine_entrance": {"rect": [83, 3, 87, 6]},
+		"debris": [[84, 3], [86, 3], [84, 4], [86, 4], [83, 4]],
+		"coal_piles": [[82, 6], [88, 6], [83, 7], [87, 7], [80, 6], [89, 7]],
+		"blueprint": {"floor": 5, "cell": [11, 2]}},
 
 	"_quests": "objectives: type (talk_sign · visit · clear_obstacle · till · plant · water · refill · harvest · ship · deliver · talk_npc · collect · mine_floor · smelt · upgrade_tool · project · place · convey · split · store_processed · process ...), target, count. 이벤트형은 퀘스트가 진행 중일 때만 센다, visit 같은 상태형은 그 전에 해 둔 것도 인정. rewards: money · items · unlock(기술) · era. on_activate_items 는 퀘스트를 받을 때 한 번 (저장에 기록)",
 	"quests": [

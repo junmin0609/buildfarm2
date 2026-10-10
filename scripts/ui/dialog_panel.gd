@@ -10,7 +10,8 @@ signal close_requested
 var npc: Node  # Npc 또는 Townsfolk
 var _name: Label
 var _line: Label
-var _buttons: HBoxContainer
+## 고를 것 버튼. 많으면 다음 줄로 넘어간다 (창이 화면 밖으로 넓어지지 않게, 스토리 4단계)
+var _buttons: HFlowContainer
 
 
 func _ready() -> void:
@@ -26,8 +27,10 @@ func _ready() -> void:
 	_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_line.custom_minimum_size = Vector2(860, 0)  # 줄바꿈 글은 폭이 정해져야 높이가 제대로 잡힌다
 	box.add_child(_line)
-	_buttons = HBoxContainer.new()
-	_buttons.add_theme_constant_override("separation", 12)
+	_buttons = HFlowContainer.new()
+	_buttons.add_theme_constant_override("h_separation", 12)
+	_buttons.add_theme_constant_override("v_separation", 8)
+	_buttons.custom_minimum_size = Vector2(860, 0)
 	box.add_child(_buttons)
 
 
@@ -43,6 +46,7 @@ func open(target: Node, quest_line := "", quest_options: Array = []) -> void:
 	for option: Array in quest_options:
 		var qbtn := Button.new()
 		qbtn.text = str(option[0])
+		qbtn.add_theme_font_size_override("font_size", Art.FONT_SIZE_SMALL)  # 납품 버튼은 작은 글씨
 		qbtn.disabled = not bool(option[2])
 		var qaction := str(option[1])
 		qbtn.pressed.connect(func() -> void: choose(qaction))
@@ -55,6 +59,7 @@ func open(target: Node, quest_line := "", quest_options: Array = []) -> void:
 		_buttons.add_child(btn)
 	show()
 	reset_size()
+	reset_size.call_deferred()  # 버튼 줄바꿈이 정해진 뒤 한 번 더 (앞 대화보다 줄이 줄면 빈칸이 남지 않게)
 
 
 ## 고른다 ("" 이면 그냥 닫기)

@@ -3,7 +3,7 @@ extends Interactable
 ## 광산 안의 [E] 로 쓰는 것: 내려가는 사다리 · 올라가는 사다리 · 엘리베이터 · 보물 상자 (Mine 이 층마다 놓고 지운다).
 ## 엘리베이터는 가게 NPC 처럼 대화 창을 연다 (npc_name · greeting · options). 층을 고르면 HUD 가 Events.mine_requested 를 보낸다.
 
-enum Kind { DOWN, UP, ELEVATOR, CHEST }
+enum Kind { DOWN, UP, ELEVATOR, CHEST, BLUEPRINT }
 
 var kind := Kind.DOWN
 var cell := Vector2i.ZERO
@@ -36,12 +36,16 @@ func setup(owner_mine: Mine, feature_kind: Kind, at_cell: Vector2i) -> void:
 			texture = preload("res://assets/art/mine_chest.png")
 			solid_height = 8.0
 			prompt = "[E] 보물 상자 열기"
+		Kind.BLUEPRINT:
+			texture = preload("res://assets/art/chalk_gear.png")  # 광장 벽의 분필 톱니 그림을 다시 씀 (스토리 MQ15)
+			solid_height = 8.0
+			prompt = "[E] 오래된 설계도 조사하기"
 	name = "MineFeature_%d_%d" % [cell.x, cell.y]
 	position = Vector2(cell.x * TILE, (cell.y + 1) * TILE)
 
 
 func _add_collision() -> void:
-	if kind in [Kind.ELEVATOR, Kind.CHEST]:
+	if kind in [Kind.ELEVATOR, Kind.CHEST, Kind.BLUEPRINT]:
 		super._add_collision()
 
 
@@ -60,6 +64,8 @@ func interact(_player: Node) -> void:
 			Events.mine_requested.emit(0)
 		Kind.CHEST:
 			mine.open_chest(self)
+		Kind.BLUEPRINT:
+			mine.read_blueprint(self)
 		Kind.ELEVATOR:
 			_fill_options()
 			Events.npc_talk_requested.emit(self)

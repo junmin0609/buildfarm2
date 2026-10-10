@@ -234,6 +234,7 @@ func try_place(origin: Vector2i) -> bool:
 	for mat_id: String in place_def.materials:
 		inv.remove(mat_id, int(place_def.materials[mat_id]))
 	grid.place(place_def, origin, turns)
+	Events.facility_placed.emit(place_def.id)
 	Events.toast.emit("%s 설치!" % place_def.name)
 	return true
 
@@ -410,6 +411,7 @@ func _place_path(path: Array) -> int:
 		for mat_id: String in place_def.materials:
 			inv.remove(mat_id, int(place_def.materials[mat_id]))
 		grid.place(place_def, p.cell, int(p.turns))
+		Events.facility_placed.emit(place_def.id)
 		placed += 1
 	var msg := "%s %d칸 설치" % [place_def.name, placed] if placed > 0 else "놓을 수 있는 칸이 없어요."
 	if blocked > 0:

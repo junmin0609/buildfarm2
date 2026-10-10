@@ -40,6 +40,8 @@ var input: Array[Dictionary] = []
 ## 이번에 시작할 때 정한 횟수 / 그중 끝난 횟수 (표시용)
 var runs_total := 0
 var runs_done := 0
+## 수동 가공기: 결과물을 출구 컨베이어로 내보내는가 (스토리 MQ20). 새로 놓은 것은 켬, 예전 저장의 가공기는 끔 (동작 그대로)
+var belt_out := true
 ## 전기 가공기: 켜져 있는가 (켜져 있으면 전력을 쓴다)
 var enabled := false
 ## 전기 가공기: 전기가 모자라 멈춘 상태
@@ -278,6 +280,7 @@ func _finish_one(r: Dictionary) -> void:
 	var run: Dictionary = queue.pop_front()
 	_add(output, r.output, run.quality, int(r.count))
 	GameState.discover(r.output)  # 처음 만든 가공품도 "얻은 것" (다음 레시피 재료가 될 수 있음 §71)
+	Events.item_made.emit(str(r.output), def.id if def else "", int(r.count))
 	if not is_automatic():
 		runs_done += 1  # 정한 횟수 중 몇 번째인지는 수동 가공기에만 의미가 있다
 
@@ -424,7 +427,7 @@ func accept_item(item_id: String, quality: String) -> bool:
 
 ## 컨베이어 출구: 가공기 안에 쌓인 결과물을 1개 내보낸다
 func provide_item() -> Dictionary:
-	if output.is_empty():
+	if output.is_empty() or (not is_automatic() and not belt_out):
 		return {}
 	var st: Dictionary = output[0]
 	var it := {"id": st.id, "quality": st.quality}
@@ -617,7 +620,7 @@ func take_contents() -> void:
 
 func save_state() -> Dictionary:
 	return {"recipe": recipe_id, "queue": queue.duplicate(true), "progress": snappedf(progress, 0.001), "output": output.duplicate(true),
-			"input": input.duplicate(true), "runs_total": runs_total, "runs_done": runs_done, "enabled": enabled, "high_first": high_first}
+			"input": input.duplicate(true), "runs_total": runs_total, "runs_done": runs_done, "enabled": enabled, "high_first": high_first, "belt_out": belt_out}
 
 
 func load_state(data: Dictionary) -> void:
@@ -638,6 +641,7 @@ func load_state(data: Dictionary) -> void:
 	runs_done = clampi(int(data.get("runs_done", 0)), 0, runs_total) if typeof(data.get("runs_done")) in [TYPE_INT, TYPE_FLOAT] else 0
 	enabled = is_automatic() and recipe_id != "" and data.get("enabled") == true
 	high_first = data.get("high_first") == true
+	belt_out = data.get("belt_out") == true  # 예전 저장(키 없음)은 끔: 가공기 옆 벨트로 저절로 빠져나가지 않게
 	Events.power_changed.emit()
 	_changed()
 

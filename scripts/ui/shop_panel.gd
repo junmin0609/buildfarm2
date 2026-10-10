@@ -118,7 +118,7 @@ func refresh() -> void:
 			continue  # 이번 계절에 심을 수 없는 씨앗은 팔지 않는다
 		# 기술이 잠긴 기계는 값 대신 해금 조건 (새 게임만, 스토리 3단계)
 		var lock := QuestManager.lock_reason_now(item.id)
-		var row := item_row(item, lock if lock != "" else PlaceableDef.cost_text_of(item.buy_price, item.buy_materials))
+		var row := item_row(item, QuestManager.lock_short_now(item.id) if lock != "" else PlaceableDef.cost_text_of(item.buy_price, item.buy_materials))
 		if lock != "":
 			(row.get_child(2) as Label).add_theme_color_override("font_color", Color("b8a58c"))
 			row.modulate.a = 0.75

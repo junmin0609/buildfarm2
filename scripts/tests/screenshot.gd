@@ -802,6 +802,35 @@ func _ready() -> void:
 	await get_tree().create_timer(0.5).timeout
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_shop_locked.png"))
 	hud._close_panels()
+	# 스토리 4단계: HUD 납품 안내 · NPC 복구 납품 · 광산 입구 잔해·폐탄더미 · 5층 오래된 설계도
+	await get_tree().create_timer(0.3).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_quest_hint.png"))
+	GameState.inventory.add("stone", 4)
+	world.interiors["smith"].npc.interact(world.player)
+	await get_tree().create_timer(0.5).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_npc_project.png"))
+	hud._close_panels()
+	for id: String in ["MQ09", "MQ10"]:
+		qm.quests[id].state = QuestManager.ACTIVE
+		qm.quests[id].progress = [0, 0]
+	qm.ensure_quest_objects()
+	GameState.minutes = 14 * 60
+	world.player.wake_at(world.cell_center(Vector2i(85, 7)))
+	world.player.facing = Vector2i.UP
+	world._apply_camera_area()
+	world.player.camera.reset_smoothing()
+	await get_tree().create_timer(0.8).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_mine_objects.png"))
+	for id: String in ["MQ09", "MQ10", "MQ11", "MQ12", "MQ13", "MQ14"]:
+		qm.quests[id].state = QuestManager.REWARDED
+	qm._activate_ready()
+	Events.mine_requested.emit(5)
+	world.player.wake_at(world.cell_center(Mine.ORIGIN + Mine.blueprint_cell() + Vector2i(1, 2)))
+	world.player.facing = Vector2i.UP
+	world.player.camera.reset_smoothing()
+	await get_tree().create_timer(0.8).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_mine_blueprint.png"))
+	world.exit_mine()
 	qm.legacy = true  # 아래 화면 캡처(광산 등)는 기존 저장처럼
 
 	# 광산 (사용자 결정: 북쪽 숲길 끝 입구 · 아래로 내려가는 층 · 엘리베이터)

@@ -77,6 +77,7 @@ func settle() -> Dictionary:
 		var amount := Pricing.unit_price(ItemDB.get_item(entry.id), entry.quality, CHANNEL) * int(entry.count)
 		items.append({"id": entry.id, "quality": entry.quality, "count": entry.count, "amount": amount})
 		total += amount
+		Events.item_shipped.emit(str(entry.id), int(entry.count))
 	contents.clear()
 	if total > 0:
 		GameState.add_money(total)

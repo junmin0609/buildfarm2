@@ -28,6 +28,7 @@ var _hint: Label
 var _count_row: HBoxContainer
 var _toggle: Button
 var _auto_info: Label
+var _belt: Button
 
 
 func _ready() -> void:
@@ -106,6 +107,10 @@ func _ready() -> void:
 	right.add_child(_start)
 	_toggle = _button("자동 가공 켜기", _on_toggle)
 	right.add_child(_toggle)
+	_belt = _button("", func() -> void:
+		processor.belt_out = not processor.belt_out
+		Events.processor_changed.emit())
+	right.add_child(_belt)
 	_auto_info = _small("", Color("9a7457"))
 	_auto_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	right.add_child(_auto_info)
@@ -185,6 +190,8 @@ func refresh() -> void:
 	_start.visible = not auto
 	_toggle.visible = auto
 	_auto_info.visible = auto
+	_belt.visible = not auto
+	_belt.text = "컨베이어로 내보내기: 켬 (오른쪽 아래 출구)" if p.belt_out else "컨베이어로 내보내기: 끔"
 	_fill_list()
 	_fill_detail()
 	_set_runs(runs, false)

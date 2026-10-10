@@ -412,6 +412,13 @@ func open_dialog(npc: Node) -> void:
 			line = "[퀘스트] %s — %s" % [q.title, q.get("description", "")]
 		for d: Dictionary in qm.deliveries_for(npc_id):
 			options.append(["납품: %s (%d/%d)" % [d.text, d.have, d.need], "quest:%s:%d" % [d.quest, d.index], d.ok])
+		# 복구 프로젝트 (4단계): 기술 탭 [넣기]와 같은 데이터·같은 함수. 가진 만큼(남은 만큼까지) 넣는다
+		for pid: String in qm.projects_for_npc(npc_id):
+			for row: Dictionary in qm.project_rows(pid):
+				var left := int(row.need) - int(row.given)
+				if left > 0:
+					options.append(["납품 %s %d/%d (가진 %d)" % [row.name, row.given, row.need, row.have],
+							"project:%s:%s" % [pid, row.key], int(row.have) > 0])
 	_dialog.open(npc, line, options)
 	_prompt_box.hide()
 	_crop_info.suppressed = true
@@ -425,6 +432,11 @@ func _on_dialog_chosen(action: String) -> void:
 		var parts := action.split(":")
 		var problem := _quests().deliver(parts[1], int(parts[2])) if _quests() else "퀘스트를 찾지 못했어요."
 		show_toast("납품했어요." if problem == "" else problem)
+		return
+	if action.begins_with("project:"):  # 복구 프로젝트 납품 (기술 탭과 같은 donate)
+		var pp := action.split(":")
+		var n := _quests().donate(pp[1], pp[2]) if _quests() else 0
+		show_toast(("넣었어요. (%d)" % n) if n > 0 else "넣을 수 없어요.")
 		return
 	if action.begins_with("mine:"):  # 광산 엘리베이터: 고른 층으로
 		Events.mine_requested.emit(int(action.trim_prefix("mine:")))

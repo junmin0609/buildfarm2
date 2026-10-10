@@ -35,7 +35,7 @@ func _ready() -> void:
 	box.add_child(header)
 
 	var hint := Label.new()
-	hint.text = "농장 땅 위에 시설을 놓아요. 기계는 기계상점에서 사서 가방에 있어야 놓을 수 있어요. 철거하면 모두 돌려받아요."
+	hint.text = "농장 땅 위에 시설을 놓아요. 기계는 기계상점(용광로는 대장간)에서 사서 가방에 있어야 놓을 수 있어요. 철거하면 모두 돌려받아요."
 	hint.add_theme_font_size_override("font_size", Art.FONT_SIZE_SMALL)
 	hint.add_theme_color_override("font_color", Color("9a7457"))
 	box.add_child(hint)
@@ -113,7 +113,7 @@ func _row(def: PlaceableDef) -> HBoxContainer:
 	# 기술이 잠긴 시설은 해금 조건 (새 게임만, 스토리 3단계). 이미 놓은 것은 그대로 옮길 수 있다
 	var lock := QuestManager.lock_reason_now(def.id)
 	if lock != "":
-		price.text = lock
+		price.text = QuestManager.lock_short_now(def.id)  # 자세한 조건은 퀘스트 창 기술 탭
 	price.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	price.add_theme_color_override("font_color", Color("b8a58c") if lock != "" else Color("c98a2e"))
 	row.add_child(price)

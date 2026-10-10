@@ -60,6 +60,7 @@ static func apply(inv: Inventory, index: int) -> bool:
 	else:
 		slot.erase("water")
 	inv.changed.emit()
+	Events.tool_upgraded.emit(next.id)
 	return true
 
 

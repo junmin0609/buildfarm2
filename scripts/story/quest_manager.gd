@@ -20,6 +20,10 @@ const REWARDED := "rewarded"
 
 ## 상태형 목표: 해 둔 일 (방문 등). 이벤트형 목표 집계와 따로 저장한다
 const STATE_TYPES := ["visit"]
+## 복구 프로젝트 납품을 받는 NPC 이름 (대화 창·HUD 안내)
+const NPC_NAMES := {"store": "잡화점 하나", "smith": "대장장이 철수", "machine": "기계상점 미나"}
+## 도구 강화 목표의 target: 강화된 도구 등급 → 재료 이름
+const TOOL_TIERS := {2: "copper", 3: "iron", 4: "gold"}
 
 static var _data: Dictionary = {}
 ## 지금 게임의 QuestManager (상점·건설·대장간·광산 입구 같은 곳이 잠금을 물어볼 때, 3단계)
@@ -79,6 +83,21 @@ func _ready() -> void:
 			_on_event("talk_npc", str(npc.room_id), 1))
 	if world:
 		world.obstacles.cleared.connect(func(_cell: Vector2i, def: ObstacleDef) -> void: _on_event("clear_obstacle", def.id, 1))
+	# 4단계: MQ06~MQ20 목표 (기존 기능이 보내는 알림을 듣기만 한다)
+	Events.item_shipped.connect(func(item_id: String, count: int) -> void: _on_event("ship", item_id, count))
+	Events.item_collected.connect(func(item_id: String, count: int) -> void: _on_event("collect", item_id, count))
+	Events.item_made.connect(func(item_id: String, machine_id: String, count: int) -> void:
+		_on_event("smelt" if machine_id == "furnace" else "process", item_id, count, {"machine": machine_id}))
+	Events.tool_upgraded.connect(func(item_id: String) -> void:
+		var it := ItemDB.get_item(item_id)
+		if it:
+			_on_event("upgrade_tool", str(TOOL_TIERS.get(it.tier, "")), 1))
+	Events.mine_floor_reached.connect(_on_floor)
+	Events.facility_placed.connect(func(def_id: String) -> void: _on_event("place", def_id, 1))
+	Events.belt_delivered.connect(_on_belt_delivered)
+	Events.item_split.connect(_on_split)
+	Events.game_loaded.connect(ensure_quest_objects)
+	Events.day_started.connect(func(_d: int) -> void: ensure_quest_objects())
 
 
 func _process(_delta: float) -> void:
@@ -86,8 +105,13 @@ func _process(_delta: float) -> void:
 	if world == null or world.area != "farm":
 		return
 	var plaza: Dictionary = data().get("areas", {}).get("plaza", {})
-	if not flags.has("visited:plaza") and world.player.my_cell().x >= int(plaza.get("min_x", 9999)):
+	var cell := world.player.my_cell()
+	if not flags.has("visited:plaza") and cell.x >= int(plaza.get("min_x", 9999)):
 		mark("visited:plaza")
+	# 광산 입구 앞 (MQ10)
+	var r: Array = data().get("areas", {}).get("mine_entrance", {}).get("rect", [])
+	if not flags.has("visited:mine_entrance") and r.size() == 4 and cell.x >= int(r[0]) and cell.y >= int(r[1]) and cell.x <= int(r[2]) and cell.y <= int(r[3]):
+		mark("visited:mine_entrance")
 
 
 # ---------- 새 게임 · 상태
@@ -162,6 +186,32 @@ static func tech_source(tech_id: String) -> String:
 		if tech_id in q.get("rewards", {}).get("unlock", []):
 			return "%s '%s' 보상" % [q.id, q.title]
 	return "추후 공개"
+
+
+## 짧은 해금 조건 (상점·건설 창): "MQ16 · 기계 기술 복구" · "MQ18 보상" · "MQ20 뒤 · 전력 복구"
+static func tech_source_short(tech_id: String) -> String:
+	var t: Dictionary = data().get("techs", {}).get(tech_id, {})
+	if t.get("start", false):
+		return "시작부터"
+	var projects: Dictionary = data().get("projects", {})
+	for pid: String in projects:
+		var p: Dictionary = projects[pid]
+		if tech_id in p.get("unlock", []):
+			return "%s · %s" % [str(p.quest) if p.has("quest") else ("MQ20 뒤" if p.has("flag") else "추후"), p.name]
+	for q: Dictionary in quest_defs():
+		if tech_id in q.get("rewards", {}).get("unlock", []):
+			return "%s 보상" % q.id
+	return "추후 공개"
+
+
+## 짧은 잠김 글 (열려 있으면 ""): "잠김 · MQ16 · 기계 기술 복구"
+func lock_short(item_id: String) -> String:
+	var t := tech_for_item(item_id)
+	return "잠김 · " + tech_source_short(t) if tech_lock_reason(t) != "" else ""
+
+
+static func lock_short_now(item_id: String) -> String:
+	return current.lock_short(item_id) if is_instance_valid(current) else ""
 
 
 ## 잠긴 이유 (열려 있으면 ""). 기술 id
@@ -254,7 +304,7 @@ func mark(flag: String) -> void:
 
 # ---------- 목표 집계
 
-func _on_event(type: String, target: String, amount: int) -> void:
+func _on_event(type: String, target: String, amount: int, extra := {}) -> void:
 	if amount <= 0:
 		return
 	var changed := false
@@ -267,6 +317,8 @@ func _on_event(type: String, target: String, amount: int) -> void:
 			var o: Dictionary = objs[i]
 			if o.type != type or not _target_matches(str(o.get("target", "")), target):
 				continue
+			if o.has("machine") and str(extra.get("machine", "")) != str(o.machine):
+				continue  # 예: MQ17 은 수동 가공기로 만든 것만
 			var need := int(o.get("count", 1))
 			if int(prog[i]) < need:
 				prog[i] = mini(need, int(prog[i]) + amount)
@@ -275,6 +327,116 @@ func _on_event(type: String, target: String, amount: int) -> void:
 			_check_complete(q)
 	if changed:
 		Events.quest_changed.emit("")
+
+
+## 광산 층 도달: 진행도 = 이번에 닿은 가장 깊은 층 (진행 중일 때만)
+func _on_floor(n: int) -> void:
+	var changed := false
+	for q: Dictionary in active_quests():
+		var objs: Array = q.get("objectives", [])
+		for i in objs.size():
+			if objs[i].type == "mine_floor" and n > int(quests[q.id].progress[i]):
+				quests[q.id].progress[i] = mini(n, int(objs[i].get("count", 1)))
+				changed = true
+		_check_complete(q)
+	if changed:
+		Events.quest_changed.emit("")
+
+
+## 컨베이어가 시설 입구에 넣었다: 운송(convey) 1, 그게 창고에 들어간 가공품이면 입고(store_processed) 1
+func _on_belt_delivered(facility: Node, item_id: String) -> void:
+	_on_event("convey", item_id, 1)
+	var it := ItemDB.get_item(item_id)
+	if facility is Warehouse and it and it.kind == ItemDef.Kind.PROCESSED:
+		_on_event("store_processed", item_id, 1)
+
+
+## 분배기가 한 출구로 내보냈다: 같은 분배기의 서로 다른 출구 수가 진행도 (진행 중일 때만, 저장됨)
+func _on_split(router: Node, d: Vector2i) -> void:
+	var key := "%d,%d" % [router.cell.x, router.cell.y] if "cell" in router else str(router.get_instance_id())
+	var changed := false
+	for q: Dictionary in active_quests():
+		var objs: Array = q.get("objectives", [])
+		for i in objs.size():
+			if objs[i].type != "split":
+				continue
+			var st: Dictionary = quests[q.id]
+			if not st.has("seen"):
+				st["seen"] = {}
+			var dirs: Array = st.seen.get(key, [])
+			var dk := "%d,%d" % [d.x, d.y]
+			if dk not in dirs:
+				dirs.append(dk)
+				st.seen[key] = dirs
+			var best := 0
+			for k: String in st.seen:
+				best = maxi(best, (st.seen[k] as Array).size())
+			if mini(best, int(objs[i].get("count", 1))) > int(st.progress[i]):
+				st.progress[i] = mini(best, int(objs[i].get("count", 1)))
+				changed = true
+		_check_complete(q)
+	if changed:
+		Events.quest_changed.emit("")
+
+
+## 광산 5층 오래된 설계도를 조사했다. MQ15 의 설계도 목표가 진행 중이면 찾음 (true)
+func find_blueprint() -> bool:
+	for q: Dictionary in active_quests():
+		for o: Dictionary in q.get("objectives", []):
+			if o.type == "find_blueprint":
+				flags["found:blueprint"] = true
+				_on_event("find_blueprint", "", 1)
+				return true
+	return false
+
+
+## 설계도를 광산에 놓을까: 아직 찾지 않았으면 (QuestManager 가 없으면 놓지 않음)
+static func blueprint_wanted_now() -> bool:
+	return is_instance_valid(current) and not current.flags.has("found:blueprint")
+
+
+# ---------- 퀘스트 물건 (4단계): MQ09 폐탄더미 · MQ10 입구 잔해. 진행 중에만, 모자란 만큼 채운다
+
+func ensure_quest_objects() -> void:
+	if world == null or world.obstacles == null:
+		return
+	var areas: Dictionary = data().get("areas", {})
+	# MQ10: 남은 치우기 수만큼 잔해 (이미 있는 것 포함)
+	var debris_left := _objective_left("clear_obstacle", "mine_debris")
+	if debris_left > 0:
+		_fill_spawns(areas.get("debris", []), "mine_debris", debris_left)
+	# MQ09: 석탄 납품이 남았으면 폐탄더미 3개까지
+	if _objective_left("deliver", "coal") > 0:
+		_fill_spawns(areas.get("coal_piles", []), "coal_pile", 3)
+
+
+## 진행 중인 퀘스트의 이 목표가 몇 남았나 (없으면 0)
+func _objective_left(type: String, target: String) -> int:
+	var left := 0
+	for q: Dictionary in active_quests():
+		var objs: Array = q.get("objectives", [])
+		for i in objs.size():
+			if objs[i].type == type and str(objs[i].get("target", "")) == target:
+				left += maxi(0, int(objs[i].get("count", 1)) - int(quests[q.id].progress[i]))
+	return left
+
+
+## cells 중 비어 있는 칸에 type_id 를 want 개가 될 때까지 깐다 (이미 있는 것도 셈)
+func _fill_spawns(cells: Array, type_id: String, want: int) -> void:
+	var have := 0
+	var free: Array[Vector2i] = []
+	for c: Variant in cells:
+		var cell := DataFile.to_vector2i(c, Vector2i(-1, -1))
+		var ob := world.obstacles.obstacle_at(cell)
+		if ob and ob.def.id == type_id:
+			have += 1
+		elif ob == null and not world.build.is_occupied(cell):
+			free.append(cell)
+	for cell in free:
+		if have >= want:
+			break
+		if world.obstacles.spawn(cell, type_id, cell.x * 31 + cell.y):
+			have += 1
 
 
 func _target_matches(want: String, got: String) -> bool:
@@ -333,15 +495,36 @@ func deliveries_for(npc_id: String) -> Array[Dictionary]:
 	return out
 
 
-## 진행 중인 퀘스트 중 이 NPC 와 관련된 것 (대화 창에 한 줄 안내)
+## 진행 중인 퀘스트 중 이 NPC 와 관련된 것 (대화 창에 한 줄 안내). 복구 프로젝트를 이 NPC 가 받으면 그 퀘스트도
 func quests_for_npc(npc_id: String) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for q: Dictionary in active_quests():
 		for o: Dictionary in q.get("objectives", []):
-			if str(o.get("npc", o.get("target", ""))) == npc_id and o.type in ["deliver", "talk_npc"]:
+			var project_npc := str(project_defs().get(str(o.get("target", "")), {}).get("npc", "")) if o.type == "project" else ""
+			if (str(o.get("npc", o.get("target", ""))) == npc_id and o.type in ["deliver", "talk_npc"]) or project_npc == npc_id:
 				out.append(q)
 				break
 	return out
+
+
+## 이 NPC 가 지금 받는 복구 프로젝트 (넣을 수 있는 것만)
+func projects_for_npc(npc_id: String) -> Array[String]:
+	var out: Array[String] = []
+	for pid: String in project_defs():
+		if str(project_defs()[pid].get("npc", "")) == npc_id and project_problem(pid) == "":
+			out.append(pid)
+	return out
+
+
+## HUD 안내: 지금 따라가는 퀘스트에 넣을 수 있는 복구 프로젝트가 있으면 "Q → 기술·복구 탭에서 납품 (또는 대장장이 철수)"
+func project_hint() -> String:
+	var q := tracked()
+	for o: Dictionary in q.get("objectives", []):
+		var pid := str(o.get("target", ""))
+		if o.type == "project" and project_problem(pid) == "":
+			var npc := str(NPC_NAMES.get(str(project_defs()[pid].get("npc", "")), ""))
+			return "Q → 기술·복구 탭에서 납품" + (" (또는 %s)" % npc if npc != "" else "")
+	return ""
 
 
 ## 가방에서 납품할 수 있는 개수 (kind:crop 이면 작물 전부)
@@ -540,6 +723,7 @@ func _activate_ready() -> void:
 			for item_id: String in give:
 				GameState.inventory.add(item_id, int(give[item_id]))
 	_refresh_state_objectives()
+	ensure_quest_objects.call_deferred()
 
 
 # ---------- 저장 ("story" 섹션)
@@ -599,6 +783,13 @@ func load_data(d: Variant) -> bool:
 				for i in mini(prog.size(), saved_prog.size()):
 					prog[i] = clampi(int(saved_prog[i]), 0, int(q.objectives[i].get("count", 1)))
 			quests[q.id] = {"state": str(st.state), "progress": prog, "granted": st.get("granted", false) == true}
+			var seen: Variant = st.get("seen", {})
+			if seen is Dictionary and not seen.is_empty():
+				var keep := {}
+				for k: Variant in seen:
+					if seen[k] is Array:
+						keep[str(k)] = (seen[k] as Array).map(func(v: Variant) -> String: return str(v))
+				quests[q.id]["seen"] = keep
 	_activate_ready()
 	_try_rewards()
 	Events.quest_changed.emit("")
