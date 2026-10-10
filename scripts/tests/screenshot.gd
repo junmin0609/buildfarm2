@@ -831,6 +831,22 @@ func _ready() -> void:
 	await get_tree().create_timer(0.8).timeout
 	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_mine_blueprint.png"))
 	world.exit_mine()
+	# 지원 물건 받기 (퀘스트 창 맨 위): 밀은 칸에 자리가 있어 [받기], 밀가루는 가방 공간 부족
+	var keep_inv := GameState.inventory.to_data()
+	GameState.inventory.load_data([])
+	GameState.inventory.add("wheat", ItemDB.get_item("wheat").max_stack - 3)
+	while GameState.inventory.add("stone", 999) == 0:
+		pass
+	qm.support["MQ17"] = {"owed": {"wheat": 4}, "given": {"wheat": 1}}
+	qm.support["MQ20"] = {"owed": {"flour": 3}, "given": {}}
+	await get_tree().create_timer(1.0).timeout  # 광산에서 나올 때 화면 어둡게 했다 밝히는 효과가 끝나도록
+	hud.open_quest_log()
+	hud._quest_log.show_tab("quests")
+	await get_tree().create_timer(0.5).timeout
+	get_viewport().get_texture().get_image().save_png(ProjectSettings.globalize_path("user://shot_quest_support.png"))
+	hud._close_panels()
+	qm.support.clear()
+	GameState.inventory.load_data(keep_inv)
 	qm.legacy = true  # 아래 화면 캡처(광산 등)는 기존 저장처럼
 
 	# 광산 (사용자 결정: 북쪽 숲길 끝 입구 · 아래로 내려가는 층 · 엘리베이터)

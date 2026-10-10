@@ -251,7 +251,7 @@ func _ready() -> void:
 	await _test_story_ui(world, hud)
 	await _test_story_tech(world, hud)
 	await _test_story_play(world, hud)
-	await _test_story_support(world)
+	await _test_story_support(world, hud)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -4070,80 +4070,116 @@ func _test_story_ui(world: FarmWorld, hud: HUD) -> void:
 	await get_tree().process_frame
 
 
-## 퀘스트 지원 물건 (MQ17 밀 4 · MQ20 밀가루 3): 가방이 가득하면 대기 → 자리가 나면 지급, 일부만 들어가도 중복·유실 없음, 저장·이전
-func _test_story_support(world: FarmWorld) -> void:
+## 퀘스트 지원 물건 (MQ17 밀 4 · MQ20 밀가루 3): 받는 순간만 바로 지급 시도, 못 넣은 것은 대기 → 퀘스트 창 [받기]로 직접 (저절로 주지 않음)
+func _test_story_support(world: FarmWorld, hud: HUD) -> void:
 	var qm := world.quests
 	var inv := GameState.inventory
 	var saved_story := qm.to_data()
 	var saved_inv := inv.to_data()
 	var wheat_max := ItemDB.get_item("wheat").max_stack
 
-	# 가방이 가득한 채 MQ17 을 받음 → 대기 (완료 처리 안 함)
+	# 가방에 자리가 있으면 받는 순간 바로 (지금까지와 같음)
+	qm.new_game()
+	inv.load_data([])
+	_reach(qm, "MQ17")
+	_check(inv.count_of("wheat") == 4 and qm.support_waiting().is_empty() and qm.quests["MQ17"].granted, "자리가 있으면 MQ17 을 받는 순간 밀 4")
+	hud.open_quest_log()
+	hud._quest_log.show_tab("quests")
+	_check(hud._quest_log._list.has_node("MQ17") and not hud._quest_log._list.has_node("Support"), "대기 물건이 없으면 퀘스트 창에 지원 영역 없음")
+	hud._close_panels()
+
+	# 가방이 가득한 채 MQ17 을 받음 → 대기
 	qm.new_game()
 	inv.load_data([])
 	_fill_bag(inv)
 	_reach(qm, "MQ17")
-	_check(qm.state_of("MQ17") == QuestManager.ACTIVE and inv.count_of("wheat") == 0 and not qm.quests["MQ17"].granted and qm._support_left("MQ17") == {"wheat": 4}, "가방이 가득: MQ17 은 받지만 밀 4 는 대기 (지급 완료 아님)")
+	_check(qm.state_of("MQ17") == QuestManager.ACTIVE and inv.count_of("wheat") == 0 and not qm.quests["MQ17"].granted and qm._support_left("MQ17") == {"wheat": 4}, "가방이 가득: MQ17 은 받지만 밀 4 는 대기")
+	hud.open_quest_log()
+	hud._quest_log.show_tab("quests")
+	var sup := hud._quest_log._list.get_node_or_null("Support")
+	var line: Node = sup.get_node_or_null("MQ17_wheat") if sup else null
+	_check(line != null and (line.get_child(0) as Label).text.begins_with("· 밀 4개") and (line.get_child(1) as Button).disabled and (line.get_child(2) as Label).text == "가방 공간 부족", "퀘스트 창: 받을 지원 물건 '밀 4개' · [받기] 꺼짐 · 가방 공간 부족")
+	_check(sup != null and sup.get_combined_minimum_size().x <= 960, "지원 영역이 퀘스트 창 폭 안에 (%s)" % [sup.get_combined_minimum_size() if sup else Vector2.ZERO])
+	# 자리를 비워도 저절로 주지 않음
+	inv.remove_at(0, inv.get_slot(0).count)
+	_check(inv.count_of("wheat") == 0 and qm._support_left("MQ17") == {"wheat": 4}, "가방 자리가 생겨도 저절로 주지 않음")
+	line = hud._quest_log._list.get_node("Support/MQ17_wheat")
+	_check(not (line.get_child(1) as Button).disabled and line.get_child_count() == 2, "자리가 생기면 [받기] 켜짐")
+	# 대기 중 저장·불러오기
 	world.save_manager.save_game("manual")
 	qm.new_game()
 	world.save_manager.load_game()
-	_check(qm._support_left("MQ17") == {"wheat": 4} and inv.count_of("wheat") == 0, "대기 중 저장·불러오기: 밀 4 대기 그대로")
+	_check(qm._support_left("MQ17") == {"wheat": 4} and inv.count_of("wheat") == 0, "대기 중 저장·불러오기: 밀 4 대기 그대로 (불러올 때도 저절로 안 줌)")
 	_check(qm.to_data().support.has("MQ17") and qm.to_data().quests["MQ17"].state == QuestManager.ACTIVE, "지원 물건 기록은 퀘스트 상태와 따로 저장 (story.support)")
-	# 한 칸 비우기 → 바로 지급
-	inv.remove_at(0, inv.get_slot(0).count)
-	_check(inv.count_of("wheat") == 4 and qm._support_left("MQ17").is_empty() and qm.quests["MQ17"].granted, "자리가 나면 밀 4 지급")
+	# 빠른 반복 클릭: 같은 버튼을 여러 번 (불러오면 창이 닫히므로 다시 연다)
+	hud.open_quest_log()
+	hud._quest_log.show_tab("quests")
+	var btn := hud._quest_log._list.get_node("Support/MQ17_wheat").get_child(1) as Button
+	for i in 5:
+		btn.pressed.emit()
+	_check(inv.count_of("wheat") == 4 and qm._support_left("MQ17").is_empty() and qm.quests["MQ17"].granted, "[받기] 5번 눌러도 밀 정확히 4")
+	await get_tree().process_frame
+	_check(not hud._quest_log._list.has_node("Support"), "다 받으면 지원 영역이 사라짐")
 	world.save_manager.save_game("manual")
 	world.save_manager.load_game()
 	qm._activate_ready()
-	inv.remove("wheat", 1)
-	_check(inv.count_of("wheat") == 3, "지급 뒤 저장·불러오기·다시 확인·가방 변화에도 더 안 줌")
+	_check(inv.count_of("wheat") == 4 and qm.claim_support("MQ17", "wheat") == 0, "다 받은 뒤 저장·불러오기·다시 받기에도 더 안 줌")
+	hud._close_panels()
 
-	# 일부만 들어감: 밀 칸에 2 자리만 → 2 주고 2 대기 → 자리가 나면 나머지 2
+	# 일부만 들어감: 받는 순간 2, 받기로도 자리가 없으면 아무것도 안 바뀜, 퀘스트를 끝내도 남은 2 유지
 	qm.new_game()
 	inv.load_data([])
 	inv.add("wheat", wheat_max - 2)
 	_fill_bag(inv)
 	_reach(qm, "MQ17")
-	_check(inv.count_of("wheat") == wheat_max and qm._support_left("MQ17") == {"wheat": 2}, "일부만 들어감: 2 지급, 2 대기")
+	_check(inv.count_of("wheat") == wheat_max and qm._support_left("MQ17") == {"wheat": 2}, "일부만 들어감: 받는 순간 2 지급, 2 대기")
+	var before: Dictionary = qm.to_data().support.duplicate(true)
+	_check(qm.claim_support("MQ17", "wheat") == 0 and inv.count_of("wheat") == wheat_max and qm.to_data().support == before, "자리가 없으면 [받기]는 아무것도 바꾸지 않음")
+	qm.quests["MQ17"].state = QuestManager.REWARDED
+	qm._activate_ready()
+	_check(qm._support_left("MQ17") == {"wheat": 2}, "퀘스트를 끝내도 받지 못한 2 는 대기로 남음")
 	world.save_manager.save_game("manual")
 	world.save_manager.load_game()
-	_check(inv.count_of("wheat") == wheat_max and qm._support_left("MQ17") == {"wheat": 2}, "일부 지급 뒤 저장·불러오기: 준 2 · 남은 2 그대로")
+	_check(qm._support_left("MQ17") == {"wheat": 2} and qm.state_of("MQ17") == QuestManager.REWARDED, "저장·불러오기 뒤에도 남은 2 그대로")
 	for i in inv.size():
 		if inv.item_at(i) and inv.item_at(i).id == "stone":
 			inv.remove_at(i, inv.get_slot(i).count)
 			break
-	_check(inv.count_of("wheat") == wheat_max + 2 and qm._support_left("MQ17").is_empty(), "자리가 나면 나머지 2 → 모두 4 (중복·유실 없음)")
+	_check(inv.count_of("wheat") == wheat_max, "자리가 나도 저절로 안 줌")
+	_check(qm.claim_support("MQ17", "wheat") == 2 and inv.count_of("wheat") == wheat_max + 2 and qm._support_left("MQ17").is_empty(), "[받기] → 나머지 2, 모두 4 (중복·유실 없음)")
 
-	# MQ20 밀가루 3 도 같은 방식
+	# 받기 때 일부만: 밀가루 칸에 1 자리 → 1 받고 2 남음
 	qm.new_game()
 	inv.load_data([])
 	_fill_bag(inv)
 	_reach(qm, "MQ20")
-	_check(inv.count_of("flour") == 0 and qm._support_left("MQ20") == {"flour": 3} and not qm.quests["MQ20"].granted, "가방이 가득: MQ20 밀가루 3 대기")
+	_check(inv.count_of("flour") == 0 and qm._support_left("MQ20") == {"flour": 3}, "가방이 가득: MQ20 밀가루 3 대기")
 	inv.remove_at(0, inv.get_slot(0).count)
-	_check(inv.count_of("flour") == 3 and qm.support_waiting().is_empty() and qm.quests["MQ20"].granted, "한 칸 비우면 밀가루 3 지급")
+	inv.add("flour", ItemDB.get_item("flour").max_stack - 1)
+	var f0 := inv.count_of("flour")
+	_check(qm.claim_support("MQ20", "flour") == 1 and inv.count_of("flour") == f0 + 1 and qm._support_left("MQ20") == {"flour": 2}, "[받기] 때 1 자리 → 1 받고 2 대기")
 	world.save_manager.save_game("manual")
 	world.save_manager.load_game()
-	_check(inv.count_of("flour") == 3, "재접속해도 그대로 (중복 없음)")
+	_check(qm._support_left("MQ20") == {"flour": 2} and inv.count_of("flour") == f0 + 1, "재접속해도 준 1 · 남은 2 그대로")
 
-	# 예전 저장 이전 (story.support 없음): granted 로 판단
+	# 예전 저장 이전 (story.support 없음): granted 로 판단, 못 받은 것은 대기 → 받기
 	inv.load_data([])
-	var old := _old_story(qm, "MQ20", QuestManager.ACTIVE, false)
-	qm.load_data(old)
-	_check(inv.count_of("flour") == 3 and inv.count_of("wheat") == 0, "예전 저장: MQ20 진행 중 · 미지급 → 밀가루 3 지급 (MQ17 은 granted 라 안 줌)")
+	qm.load_data(_old_story(qm, "MQ20", QuestManager.ACTIVE, false))
+	_check(inv.count_of("flour") == 0 and qm._support_left("MQ20") == {"flour": 3} and qm._support_left("MQ17").is_empty(), "예전 저장: MQ20 진행 중 · 미지급 → 밀가루 3 대기 (MQ17 은 granted 라 이미 받음)")
+	_check(qm.claim_support("MQ20", "flour") == 3 and inv.count_of("flour") == 3, "예전 저장의 대기 물건도 [받기]로")
 	inv.load_data([])
 	qm.load_data(_old_story(qm, "MQ20", QuestManager.ACTIVE, true))
-	_check(inv.count_of("flour") == 0, "예전 저장: MQ20 이미 받음 (granted) → 안 줌")
+	_check(qm.support_waiting().is_empty(), "예전 저장: MQ20 이미 받음 (granted) → 대기 없음")
 	qm.load_data(_old_story(qm, "MQ20", QuestManager.REWARDED, false))
-	_check(inv.count_of("flour") == 0, "예전 저장: 끝난 MQ20 → 안 줌")
+	_check(qm.support_waiting().is_empty(), "예전 저장: 끝난 MQ20 → 대기 없음")
 	var unknown := _old_story(qm, "MQ20", QuestManager.ACTIVE, false)
 	unknown.quests["MQ20"].erase("granted")
 	qm.load_data(unknown)
-	_check(inv.count_of("flour") == 0 and qm.support_waiting().is_empty(), "예전 저장: 지급 기록이 아예 없음 → 주지 않음")
+	_check(qm.support_waiting().is_empty(), "예전 저장: 지급 기록이 아예 없음 → 주지 않음")
 	qm.load_data(_old_story(qm, "MQ17", QuestManager.ACTIVE, false))
-	_check(inv.count_of("wheat") == 4, "예전 저장: MQ17 진행 중 · 미지급 (가방이 가득했던 저장) → 밀 4")
+	_check(qm._support_left("MQ17") == {"wheat": 4} and inv.count_of("wheat") == 0, "예전 저장: MQ17 진행 중 · 미지급 → 밀 4 대기")
 	qm.load_data(qm.to_data())
-	_check(inv.count_of("wheat") == 4, "이전 뒤 저장 형식으로 다시 불러도 그대로")
+	_check(qm._support_left("MQ17") == {"wheat": 4}, "이전 뒤 새 형식으로 다시 불러도 대기 그대로")
 
 	qm.load_data(saved_story)
 	inv.load_data(saved_inv)

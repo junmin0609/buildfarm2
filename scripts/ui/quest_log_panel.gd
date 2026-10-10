@@ -4,6 +4,7 @@ extends PanelContainer
 ## 진행 중·완료 퀘스트는 설명·목표 진행도·보상, 잠긴 퀘스트는 제목만 흐리게.
 ## 맨 위에 지금 시대 (기존 저장은 '기존 저장 · 모든 기술 해금') 와 열린 기술.
 ## [기술·복구] 탭 (3단계): 시대별 기술 (열림 / 잠김 + 해금 조건) 과 복구 프로젝트 (필요·넣은 양·가진 양, [넣기]).
+## 퀘스트 탭 맨 위: 받을 지원 물건 (MQ17 밀 · MQ20 밀가루 중 가방이 가득해 못 받은 것) + [받기]. 없으면 영역 자체를 숨긴다
 ## 다른 창처럼 열려 있는 동안 게임과 시간이 멈춘다 (HUD 가 처리).
 
 signal close_requested
@@ -68,6 +69,7 @@ func _ready() -> void:
 	scroll.add_child(_list)
 	box.add_child(scroll)
 	Events.quest_changed.connect(func(_id: String) -> void: refresh())
+	Events.inventory_changed.connect(refresh)  # 받기 가능 여부 (가방 공간)
 
 
 func open() -> void:
@@ -98,6 +100,7 @@ func refresh() -> void:
 	if tab == "tech":
 		_fill_tech()
 		return
+	_fill_support()
 	var chapter := 0
 	for q: Dictionary in QuestManager.quest_defs():
 		if int(q.chapter) != chapter:
@@ -108,6 +111,44 @@ func refresh() -> void:
 			ch.add_theme_font_size_override("font_size", Art.FONT_SIZE_SMALL)
 			_list.add_child(ch)
 		_list.add_child(_row(q))
+
+
+## 받을 지원 물건 (support_waiting). 아이템 이름 · 남은 수 · [받기] 또는 '가방 공간 부족'
+func _fill_support() -> void:
+	var waiting := quests.support_waiting()
+	if waiting.is_empty():
+		return
+	var box := VBoxContainer.new()
+	box.name = "Support"
+	box.add_theme_constant_override("separation", 4)
+	var head := Label.new()
+	head.text = "받을 지원 물건"
+	head.add_theme_font_override("font", Art.pixel_font(true))
+	head.add_theme_font_size_override("font_size", Art.FONT_SIZE_SMALL)
+	head.add_theme_color_override("font_color", ACTIVE)
+	box.add_child(head)
+	for w: Dictionary in waiting:
+		var line := HBoxContainer.new()
+		line.name = "%s_%s" % [w.quest, w.item]
+		line.add_theme_constant_override("separation", 12)
+		var txt := _small("· %s %d개  (%s '%s')" % [ItemDB.get_item(w.item).name, w.count, w.quest, QuestManager.quest_def(w.quest).get("title", "")], TEXT)
+		txt.custom_minimum_size = Vector2(620, 0)
+		line.add_child(txt)
+		var ok := QuestManager.can_receive(w.item)
+		var btn := Button.new()
+		btn.text = "받기"
+		btn.disabled = not ok
+		var qid: String = w.quest
+		var item_id: String = w.item
+		btn.pressed.connect(func() -> void: quests.claim_support(qid, item_id))
+		line.add_child(btn)
+		if not ok:
+			var full := _small("가방 공간 부족", LOCKED)
+			full.autowrap_mode = TextServer.AUTOWRAP_OFF
+			full.custom_minimum_size = Vector2.ZERO  # _small 의 기본 폭(940)이면 창이 화면 밖으로 넓어진다
+			line.add_child(full)
+		box.add_child(line)
+	_list.add_child(box)
 
 
 func _row(q: Dictionary) -> Control:
