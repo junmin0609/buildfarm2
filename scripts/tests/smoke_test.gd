@@ -5236,6 +5236,24 @@ func _test_plaza(world: FarmWorld) -> void:
 				walk += 1
 	_check(walk >= 2000, "광장 걸을 수 있는 칸 %d (예전 771, 꽃밭·나무로 채움)" % walk)
 	_check(MapLayout.char_at(Vector2i(86, 30)) == "F" and MapLayout.char_at(Vector2i(85, 18)) == "p", "분수 광장 + 큰길")
+	# 마을 그래픽 정리: 다리는 놓인 방향에 맞춘 타일 (남쪽 = 남북 다리, 좌우 난간 / 서쪽 개울 = 동서 다리, 위아래 난간)
+	var gs := world.ground
+	_check(gs.get_cell_source_id(Vector2i(84, 54)) == TerrainTileSet.BRIDGE_SOURCE_ID and gs.get_cell_atlas_coords(Vector2i(84, 54)) == Vector2i(8, 1)
+		and gs.get_cell_atlas_coords(Vector2i(85, 54)) == Vector2i(0, 1) and gs.get_cell_atlas_coords(Vector2i(86, 54)) == Vector2i(2, 1), "남쪽 다리: 남북 방향, 왼쪽·오른쪽에만 난간 (가운데는 열림)")
+	_check(gs.get_cell_atlas_coords(Vector2i(48, 17)) == Vector2i(1, 0) and gs.get_cell_atlas_coords(Vector2i(48, 18)) == Vector2i(4, 0), "서쪽 다리: 동서 방향, 위·아래에만 난간 (두 줄 사이 난간 없음)")
+	_check(world.fences.get_cell_source_id(Vector2i(57, 26)) == TerrainTileSet.GARDEN_SOURCE_ID and not MapLayout.PROPS.has("*"), "화단은 땅에 까는 타일 (둥근 꽃덤불 소품 아님)")
+	var q := PhysicsPointQueryParameters2D.new()
+	q.position = world.cell_center(Vector2i(57, 26))
+	var q2 := PhysicsPointQueryParameters2D.new()
+	q2.position = world.cell_center(Vector2i(112, 28))
+	var space := world.get_world_2d().direct_space_state
+	_check(not space.intersect_point(q).is_empty() and space.intersect_point(q2).is_empty(), "화단 칸은 들어갈 수 없음, 정리한 맨흙 자리는 지나갈 수 있음")
+	var lamps := 0
+	for y in MapLayout.size().y:
+		for x in MapLayout.size().x:
+			if MapLayout.char_at(Vector2i(x, y)) == "L":
+				lamps += 1
+	_check(lamps == 21 and MapLayout.char_at(Vector2i(111, 28)) == "." and MapLayout.char_at(Vector2i(72, 44)) == "*", "가로등 21개 (광장·다리 둘레 7개 추가), 파인 땅 정리 (%d)" % lamps)
 	# 새 경작지 장애물 (예전 저장): 옛 농장 칸에는 깔지 않고 새 땅에만
 	var new_cells := world.farm.farmable_cells.keys().filter(func(c: Vector2i) -> bool: return not MapLayout.is_old_farm_cell(c))
 	var old_before := world.obstacles.all().filter(func(o: Obstacle) -> bool: return MapLayout.is_old_farm_cell(o.cell)).size()

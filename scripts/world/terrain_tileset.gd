@@ -15,6 +15,11 @@ const EDGE_CORNER_SOURCE_ID := 3
 ## 8 작은 풀잎, 9 어두운 얼룩, 10 밝은 얼룩, 11 작은 돌, 12 잡초, 13 작은 흰 꽃
 const DETAIL_SOURCE_ID := 2
 const DETAIL_COUNT := 14
+## 마을 다리 (bridge.png): 줄 0 동서 다리 · 줄 1 남북 다리, 칸 = 난간 비트 (북1 동2 남4 서8). 지나갈 수 있음
+const BRIDGE_SOURCE_ID := 4
+## 마을 장식 화단 (garden_bed.png): 칸 = 테두리 비트 (북1 동2 남4 서8), 줄 = 꽃 배치 변형. 지나갈 수 없음
+const GARDEN_SOURCE_ID := 5
+const GARDEN_VARIANTS := 3
 
 const GRASS: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0), Vector2i(3, 0)]
 const FLOWERS: Array[Vector2i] = [Vector2i(4, 0), Vector2i(5, 0)]
@@ -91,6 +96,26 @@ static func build() -> TileSet:
 	tile_set.add_source(details, DETAIL_SOURCE_ID)
 	for i in DETAIL_COUNT:
 		details.create_tile(Vector2i(i, 0))
+
+	var bridges := TileSetAtlasSource.new()
+	bridges.texture = Art.BRIDGES
+	bridges.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
+	tile_set.add_source(bridges, BRIDGE_SOURCE_ID)
+	for row in 2:
+		for mask in 16:
+			bridges.create_tile(Vector2i(mask, row))
+
+	var beds := TileSetAtlasSource.new()
+	beds.texture = Art.GARDEN_BEDS
+	beds.texture_region_size = Vector2i(TILE_SIZE, TILE_SIZE)
+	tile_set.add_source(beds, GARDEN_SOURCE_ID)
+	for row in GARDEN_VARIANTS:
+		for mask in 16:
+			beds.create_tile(Vector2i(mask, row))
+			# 화단은 꽃덤불 소품처럼 들어갈 수 없다 (칸 전체, 가장자리 1px 여유)
+			var bd := beds.get_tile_data(Vector2i(mask, row), 0)
+			bd.add_collision_polygon(0)
+			bd.set_collision_polygon_points(0, 0, PackedVector2Array([Vector2(-7, -7), Vector2(7, -7), Vector2(7, 7), Vector2(-7, 7)]))
 
 	for coords: Vector2i in SOLID:
 		var r: Rect2 = SOLID[coords]

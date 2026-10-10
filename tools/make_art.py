@@ -3624,9 +3624,138 @@ def make_ui_icons():
     atlas.save("ui_icons.png")
 
 
+# ---------------------------------------------------------------- 마을 다리 · 화단 (마을 그래픽 정리)
+# 다리: 칸마다 같은 '가로 다리' 한 장을 깔던 것을 → 놓인 방향과 이웃에 맞춘 타일로 (bridge.png)
+#   줄 0 = 동서로 건너는 다리 (판자 이음매가 세로), 줄 1 = 남북으로 건너는 다리 (이음매가 가로)
+#   칸 = 난간이 붙는 쪽 비트 (북1 동2 남4 서8): 물·석축과 맞닿은 쪽에만 난간. 길·땅 쪽(다리 끝)은 열림
+# 화단: 둥근 꽃덤불 소품 대신 땅에 깐 '마을 장식 화단' (garden_bed.png)
+#   칸 = 나무 테두리가 붙는 쪽 비트 (북1 동2 남4 서8: 화단 바깥과 맞닿은 쪽), 줄 = 꽃 배치 변형 3종
+
+def _deck(c, vertical):
+    """다리 바닥 판자. vertical=True 면 남북 다리 (판자가 가로로 놓여 이음매가 가로줄)"""
+    w = P["wood"]
+    c.rect(0, 0, T, T, w[2])
+    for i in range(4):
+        a = i * 4 + 3  # 이음매 (타일 경계에서도 같은 간격으로 이어지게 4px 주기)
+        if vertical:
+            c.rect(0, a, T, 1, w[1])
+            c.rect(0, a - 3, T, 1, w[3])
+            for x in ((i * 5 + 2) % 13 + 1, (i * 5 + 9) % 13 + 1):  # 못 자국 (칸마다 엇갈림)
+                c.set(x, a - 1, w[1])
+        else:
+            c.rect(a, 0, 1, T, w[1])
+            c.rect(a - 3, 0, 1, T, w[3])
+            for y in ((i * 5 + 2) % 13 + 1, (i * 5 + 9) % 13 + 1):
+                c.set(a - 1, y, w[1])
+
+
+def _rail(c, side):
+    """다리 난간 (그 쪽 가장자리 3px): 어두운 바깥선 + 가로대 + 밝은 윗면, 8px 마다 기둥"""
+    w = P["wood"]
+    if side in ("n", "s"):
+        y = 0 if side == "n" else T - 3
+        c.rect(0, y, T, 3, w[1])
+        c.rect(0, y, T, 1, w[3])
+        c.rect(0, y + 2, T, 1, w[0])
+        for x in (3, 11):
+            c.rect(x, y, 2, 3, w[0]); c.set(x, y, w[1])
+        c.rect(0, y + (3 if side == "n" else -1), T, 1, SOFT_SHADOW)
+    else:
+        x = 0 if side == "w" else T - 3
+        c.rect(x, 0, 3, T, w[1])
+        c.rect(x + (2 if side == "w" else 0), 0, 1, T, w[3])
+        c.rect(x + (0 if side == "w" else 2), 0, 1, T, w[0])
+        for y in (3, 11):
+            c.rect(x, y, 3, 2, w[0]); c.set(x + 1, y, w[1])
+        c.rect(x + (3 if side == "w" else -1), 0, 1, T, SOFT_SHADOW)
+
+
+def make_bridge_tiles():
+    atlas = Canvas(16 * T, 2 * T)
+    for row, vertical in enumerate((False, True)):
+        for mask in range(16):
+            c, done = sub(atlas, mask, row)
+            _deck(c, vertical)
+            for bit, side in ((1, "n"), (2, "e"), (4, "s"), (8, "w")):
+                if mask & bit:
+                    _rail(c, side)
+            done()
+    atlas.save("bridge.png")
+
+
+def _bloom(c, x, y, petal, center):
+    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        c.set(x + dx, y + dy, petal)
+    c.set(x, y, center)
+
+
+def _shrub(c, x, y):
+    """낮은 관상용 초록 포기 (4x3)"""
+    lf = P["leaf"]
+    c.rect(x, y + 1, 4, 2, lf[1]); c.rect(x + 1, y, 2, 1, lf[2])
+    c.set(x + 1, y + 1, lf[3]); c.set(x + 2, y + 1, lf[2]); c.rect(x, y + 2, 4, 1, lf[0])
+
+
+def make_garden_beds():
+    """마을 장식 화단: 진한 흙 + 꽃·낮은 초록 포기, 바깥쪽에만 나무 테두리 (남쪽은 앞면이 보이게 두껍게)"""
+    so, w, lf = P["soil"], P["wood"], P["leaf"]
+    flowers = [(hexc("fff6e8"), hexc("f7c548")), (hexc("f7d26a"), hexc("fff3c0")),
+               (hexc("f4b4c0"), hexc("fff1a8")), (hexc("c9b4e8"), hexc("fff6e8"))]
+    layouts = [  # (종류, x, y): f=꽃(색 번호), s=초록 포기, l=잎 한 점
+        [("s", 2, 2), ("f0", 9, 4), ("f2", 5, 9), ("l", 12, 10), ("s", 9, 10), ("f1", 12, 6)],
+        [("f2", 4, 4), ("s", 8, 3), ("f3", 11, 9), ("s", 2, 9), ("l", 7, 12), ("f0", 7, 8)],
+        [("s", 10, 2), ("f1", 4, 5), ("f3", 8, 7), ("s", 3, 10), ("f2", 12, 11), ("l", 11, 6)],
+    ]
+    atlas = Canvas(16 * T, len(layouts) * T)
+    for row, layout in enumerate(layouts):
+        rng = random.Random(500 + row)
+        for mask in range(16):
+            c, done = sub(atlas, mask, row)
+            for y in range(T):  # 낮은 초록 지피식물 (잡초밭·작물밭과 다르게 빈 흙이 거의 안 보이게)
+                for x in range(T):
+                    c.set(x, y, rng.choices([lf[1], lf[2], lf[0], lf[3]], [6, 4, 2, 1])[0])
+            # 테두리 안쪽 한 줄은 흙 (테두리가 또렷하게)
+            if mask & 1:
+                c.rect(0, 2, T, 1, so[1])
+            if mask & 4:
+                c.rect(0, T - 4, T, 1, so[0])
+            if mask & 8:
+                c.rect(2, 0, 1, T, so[1])
+            if mask & 2:
+                c.rect(T - 3, 0, 1, T, so[1])
+            for kind, x, y in layout:
+                if kind == "s":
+                    _shrub(c, x - 1, y - 1)
+                elif kind == "l":
+                    c.set(x, y, lf[2]); c.set(x + 1, y - 1, lf[3])
+                else:
+                    col = flowers[int(kind[1])]
+                    _bloom(c, x, y, *col)
+                    c.set(x + 2, y + 2, col[0]); c.set(x - 2, y + 1, col[0])  # 옆 작은 꽃송이
+            # 테두리 (바깥쪽만). 북·동·서 2px, 남 3px (앞면)
+            if mask & 1:
+                c.rect(0, 0, T, 2, w[2]); c.rect(0, 0, T, 1, w[3])
+            if mask & 4:
+                c.rect(0, T - 3, T, 3, w[1]); c.rect(0, T - 3, T, 1, w[3]); c.rect(0, T - 1, T, 1, w[0])
+            if mask & 8:
+                c.rect(0, 0, 2, T, w[2]); c.rect(0, 0, 1, T, w[3])
+            if mask & 2:
+                c.rect(T - 2, 0, 2, T, w[1]); c.rect(T - 1, 0, 1, T, w[0])
+            if mask & 1 and mask & 8:
+                c.set(0, 0, w[1])
+            if mask & 4 and mask & 2:
+                c.rect(T - 2, T - 3, 2, 3, w[0])
+            if mask & 4 and mask & 8:
+                c.rect(0, T - 3, 2, 3, w[1]); c.set(0, T - 3, w[3])
+            done()
+    atlas.save("garden_bed.png")
+
+
 if __name__ == "__main__":
     print("BuildFarm art ->", OUT)
     make_tiles()
+    make_bridge_tiles()
+    make_garden_beds()
     make_details()
     make_edges()
     make_trees()

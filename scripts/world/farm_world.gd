@@ -113,10 +113,17 @@ func _build_map() -> void:
 		for x in map_size.x:
 			var cell := Vector2i(x, y)
 			var ch := MapLayout.char_at(cell)
-			ground.set_cell(cell, TerrainTileSet.SOURCE_ID, _ground_tile(ch, cell))
+			if _floor_char(ch) == "#":
+				# 다리 (나루터 상자 밑 판자 포함): 놓인 방향과 물가 이웃에 맞춘 타일 (마을 그래픽 정리)
+				ground.set_cell(cell, TerrainTileSet.BRIDGE_SOURCE_ID, _bridge_tile(cell))
+			else:
+				ground.set_cell(cell, TerrainTileSet.SOURCE_ID, _ground_tile(ch, cell))
 			var fence: Variant = _fence_tile(ch)
 			if fence != null:
 				fences.set_cell(cell, TerrainTileSet.SOURCE_ID, fence)
+			if ch == "*":
+				# 마을 장식 화단: 잔디 위에 테두리를 이웃에 맞춰 그린 화단 타일 (울타리 층, 지나갈 수 없음)
+				fences.set_cell(cell, TerrainTileSet.GARDEN_SOURCE_ID, _garden_tile(cell))
 			if ch in MapLayout.FARMABLE:
 				farm.farmable_cells[cell] = true
 			elif ch == "@":
@@ -143,6 +150,55 @@ func _build_map() -> void:
 					for dy in building.size_tiles.y:
 						for dx in building.size_tiles.x:
 							build.extra_buildable[cell + Vector2i(dx, dy)] = true
+
+
+# ---------- 다리 · 화단 타일 고르기 (마을 그래픽 정리)
+
+## 다리 칸 → 방향별 줄(0 동서·1 남북)과 난간 비트. 이어진 다리 덩어리가 가로로 넓으면 동서 다리
+var _bridge_vertical := {}
+
+
+func _bridge_tile(cell: Vector2i) -> Vector2i:
+	if not _bridge_vertical.has(cell):
+		_measure_bridge(cell)
+	var mask := 0
+	for entry: Array in [[1, Vector2i.UP], [2, Vector2i.RIGHT], [4, Vector2i.DOWN], [8, Vector2i.LEFT]]:
+		# 물·수련·오리·석축과 맞닿은 쪽에만 난간. 길·땅으로 이어지는 쪽(다리 끝)은 열어 둔다
+		if _floor_char_at(cell + entry[1]) in ["~", "e"]:
+			mask |= int(entry[0])
+	return Vector2i(mask, 1 if _bridge_vertical[cell] else 0)
+
+
+## 이어진 다리 칸을 모두 찾아 방향을 정한다 (세로로 길면 남북 다리)
+func _measure_bridge(start: Vector2i) -> void:
+	var cells: Array[Vector2i] = [start]
+	var seen := {start: true}
+	var i := 0
+	while i < cells.size():
+		var c := cells[i]
+		i += 1
+		for d: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			var n := c + d
+			if not seen.has(n) and _floor_char(MapLayout.char_at(n)) == "#":
+				seen[n] = true
+				cells.append(n)
+	var lo := cells[0]
+	var hi := cells[0]
+	for c in cells:
+		lo = Vector2i(mini(lo.x, c.x), mini(lo.y, c.y))
+		hi = Vector2i(maxi(hi.x, c.x), maxi(hi.y, c.y))
+	var vertical := (hi.y - lo.y) > (hi.x - lo.x)
+	for c in cells:
+		_bridge_vertical[c] = vertical
+
+
+## 화단 칸 → 바깥과 맞닿은 쪽에 테두리 (비트), 칸마다 꽃 배치 변형
+func _garden_tile(cell: Vector2i) -> Vector2i:
+	var mask := 0
+	for entry: Array in [[1, Vector2i.UP], [2, Vector2i.RIGHT], [4, Vector2i.DOWN], [8, Vector2i.LEFT]]:
+		if MapLayout.char_at(cell + entry[1]) != "*":
+			mask |= int(entry[0])
+	return Vector2i(mask, absi(hash(cell * 7 + Vector2i(3, 1))) % TerrainTileSet.GARDEN_VARIANTS)
 
 
 # ---------- 나무 / 숲 (비주얼만: 칸·충돌은 예전과 같다)
