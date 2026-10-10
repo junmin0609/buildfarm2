@@ -246,6 +246,7 @@ func _ready() -> void:
 	_test_mid_processor(world)
 	await _test_townsfolk(world, hud)
 	_test_mine(world, hud)
+	await _test_mine_exit_fade(world, hud)
 	_test_furnace_tools(world)
 	await _test_story(world)
 	await _test_story_ui(world, hud)
@@ -4100,6 +4101,9 @@ func _test_story_support(world: FarmWorld, hud: HUD) -> void:
 	var line: Node = sup.get_node_or_null("MQ17_wheat") if sup else null
 	_check(line != null and (line.get_child(0) as Label).text.begins_with("· 밀 4개") and (line.get_child(1) as Button).disabled and (line.get_child(2) as Label).text == "가방 공간 부족", "퀘스트 창: 받을 지원 물건 '밀 4개' · [받기] 꺼짐 · 가방 공간 부족")
 	_check(sup != null and sup.get_combined_minimum_size().x <= 960, "지원 영역이 퀘스트 창 폭 안에 (%s)" % [sup.get_combined_minimum_size() if sup else Vector2.ZERO])
+	await get_tree().process_frame
+	var gap := (line.get_child(1) as Control).position.x - ((line.get_child(0) as Control).position.x + (line.get_child(0) as Control).size.x) if line else 999.0
+	_check(gap >= 0.0 and gap <= 16.0 and (line.get_child(1) as Control).get_global_rect().end.x <= hud._quest_log.get_global_rect().end.x, "[받기]가 글 바로 옆 (간격 %d), 창 안" % gap)
 	# 자리를 비워도 저절로 주지 않음
 	inv.remove_at(0, inv.get_slot(0).count)
 	_check(inv.count_of("wheat") == 0 and qm._support_left("MQ17") == {"wheat": 4}, "가방 자리가 생겨도 저절로 주지 않음")
@@ -4709,6 +4713,23 @@ func _test_story_tech(world: FarmWorld, hud: HUD) -> void:
 
 
 ## 광산 (사용자 결정: 북쪽 숲길 끝 입구 · 아래로 내려가는 층 · 엘리베이터 · 사다리 찾기 · 10층마다 보물 층 · 광석 4종)
+## 광산에서 나온 직후(화면 전환 중) 창을 열어도 전환은 끝까지 → 닫으면 일시정지·시간 정상 (회귀 방지)
+func _test_mine_exit_fade(world: FarmWorld, hud: HUD) -> void:
+	for what: String in ["quest_log", "inventory", "build"]:
+		Events.mine_requested.emit(0)
+		await get_tree().process_frame
+		world.exit_mine()
+		match what:
+			"quest_log": hud.open_quest_log()
+			"inventory": hud.open_inventory()
+			"build": hud.open_build_panel()
+		await get_tree().create_timer(1.0).timeout
+		var a: float = hud._fade.modulate.a
+		hud._close_panels()
+		await get_tree().process_frame
+		_check(a == 0.0 and not get_tree().paused and not GameState.is_time_paused() and world.area == "farm", "광산에서 나오자마자 %s 열어도 화면 전환 끝까지 (어둠 %.2f), 닫으면 정상" % [what, a])
+
+
 func _test_mine(world: FarmWorld, hud: Node) -> void:
 	var mine := world.mine
 	var inv := GameState.inventory

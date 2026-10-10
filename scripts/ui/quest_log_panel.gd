@@ -132,7 +132,8 @@ func _fill_support() -> void:
 		line.name = "%s_%s" % [w.quest, w.item]
 		line.add_theme_constant_override("separation", 12)
 		var txt := _small("· %s %d개  (%s '%s')" % [ItemDB.get_item(w.item).name, w.count, w.quest, QuestManager.quest_def(w.quest).get("title", "")], TEXT)
-		txt.custom_minimum_size = Vector2(620, 0)
+		txt.autowrap_mode = TextServer.AUTOWRAP_OFF
+		txt.custom_minimum_size = Vector2.ZERO  # 글 길이만큼만 → [받기]가 바로 옆에 (사용자 요청). 줄 전체 폭은 점검이 창 폭 안인지 확인
 		line.add_child(txt)
 		var ok := QuestManager.can_receive(w.item)
 		var btn := Button.new()
