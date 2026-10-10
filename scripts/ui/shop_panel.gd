@@ -30,7 +30,7 @@ func _ready() -> void:
 	header.add_theme_constant_override("separation", 24)
 	var title := Label.new()
 	_title = title
-	title.text = "잡화점"
+	title.text = "씨앗상점"
 	title.add_theme_font_size_override("font_size", Art.FONT_SIZE)
 	title.add_theme_font_override("font", Art.pixel_font(true))
 	header.add_child(title)
@@ -91,7 +91,7 @@ func _column(parent: Container, heading: String) -> VBoxContainer:
 ## mode: "buy" 씨앗·비료 사기, "sell" 작물 팔기, "machine" 기계 사기, "all" 사기+팔기
 func open(mode := "all") -> void:
 	_mode = mode
-	_title.text = {"buy": "잡화점 · 사기", "sell": "잡화점 · 팔기", "machine": "기계상점", "smith": "대장간 · 사기"}.get(mode, "잡화점")
+	_title.text = {"buy": "씨앗상점 · 사기", "sell": "씨앗상점 · 팔기", "machine": "기계상점", "smith": "대장간 · 사기"}.get(mode, "씨앗상점")
 	(_buy_col.get_child(0) as Label).text = {"machine": "기계 사기", "smith": "용광로 사기"}.get(mode, "씨앗·비료 사기")
 	_buy_col.visible = mode != "sell"
 	_sell_list.get_parent().visible = mode in ["sell", "all"]

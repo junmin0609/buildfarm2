@@ -1642,7 +1642,7 @@ FLOWERS = [hexc("fbf6ec"), hexc("f0a8bd"), hexc("b49be0"), hexc("f3d36b"), hexc(
 
 # 간판 자리 (x, y, 폭, 높이). 게임에서는 판 가운데에 글자를 얹는다
 SIGNS = {
-    "general_store": (14, 27, 52, 18),
+    "general_store": (6, 27, 68, 18),   # 씨앗상점 (네 글자라 기계상점처럼 넓은 간판)
     "blacksmith": (6, 25, 52, 18),
     "machine_shop": (11, 27, 68, 18),
     "recipe_shop": (6, 25, 52, 18),
@@ -2029,39 +2029,8 @@ def make_mood_props():
     c.save("duck.png")
 
 
-# ---------------------------------------------------------------- 가게 실내 (무드 개편: 12x9칸 방 그림 한 장씩, 192x144)
-#   나무 마루 + 크림 회벽(나무 징두리) + 벽등 + 가게마다 다른 가구. 칸 배치는 scripts/world/interior.gd 의 rows 와 같다
-#   (가구 칸은 못 지나가고, NPC 는 (6,1) 계산대 뒤, 문은 맨 아래 줄 (5,8)(6,8))
-
-ROOM_W, ROOM_H = 12, 9
-
-
-def room_base(c, wall_col, wall_d):
-    fl = [hexc("a8693a"), hexc("b8784a"), hexc("c48654"), hexc("8a5530")]
-    for y in range(T, ROOM_H * T - T):                                   # 나무 마루 (가로 판자, 이음매 엇갈림)
-        band = (y - T) // 4
-        for x in range(T, ROOM_W * T - T):
-            col = fl[(band * 5 + x // 23) % 3]
-            if (y - T) % 4 == 3:
-                col = fl[3]
-            elif (x + band * 11) % 24 == 0:
-                col = fl[3]
-            c.set(x, y, col)
-    c.rect(0, 0, ROOM_W * T, T + 6, wall_col)                             # 뒷벽 (크림 회벽 + 나무 징두리)
-    c.rect(0, T, ROOM_W * T, 6, WOOD_WALL[1])
-    c.rect(0, T, ROOM_W * T, 1, WOOD_WALL[3])
-    c.rect(0, T + 6, ROOM_W * T, 2, SOFT_SHADOW)
-    for x in range(0, ROOM_W * T, 32):
-        c.rect(x, 0, 2, T, wall_d)
-    c.rect(0, 0, T - 4, ROOM_H * T, WOOD_WALL[0])                         # 옆벽·앞벽
-    c.rect(ROOM_W * T - T + 4, 0, T - 4, ROOM_H * T, WOOD_WALL[0])
-    c.rect(T - 4, 0, 2, ROOM_H * T, WOOD_WALL[1]); c.rect(ROOM_W * T - T + 2, 0, 2, ROOM_H * T, WOOD_WALL[1])
-    c.rect(0, ROOM_H * T - T + 4, ROOM_W * T, T - 4, WOOD_WALL[0])
-    c.rect(5 * T, ROOM_H * T - T + 4, 2 * T, T - 4, hexc("6a4428"))      # 문 자리
-    c.rect(5 * T, ROOM_H * T - T + 4, 2 * T, 2, hexc("4a2e1e"))
-    for x in (4 * T + 8, 7 * T + 4):                                     # 문 옆 등불 (안쪽)
-        lantern(c, x, ROOM_H * T - T - 6)
-
+# ---------------------------------------------------------------- 가게 실내 공통 소품 (등·계산대·깔개·화분·통·새싹/톱니/모루 무늬)
+#   방 그림은 아래 make_interior_store · make_interior_smith · make_interior_machine (실내 개편: 18x12칸, 288x192)
 
 def wall_lamp(c, x, y):
     c.rect(x + 1, y, 1, 3, hexc("3a2e28"))
@@ -2112,135 +2081,981 @@ def anvil_mark(c, x, y, col=None):
     c.rect(x - 4, y - 2, 8, 2, col); c.rect(x - 1, y, 3, 2, col); c.rect(x - 3, y + 2, 7, 1, col)
 
 
-def make_interiors():
-    W, H = ROOM_W * T, ROOM_H * T
-    # ---- 잡화점: 씨앗 봉투 선반 · 장작 난로 · 새싹 깔개 · 모종 진열대 · 씨앗 자루 · 화분
+# ---------------------------------------------------------------- 씨앗상점 실내 (실내 개편: 18x12칸, 288x192)
+#   무드: 밝은 나무 마루 · 크림 회벽 · 씨앗 봉투 장 · 모종·꽃 진열대 · 초록 깔개 · 노란 등불 · 벽 덩굴.
+#   칸 배치는 scripts/world/interior.gd 의 "store" rows 와 같다 (뒷벽 2줄, NPC (9,2) 계산대 뒤, 문 (8,11)(9,11)).
+#   가구는 자기 칸 안에 그리고, 벽에 붙은 가구만 위쪽 벽까지 올라간다 (플레이어가 가구 뒤로 들어가 보이지 않게)
+
+STORE_W, STORE_H = 18, 12
+DARK = hexc("3d2618")
+PACKS = [hexc("f3e7c8"), hexc("d9eac0"), hexc("f0d0a0"), hexc("f0c0c8"), hexc("dcd4f0")]
+GREEN = [hexc("3f6e4c"), hexc("5f9a5d"), hexc("7fb069"), hexc("a8d08a")]
+TERRA = [hexc("8a4a2a"), hexc("b8653a"), hexc("d9875a")]
+
+
+def dk(col, f=0.78):
+    return (int(col[0] * f), int(col[1] * f), int(col[2] * f), 255)
+
+
+def lt(col, f=0.25):
+    return tuple(int(col[i] + (255 - col[i]) * f) for i in range(3)) + (255,)
+
+
+def obox(c, x, y, w, h, col, r=1.5):
+    """진한 테두리 상자 (가구 몸통)"""
+    rrect(c, x, y, w, h, r, DARK)
+    rrect(c, x + 1, y + 1, w - 2, h - 2, max(0.5, r - 1), col)
+
+
+def glow_pool(c, cx, cy, rx, ry, a=30):
+    """등불이 바닥에 비치는 노란 빛 웅덩이 (겹쳐 칠해 가운데가 더 밝다)"""
+    for f in (1.0, 0.72, 0.45):
+        c.ellipse(cx, cy, rx * f, ry * f, (255, 214, 140, a))
+
+
+def floor_shadow(c, x, y, w):
+    c.rect(x + 1, y, w - 2, 2, SOFT_SHADOW)
+
+
+def packet7(c, x, y, k):
+    """7x9 씨앗 봉투: 봉투 색 + 그림 (해바라기·토마토·당근·새싹·제비꽃)"""
+    base = PACKS[k % 5]
+    rrect(c, x, y, 7, 9, 0.8, base)
+    c.rect(x + 1, y, 5, 1, lt(base, 0.5)); c.rect(x + 1, y + 8, 5, 1, dk(base, 0.82))
+    cx, cy = x + 3, y + 4
+    icon = (k * 3 + 1) % 5
+    if icon == 0:
+        for dx, dy in ((0, -1), (-1, 0), (1, 0), (0, 1)):
+            c.set(cx + dx, cy + dy, hexc("f3c94a"))
+        c.set(cx, cy, hexc("7a4a2a"))
+    elif icon == 1:
+        c.rect(cx - 1, cy, 3, 2, hexc("e0533f")); c.set(cx, cy - 1, GREEN[1])
+    elif icon == 2:
+        c.set(cx, cy - 1, GREEN[2]); c.rect(cx, cy, 1, 3, hexc("ec8a32")); c.set(cx - 1, cy, hexc("ec8a32"))
+    elif icon == 3:
+        c.set(cx, cy + 1, GREEN[1]); c.set(cx, cy + 2, GREEN[1]); c.set(cx - 1, cy, GREEN[2]); c.set(cx + 1, cy, GREEN[2])
+    else:
+        c.set(cx, cy, hexc("8a6ad0")); c.set(cx - 1, cy - 1, hexc("b49be0")); c.set(cx + 1, cy - 1, hexc("b49be0")); c.set(cx, cy + 1, GREEN[1])
+
+
+def leaves(c, cx, cy, rx, ry, seed, n=None):
+    """잎 덩어리: 진한 바탕 위에 밝은 잎 점을 흩뿌린다"""
+    rnd = random.Random(seed)
+    c.ellipse(cx, cy, rx, ry, P["leaf"][1])
+    c.ellipse(cx - rx * 0.25, cy - ry * 0.3, rx * 0.7, ry * 0.6, P["leaf"][2])
+    for _ in range(n or int(rx * ry / 3) + 2):
+        x = cx + rnd.uniform(-rx, rx) * 0.8
+        y = cy + rnd.uniform(-ry, ry) * 0.8
+        c.set(int(x), int(y), P["leaf"][rnd.choice((3, 3, 4))])
+    c.set(int(cx + rx * 0.4), int(cy + ry * 0.5), P["leaf"][0])
+
+
+def blooms(c, cx, cy, rx, ry, seed, cols, n):
+    rnd = random.Random(seed)
+    for _ in range(n):
+        x = int(cx + rnd.uniform(-rx, rx))
+        y = int(cy + rnd.uniform(-ry, ry))
+        col = rnd.choice(cols)
+        c.set(x, y, col); c.set(x + 1, y, col); c.set(x, y - 1, col); c.set(x, y + 1, dk(col, 0.85))
+        c.set(x + 1, y + 1, hexc("f3c94a") if col != hexc("f3c94a") else hexc("b8653a"))
+
+
+def sunflower(c, x, y, h):
+    """x, y = 줄기 밑동. h = 줄기 길이"""
+    c.rect(x, y - h, 1, h, GREEN[0]); c.set(x - 1, y - h // 2, GREEN[1]); c.set(x + 1, y - h // 2 - 2, GREEN[1])
+    c.ellipse(x + 0.5, y - h - 1, 3.2, 3.2, hexc("f3c94a")); c.ellipse(x + 0.5, y - h - 1, 1.4, 1.4, hexc("7a4a2a"))
+
+
+def mini_pot(c, x, y, kind, seed=0):
+    """8칸 폭 토분 (x, y 는 화분 윗변 왼쪽). kind: 0 잎 · 1 흰꽃 · 2 분홍꽃 · 3 해바라기 · 4 늘어진 덩굴"""
+    if kind == 3:
+        leaves(c, x + 4, y - 2, 3.5, 2, seed, 4)
+        sunflower(c, x + 3, y, 8)
+    elif kind == 4:
+        leaves(c, x + 4, y - 2, 4.5, 2.5, seed, 6)
+        for k, side in enumerate((x - 1, x + 8)):
+            for j in range(4):
+                c.set(side + (j % 2) * (1 if k == 0 else -1), y + 1 + j * 2, P["leaf"][2 + j % 2])
+    else:
+        leaves(c, x + 4, y - 3, 4.5, 3.5, seed, 6)
+        if kind == 1:
+            blooms(c, x + 4, y - 4, 3, 2, seed + 1, [FLOWERS[0], FLOWERS[4]], 3)
+        elif kind == 2:
+            blooms(c, x + 4, y - 4, 3, 2, seed + 1, [FLOWERS[1], hexc("e0715f")], 3)
+    rrect(c, x, y, 8, 6, 1, TERRA[1]); c.rect(x, y, 8, 2, TERRA[2]); c.rect(x + 1, y + 5, 6, 1, TERRA[0])
+
+
+def crate(c, x, y, w, h, col=None):
+    col = col or WOOD_WALL[2]
+    obox(c, x, y, w, h, col, 1)
+    c.rect(x + 1, y + 1, w - 2, 2, lt(col, 0.2))
+    for yy in range(y + 4, y + h - 1, 4):
+        c.rect(x + 1, yy, w - 2, 1, dk(col, 0.8))
+
+
+def jar(c, x, y, fill):
+    rrect(c, x, y + 2, 6, 7, 1.2, hexc("cfe3e0"))
+    c.rect(x + 1, y + 5, 4, 3, fill); c.set(x + 1, y + 3, hexc("f4fbfa"))
+    c.rect(x + 1, y, 4, 2, WOOD_WALL[0]); c.rect(x + 1, y, 4, 1, WOOD_WALL[2])
+
+
+def sack(c, x, y, w, h, seed_col=None):
+    rrect(c, x, y + 3, w, h - 3, 3, hexc("cdb88a"))
+    rrect(c, x + 1, y + 3, w - 2, h - 5, 2.5, hexc("e6d3a8"))
+    c.rect(x + 3, y + 1, w - 6, 3, hexc("d9c39a")); c.rect(x + 3, y + 4, w - 6, 1, hexc("a8875a"))
+    sprout(c, x + w // 2, y + h // 2 + 1, GREEN[1])
+    if seed_col:
+        c.ellipse(x + w / 2, y + 2, w / 2 - 3, 1.5, seed_col)
+
+
+def vine_drape(c, x, y, length, seed, side=1):
+    """벽·가구 위에서 아래로 늘어진 덩굴"""
+    rnd = random.Random(seed)
+    for j in range(length):
+        xx = x + int(math.sin(j * 0.7 + seed) * 1.5)
+        c.set(xx, y + j, P["leaf"][0])
+        if j % 3 == 0:
+            c.set(xx + side, y + j, P["leaf"][rnd.choice((2, 3))]); c.set(xx + side, y + j + 1, P["leaf"][2])
+        if j % 5 == 2:
+            c.set(xx - side, y + j, P["leaf"][3])
+        if j % 9 == 4 and rnd.random() < 0.6:
+            c.set(xx + side * 2, y + j, FLOWERS[rnd.choice((0, 1, 4))])
+
+
+def make_interior_store():
+    W, H = STORE_W * T, STORE_H * T
     c = Canvas(W, H)
-    room_base(c, hexc("eadbbd"), hexc("dccaa6"))
-    pk = [hexc("f3e7c8"), hexc("d9eac0"), hexc("f0d0a0"), hexc("f0c0c8")]
-    for sx in (T, 8 * T):                                                # 씨앗 선반 (x1~4, x8)
-        sw = 4 * T if sx == T else T
-        rrect(c, sx, 2, sw, 2 * T - 2, 1, WOOD_WALL[0])
-        for row, yy in enumerate((5, 17)):
-            c.rect(sx + 1, yy + 9, sw - 2, 2, WOOD_WALL[3])
-            for k in range(sw // 7):
-                px = sx + 2 + k * 7
-                rrect(c, px, yy, 6, 9, 0.8, pk[(k + row) % 4])
-                c.set(px + 2, yy + 3, (hexc("7fb069"), hexc("e0715f"), hexc("f3d36b"), hexc("b49be0"))[(k * 3 + row) % 4])
-                c.set(px + 3, yy + 4, hexc("7fb069"))
-    rrect(c, 9 * T + 2, 4, 2 * T - 4, 2 * T - 6, 2, hexc("2f2f33"))      # 장작 난로 (x9~10)
-    c.rect(9 * T + 12, 0, 6, 6, hexc("2f2f33"))
-    rrect(c, 9 * T + 8, 14, 14, 9, 1.5, hexc("1f1f22")); c.ellipse(9 * T + 15, 19, 5, 3, hexc("ff9a3c")); c.ellipse(9 * T + 15, 20, 2.5, 1.5, GLOW[2])
-    rrect(c, 6 * T - 4, 1, 22, 13, 1, hexc("f6ead2")); sprout(c, 6 * T + 7, 6, hexc("5f9a5d"))   # 새싹 액자
-    wall_lamp(c, 5 * T + 4, 1); wall_lamp(c, 8 * T + 10, 1)
-    counter(c, 4 * T, 9 * T, 2 * T)                                       # 계산대 (x4~8) + 장부·종·화분
-    rrect(c, 5 * T, 2 * T + 1, 12, 6, 0.5, hexc("fbf6ec")); c.rect(5 * T + 6, 2 * T + 1, 1, 6, hexc("d9c9a8"))
-    c.ellipse(7 * T + 8, 2 * T + 3, 2.5, 2, hexc("d6a83a"))
-    plant_pot(c, 8 * T, 2 * T - 9)
-    rug(c, 4 * T, 3 * T + 4, 4 * T, 10, hexc("5f9a5d"), hexc("3f6e4c"), lambda cv, x, y: sprout(cv, x, y - 1))
-    rrect(c, 4 * T, 4 * T + 2, 4 * T, 2 * T - 4, 1.5, WOOD_WALL[0])       # 모종·씨앗 진열대 (x4~7, y4~5)
-    rrect(c, 4 * T, 4 * T + 2, 4 * T, 5, 1.5, WOOD_WALL[3])
-    for k in range(7):
-        px = 4 * T + 3 + k * 8
-        rrect(c, px, 4 * T, 6, 8, 0.8, pk[k % 4]); c.set(px + 2, 4 * T + 3, (hexc("e0715f"), hexc("7fb069"), hexc("b49be0"))[k % 3])
+    # ---- 바닥: 따뜻한 가로 판자 (이음매 엇갈림, 판마다 색이 조금 다름)
+    fl = [hexc("b8784a"), hexc("c08250"), hexc("c88b5a"), hexc("9a6038"), hexc("d69c6a")]
+    for y in range(2 * T, H - T + 4):
+        band = (y - 2 * T) // 6
+        for x in range(T - 4, W - T + 4):
+            seam = (x + band * 19) % 52
+            col = fl[(band * 5 + (x + band * 19) // 52) % 3]
+            if (y - 2 * T) % 6 == 5 or seam == 0:
+                col = fl[3]
+            elif (y - 2 * T) % 6 == 0:
+                col = lt(col, 0.08)
+            elif seam in (12, 33) and (y - 2 * T) % 6 == 2:
+                col = dk(col, 0.9)   # 나뭇결 옹이
+            c.set(x, y, col)
+    # ---- 뒷벽 (2칸 높이): 윗보 · 크림 회벽 · 기둥 · 나무 징두리
+    c.rect(0, 0, W, 3, WOOD_WALL[0]); c.rect(0, 3, W, 1, DARK)
+    c.rect(0, 4, W, 17, hexc("eadbbd"))
+    for x in range(4, W, 7):
+        c.set(x, 6 + (x * 5) % 13, hexc("e0cfae"))
+    for x in (T - 4, 6 * T + 6, 12 * T - 6, W - T + 1):
+        c.rect(x, 4, 3, 17, WOOD_WALL[1]); c.rect(x, 4, 1, 17, WOOD_WALL[2])
+    c.rect(0, 21, W, 1, WOOD_WALL[3]); c.rect(0, 22, W, 9, WOOD_WALL[2])
+    for x in range(2, W, 6):
+        c.rect(x, 22, 1, 9, WOOD_WALL[1])
+    c.rect(0, 31, W, 1, DARK); c.rect(0, 32, W, 3, SOFT_SHADOW)
+    # ---- 옆벽 · 앞벽 (두꺼운 나무, 안쪽 모서리 밝게)
+    for x0 in (0, W - T + 4):
+        c.rect(x0, 0, T - 4, H, WOOD_WALL[0])
+        c.rect(x0 + (T - 6 if x0 == 0 else 0), 0, 2, H, WOOD_WALL[1])
+        c.rect(x0 + (0 if x0 == 0 else T - 5), 0, 1, H, DARK)
+        for yy in range(6, H, 12):
+            c.rect(x0 + 2, yy, T - 8, 1, dk(WOOD_WALL[0], 0.85))
+    c.rect(T - 4, 2 * T, 2, H - 3 * T, SOFT_SHADOW); c.rect(W - T + 2, 2 * T, 2, H - 3 * T, SOFT_SHADOW)
+    c.rect(0, H - T + 4, W, T - 4, WOOD_WALL[0]); c.rect(0, H - T + 4, W, 1, WOOD_WALL[3]); c.rect(0, H - 1, W, 1, DARK)
+    for x in range(3, W, 9):
+        c.rect(x, H - T + 6, 1, T - 7, dk(WOOD_WALL[0], 0.85))
+    c.rect(8 * T, H - T + 4, 2 * T, T - 4, hexc("6a4428"))                   # 문 자리 + 문턱
+    c.rect(8 * T, H - T + 4, 2 * T, 2, hexc("4a2e1e")); c.rect(8 * T + 2, H - 3, 2 * T - 4, 2, hexc("c8b9a2"))
+    for px in (8 * T - 4, 10 * T):                                           # 문 기둥 + 등불
+        obox(c, px, H - T - 2, 4, T + 2, WOOD_WALL[1], 0.5)
+    lantern(c, 8 * T - 11, H - T - 2); lantern(c, 10 * T + 8, H - T - 2)
+
+    # ---- 깔개 (지나갈 수 있음): 가운데 진열대 밑 초록 깔개 · 왼쪽 베이지 깔개 · 오른쪽 작은 깔개 · 문 앞 깔개
+    rug(c, 5 * T + 6, 5 * T + 10, 7 * T + 4, 3 * T + 6, GREEN[1], GREEN[0], lambda cv, x, y: None)
+    for xx in range(5 * T + 12, 12 * T + 6, 9):
+        sprout(c, xx, 8 * T + 9, lt(GREEN[1], 0.45))
+    rx0, ry0, rw, rh = 3 * T + 2, 4 * T + 12, 2 * T, 4 * T - 6                 # 왼쪽 베이지 줄무늬 깔개 (술 달림)
+    rrect(c, rx0, ry0, rw, rh, 1, hexc("c9ad7e"))
+    rrect(c, rx0 + 1, ry0 + 1, rw - 2, rh - 2, 0.5, hexc("ecdcb8"))
+    for yy in range(ry0 + 3, ry0 + rh - 2, 8):
+        c.rect(rx0 + 2, yy, rw - 4, 1, hexc("b8604a")); c.rect(rx0 + 2, yy + 2, rw - 4, 1, GREEN[1])
+        for xx in range(rx0 + 4, rx0 + rw - 3, 6):
+            c.set(xx, yy + 5, hexc("d9c39a")); c.set(xx + 1, yy + 4, hexc("d9c39a")); c.set(xx + 1, yy + 6, hexc("d9c39a")); c.set(xx + 2, yy + 5, hexc("d9c39a"))
+    for xx in range(rx0 + 1, rx0 + rw - 1, 2):
+        c.set(xx, ry0 - 1, hexc("efe0bf")); c.set(xx, ry0 + rh, hexc("efe0bf"))
+    rug(c, 13 * T + 2, 3 * T + 8, 2 * T - 4, 2 * T + 4, GREEN[1], GREEN[0], lambda cv, x, y: sprout(cv, x, y, lt(GREEN[1], 0.45)))
+    for yy in range(3 * T + 12, 5 * T + 8, 4):
+        c.set(13 * T + 4, yy, lt(GREEN[1], 0.3)); c.set(15 * T - 5, yy, lt(GREEN[1], 0.3))
+    rug(c, 8 * T + 2, 10 * T + 1, 2 * T - 4, 12, GREEN[1], GREEN[0], lambda cv, x, y: sprout(cv, x, y - 1, lt(GREEN[1], 0.5)))
+
+    # ---- 등불 빛 웅덩이 (바닥)
+    for cx, cy, rx, ry in ((7 * T + 4, 3 * T, 22, 10), (12 * T - 4, 3 * T, 22, 10), (2 * T, 5 * T, 18, 14), (W - 2 * T, 5 * T, 18, 14),
+                           (9 * T, 9 * T, 30, 14), (9 * T, 10 * T + 8, 26, 9)):
+        glow_pool(c, cx, cy, rx, ry)
+
+    # ---- 뒷벽 장식: 새싹 깃발 (NPC 뒤) · 창문 · 말린 꽃 다발 · 벽등 · 시계
+    c.rect(9 * T - 14, 3, 30, 2, WOOD_WALL[0])
+    rrect(c, 9 * T - 12, 5, 26, 18, 1, GREEN[0]); rrect(c, 9 * T - 11, 6, 24, 15, 1, hexc("f6ead2"))
     for k in range(4):
-        px = 4 * T + 3 + k * 15
-        rrect(c, px, 5 * T + 2, 12, 6, 1, WOOD_WALL[1])
-        for j in range(3):
-            c.set(px + 2 + j * 4, 5 * T + 1, P["leaf"][3]); c.set(px + 2 + j * 4, 5 * T + 2, P["leaf"][2])
-    for k, yy in enumerate((4 * T, 5 * T)):                              # 씨앗 자루 (x1)
-        rrect(c, T + 1, yy + 1, 14, 15, 3, hexc("e6d3a8")); c.rect(T + 4, yy + 6, 8, 4, hexc("d9c39a")); sprout(c, T + 8, yy + 8, hexc("5f9a5d"))
-    barrel(c, 10 * T, 4 * T); barrel(c, 10 * T, 5 * T, hexc("f3d36b"))
-    plant_pot(c, T, 7 * T); plant_pot(c, 10 * T, 7 * T)
-    rrect(c, 5 * T + 4, 7 * T + 6, 2 * T - 8, 8, 1, hexc("5f9a5d"))       # 문 앞 깔개
-    c.outline(INK)
+        c.set(9 * T - 11 + k * 7 + 3, 22, GREEN[0])
+    c.rect(9 * T + 1, 11, 2, 7, GREEN[1])
+    c.ellipse(9 * T - 2, 10, 3.5, 2, GREEN[1]); c.ellipse(9 * T + 6, 10, 3.5, 2, GREEN[1])
+    c.set(9 * T - 3, 9, GREEN[2]); c.set(9 * T + 6, 9, GREEN[2])
+    obox(c, 7 * T + 2, 6, 18, 14, WOOD_WALL[1], 0.5)                          # 창문 (따뜻한 바깥 빛)
+    c.rect(7 * T + 4, 8, 14, 10, hexc("fbe7b0")); c.rect(7 * T + 10, 8, 2, 10, WOOD_WALL[1]); c.rect(7 * T + 4, 12, 14, 1, WOOD_WALL[1])
+    c.rect(7 * T + 4, 8, 6, 4, hexc("fff3cf"))
+    mini_pot(c, 7 * T + 7, 17, 2, 41)
+    for k, col in enumerate((FLOWERS[2], FLOWERS[0], hexc("e8a65a"))):        # 말린 꽃 다발 (오른쪽)
+        bx = 10 * T + 8 + k * 6
+        c.set(bx + 1, 4, WOOD_WALL[0]); c.rect(bx, 5, 3, 2, hexc("c9a46a"))
+        for j in range(6):
+            c.set(bx + (j % 3), 7 + j, col if j < 4 else GREEN[0])
+    c.ellipse(11 * T + 12, 12, 5, 5, WOOD_WALL[0]); c.ellipse(11 * T + 12, 12, 4, 4, hexc("fbf6ec"))   # 시계
+    c.rect(11 * T + 12, 9, 1, 3, DARK); c.rect(11 * T + 12, 12, 2, 1, DARK)
+    wall_lamp(c, 7 * T - 9, 12); wall_lamp(c, 12 * T - 5, 12)
+    wall_lamp(c, 4, 66); wall_lamp(c, W - 7, 66)                               # 옆벽 등
+
+    # ---- S 씨앗 봉투 장 (x1~4): 봉투 칸 2줄 + 서랍 + 위에 화분
+    x0, x1 = T, 5 * T
+    floor_shadow(c, x0, 3 * T, x1 - x0)
+    obox(c, x0, 10, x1 - x0, 3 * T - 10, WOOD_WALL[1])
+    c.rect(x0 + 1, 11, x1 - x0 - 2, 3, WOOD_WALL[3])
+    for row, yy in enumerate((15, 26)):
+        c.rect(x0 + 3, yy - 1, x1 - x0 - 6, 11, hexc("6e4426"))
+        for k in range(7):
+            packet7(c, x0 + 4 + k * 8, yy, k + row * 3)
+        c.rect(x0 + 2, yy + 9, x1 - x0 - 4, 2, WOOD_WALL[3])
+    for k in range(4):
+        dx = x0 + 3 + k * 15
+        rrect(c, dx, 38, 13, 8, 0.8, WOOD_WALL[2]); c.rect(dx + 5, 41, 3, 1, hexc("e3c04a"))
+    for k, kind in enumerate((4, 1, 0)):
+        mini_pot(c, x0 + 4 + k * 22, 4, kind, 11 + k)
+    vine_drape(c, T - 2, 4, 40, 3, 1)
+
+    # ---- H 화분 선반 (x5~6): 3단
+    x0 = 5 * T
+    floor_shadow(c, x0, 3 * T, 2 * T)
+    obox(c, x0 + 1, 8, 2 * T - 2, 3 * T - 8, WOOD_WALL[0])
+    c.rect(x0 + 3, 10, 2 * T - 6, 3 * T - 12, hexc("7a4e30"))
+    for k, yy in enumerate((20, 32, 44)):
+        c.rect(x0 + 2, yy, 2 * T - 4, 2, WOOD_WALL[3])
+        mini_pot(c, x0 + 5, yy - 6, (1, 3, 2)[k], 21 + k)
+        mini_pot(c, x0 + 18, yy - 6, (4, 0, 1)[k], 31 + k)
+
+    # ---- J 씨앗 병 선반 (x12~14)
+    x0, x1 = 12 * T, 15 * T
+    floor_shadow(c, x0, 3 * T, x1 - x0)
+    obox(c, x0, 10, x1 - x0, 3 * T - 10, WOOD_WALL[1])
+    fills = [hexc("e6d3a8"), hexc("7fb069"), hexc("a8693a"), hexc("f3d36b"), hexc("d9c39a")]
+    for row, yy in enumerate((12, 24)):
+        c.rect(x0 + 3, yy, x1 - x0 - 6, 11, hexc("6e4426"))
+        for k in range(5):
+            jar(c, x0 + 4 + k * 9, yy + 1, fills[(k + row * 2) % 5])
+        c.rect(x0 + 2, yy + 10, x1 - x0 - 4, 2, WOOD_WALL[3])
+    for k in range(3):
+        dx = x0 + 3 + k * 14
+        rrect(c, dx, 37, 12, 9, 0.8, WOOD_WALL[2]); c.rect(dx + 5, 40, 2, 1, hexc("e3c04a"))
+    mini_pot(c, x0 + 6, 4, 1, 51); mini_pot(c, x0 + 30, 4, 4, 52)
+    vine_drape(c, x1 - 2, 6, 26, 7, -1)
+
+    # ---- K 장작 난로 (x15~16) + 연통 + 주전자
+    x0 = 15 * T
+    floor_shadow(c, x0 + 2, 3 * T, 2 * T - 4)
+    c.rect(x0 + 2, 3 * T - 6, 2 * T - 4, 6, hexc("9a8b7d")); c.rect(x0 + 2, 3 * T - 6, 2 * T - 4, 1, hexc("b5a696"))
+    c.rect(x0 + 13, 0, 6, 22, hexc("3a3a3e")); c.rect(x0 + 13, 0, 1, 22, hexc("5a5a62")); c.rect(x0 + 12, 8, 8, 2, hexc("2a2a2e"))
+    obox(c, x0 + 5, 20, 22, 24, hexc("2f2f33"), 2.5)
+    c.rect(x0 + 6, 21, 20, 2, hexc("4a4a50"))
+    rrect(c, x0 + 9, 28, 14, 10, 1.5, hexc("1c1c20"))
+    c.ellipse(x0 + 16, 34, 5, 3, hexc("ff8a2c")); c.ellipse(x0 + 16, 35, 3, 1.8, hexc("ffd36b")); c.set(x0 + 16, 35, GLOW[2])
+    c.rect(x0 + 8, 44, 2, 2, DARK); c.rect(x0 + 22, 44, 2, 2, DARK)
+    rrect(c, x0 + 7, 14, 9, 7, 2, hexc("8a6a4a")); c.rect(x0 + 15, 16, 3, 1, hexc("8a6a4a")); c.rect(x0 + 10, 13, 3, 1, DARK)
+
+    # ---- C 계산대 (x6~12): 초록 천 · 장부 · 종 · 돈통 · 등잔 · 꽃 화분
+    x0, x1 = 6 * T, 13 * T
+    floor_shadow(c, x0, 4 * T, x1 - x0)
+    obox(c, x0, 3 * T - 3, x1 - x0, T + 3, WOOD_WALL[0])
+    c.rect(x0 + 1, 3 * T - 2, x1 - x0 - 2, 5, WOOD_WALL[3]); c.rect(x0 + 1, 3 * T + 3, x1 - x0 - 2, 1, WOOD_WALL[2])
+    for x in range(x0 + 7, x1 - 3, 9):
+        c.rect(x, 3 * T + 5, 1, T - 6, dk(WOOD_WALL[0], 0.85))
+    rrect(c, 9 * T - 9, 3 * T - 2, 18, T + 1, 0.5, GREEN[0]); rrect(c, 9 * T - 8, 3 * T - 1, 16, T - 1, 0.5, hexc("f6ead2"))
+    c.rect(9 * T - 8, 3 * T - 1, 16, 1, GREEN[1])
+    sprout(c, 9 * T, 3 * T + 7, GREEN[1])
+    rrect(c, 7 * T + 4, 3 * T - 5, 14, 6, 0.5, hexc("fbf6ec")); c.rect(7 * T + 11, 3 * T - 5, 1, 6, hexc("d9c9a8"))
+    c.rect(7 * T + 6, 3 * T - 3, 4, 1, hexc("b5a696")); c.rect(7 * T + 13, 3 * T - 3, 4, 1, hexc("b5a696"))
+    c.ellipse(6 * T + 22, 3 * T - 3, 2.5, 2, hexc("d6a83a")); c.set(6 * T + 22, 3 * T - 6, DARK)
+    obox(c, 10 * T + 6, 3 * T - 7, 12, 7, hexc("4a4d55"), 1); c.rect(10 * T + 8, 3 * T - 6, 8, 1, hexc("7a7e88"))
+    rrect(c, 12 * T - 6, 3 * T - 9, 5, 7, 1.5, GLOW[1]); c.set(12 * T - 4, 3 * T - 7, GLOW[2]); c.rect(12 * T - 6, 3 * T - 3, 5, 2, hexc("a8653a"))
+    mini_pot(c, 6 * T + 2, 3 * T - 6, 1, 61)
+
+    # ---- V 큰 잎 화분 (1,3) · P 꽃 화분 (1,4) · A 씨앗 자루 (16,3~4)
+    leaves(c, T + 8, 3 * T + 3, 7, 7, 71); leaves(c, T + 5, 3 * T - 2, 4, 5, 72)
+    rrect(c, T + 3, 4 * T - 9, 10, 9, 1.5, TERRA[1]); c.rect(T + 3, 4 * T - 9, 10, 2, TERRA[2])
+    plant_pot(c, T, 4 * T)
+    blooms(c, T + 8, 4 * T + 5, 4, 3, 73, [FLOWERS[1], hexc("e0715f")], 3)
+    floor_shadow(c, 16 * T, 5 * T, T)
+    sack(c, 16 * T, 3 * T, T, T, hexc("e8d7a8")); sack(c, 16 * T, 4 * T, T, T)
+
+    # ---- Y 모종 받침대 (1,5)
+    floor_shadow(c, T, 6 * T, T)
+    obox(c, T + 1, 5 * T + 6, 14, 6, WOOD_WALL[2], 0.5); c.rect(T + 3, 5 * T + 12, 2, 4, WOOD_WALL[0]); c.rect(T + 11, 5 * T + 12, 2, 4, WOOD_WALL[0])
+    for k in range(3):
+        sprout(c, T + 4 + k * 4, 5 * T + 4, GREEN[2])
+
+    # ---- L 모종 상자 더미 (x1~2, y6~7)
+    floor_shadow(c, T, 8 * T, 2 * T)
+    for k, (bx, by) in enumerate(((T, 6 * T + 2), (2 * T, 6 * T + 2), (T, 7 * T + 2), (2 * T, 7 * T + 2))):
+        crate(c, bx + 1, by + 4, T - 2, T - 6)
+        if k in (0, 3):
+            for j in range(3):
+                sprout(c, bx + 4 + j * 4, by + 2, GREEN[2])
+        else:
+            leaves(c, bx + 8, by + 3, 6, 3, 80 + k, 6)
+            blooms(c, bx + 8, by + 2, 5, 2, 90 + k, [FLOWERS[0], FLOWERS[2], FLOWERS[1]], 3)
+
+    # ---- G 가운데 진열대 (x6~11, y6~7): 뒤 봉투 진열판 + 앞 모종·채소 상자 + 양 끝 꽃 화분
+    x0, x1 = 6 * T, 12 * T
+    floor_shadow(c, x0 + 2, 8 * T - 1, x1 - x0 - 4)
+    obox(c, x0 + 2, 6 * T + 10, x1 - x0 - 4, 2 * T - 11, WOOD_WALL[1])
+    c.rect(x0 + 3, 6 * T + 11, x1 - x0 - 6, 2, WOOD_WALL[3])
+    obox(c, x0 + 14, 6 * T - 1, x1 - x0 - 28, 13, WOOD_WALL[2], 1)
+    for k in range(8):
+        packet7(c, x0 + 17 + k * 8, 6 * T + 1, k + 2)
+    for k in range(4):
+        bx = x0 + 6 + k * 21
+        crate(c, bx, 7 * T, 19, 13, WOOD_WALL[2])
+        if k == 0:
+            for j in range(4):
+                sprout(c, bx + 3 + j * 4, 7 * T - 1, GREEN[2])
+        elif k == 1:
+            for j in range(5):
+                c.ellipse(bx + 3 + j * 3.3, 7 * T + 1, 1.6, 1.6, hexc("e0533f")); c.set(int(bx + 3 + j * 3.3), 7 * T - 1, GREEN[1])
+        elif k == 2:
+            for j in range(4):
+                c.rect(bx + 3 + j * 4, 7 * T - 1, 2, 4, hexc("ec8a32")); c.set(bx + 3 + j * 4, 7 * T - 2, GREEN[2])
+        else:
+            leaves(c, bx + 9, 7 * T, 8, 3, 101, 8)
+            blooms(c, bx + 9, 7 * T - 1, 7, 2, 102, [FLOWERS[2], FLOWERS[0]], 4)
+    mini_pot(c, x0, 7 * T + 4, 3, 111); mini_pot(c, x1 - 9, 7 * T + 4, 1, 112)
+
+    # ---- R 씨앗 봉투 진열대 (x15~16, y5~7)
+    x0 = 15 * T
+    floor_shadow(c, x0 + 2, 8 * T, 2 * T - 4)
+    obox(c, x0 + 3, 5 * T + 2, 2 * T - 6, 3 * T - 2, WOOD_WALL[1])
+    for row, yy in enumerate((5 * T + 6, 6 * T + 6, 7 * T + 4)):
+        c.rect(x0 + 5, yy - 1, 2 * T - 10, 11, hexc("7a4e30"))
+        for k in range(3):
+            packet7(c, x0 + 6 + k * 7, yy, k + row * 2 + 1)
+        c.rect(x0 + 4, yy + 9, 2 * T - 8, 2, WOOD_WALL[3])
+
+    # ---- O 화분 더미 (1,8) · B 통 (16,8~9) · Q 꽃 상자 + 물뿌리개 (1~2,9) · Z 칠판 (14,9) · P 화분 (1,10)(16,10)
+    floor_shadow(c, T, 9 * T, T)
+    for k, (dx, dy) in enumerate(((2, 9), (4, 4), (6, -1))):
+        rrect(c, T + dx, 8 * T + dy, 9, 6, 1, TERRA[1 + k % 2]); c.rect(T + dx, 8 * T + dy, 9, 1, TERRA[2]); c.rect(T + dx + 1, 8 * T + dy + 5, 7, 1, TERRA[0])
+    floor_shadow(c, 16 * T, 10 * T, T)
+    barrel(c, 16 * T, 8 * T, hexc("6e452b")); barrel(c, 16 * T, 9 * T, hexc("6e452b"))
+    leaves(c, 16 * T + 8, 8 * T + 1, 5, 2, 121, 5)
+    sunflower(c, 16 * T + 5, 8 * T + 2, 6); sunflower(c, 16 * T + 10, 8 * T + 2, 9)
+    for j in range(3):
+        sprout(c, 16 * T + 4 + j * 4, 9 * T + 2, GREEN[2])
+    floor_shadow(c, T, 10 * T, 2 * T)
+    crate(c, T + 1, 9 * T + 6, 2 * T - 12, 10)
+    leaves(c, T + 10, 9 * T + 5, 9, 3, 131, 8); blooms(c, T + 10, 9 * T + 4, 8, 2, 132, [FLOWERS[1], FLOWERS[0], FLOWERS[2]], 5)
+    rrect(c, 3 * T - 10, 9 * T + 7, 8, 7, 1.5, hexc("7d8a96")); c.rect(3 * T - 10, 9 * T + 7, 8, 1, hexc("aab6c0"))
+    c.rect(3 * T - 13, 9 * T + 8, 3, 1, hexc("7d8a96")); c.rect(3 * T - 14, 9 * T + 7, 1, 1, hexc("7d8a96")); c.rect(3 * T - 6, 9 * T + 5, 2, 2, hexc("5d6a76"))
+    floor_shadow(c, 14 * T, 10 * T, T)
+    c.rect(14 * T + 3, 9 * T + 4, 1, 12, WOOD_WALL[0]); c.rect(14 * T + 12, 9 * T + 4, 1, 12, WOOD_WALL[0])
+    obox(c, 14 * T + 2, 9 * T + 1, 12, 11, WOOD_WALL[1], 0.5); c.rect(14 * T + 3, 9 * T + 2, 10, 9, hexc("2f3a33"))
+    sprout(c, 14 * T + 8, 9 * T + 5, hexc("f6ead2")); c.rect(14 * T + 5, 9 * T + 9, 6, 1, hexc("cfd8cf"))
+    plant_pot(c, T, 10 * T); plant_pot(c, 16 * T, 10 * T)
+    blooms(c, T + 8, 10 * T + 5, 4, 3, 141, [FLOWERS[0], FLOWERS[4]], 3)
+    blooms(c, 16 * T + 8, 10 * T + 5, 4, 3, 142, [FLOWERS[2], FLOWERS[1]], 3)
+
+    # ---- 벽 덩굴 (윗보에서 늘어짐)
+    for x, ln, sd in ((6 * T + 8, 14, 151), (12 * T - 4, 10, 152), (W - T - 2, 46, 153)):
+        vine_drape(c, x, 3, ln, sd, -1 if x > W // 2 else 1)
     c.save("interior_store.png")
 
-    # ---- 대장간: 화덕 · 광석 선반 · 공구 걸이 · 모루 · 주괴 탁자 · 석탄 통 · 숫돌 · 모루 깔개
-    c = Canvas(W, H)
-    room_base(c, hexc("cdbfae"), hexc("b5a696"))
-    rrect(c, T, 2, 3 * T, 2 * T - 2, 1, WOOD_WALL[0])                     # 광석·주괴 선반 (x1~3)
-    ore = [hexc("9aa0a8"), hexc("d6a83a"), hexc("c46a3a"), hexc("6f6f74")]
-    for row, yy in enumerate((5, 17)):
-        c.rect(T + 1, yy + 9, 3 * T - 2, 2, WOOD_WALL[3])
-        for k in range(6):
-            c.ellipse(T + 5 + k * 7, yy + 6, 3, 2.5, ore[(k + row) % 4])
-    stone = [hexc("7d6f63"), hexc("9a8b7d"), hexc("b5a696")]
-    rrect(c, 8 * T, 0, 3 * T, 2 * T, 2, stone[1])                        # 화덕 (x8~10)
-    for yy in range(3, 2 * T, 5):
-        c.rect(8 * T + 1, yy, 3 * T - 2, 1, stone[0])
-    c.rect(9 * T + 2, 0, T - 4, 6, hexc("3a3a3a"))
-    rrect(c, 8 * T + 8, 12, 2 * T, 16, 3, hexc("2a1a12"))
-    c.ellipse(9 * T + 8, 22, 12, 5, hexc("ff8a2c")); c.ellipse(9 * T + 8, 23, 7, 3, hexc("ffd36b")); c.ellipse(9 * T + 8, 24, 3, 1.5, GLOW[2])
-    rrect(c, 4 * T + 4, 1, 26, 12, 1, hexc("f6ead2")); anvil_mark(c, 5 * T + 1, 6, hexc("5b3a29"))   # 모루 그림
-    for x in range(5 * T + 12, 7 * T + 12, 6):                            # 벽에 건 망치·집게
-        c.rect(x, 2, 1, 10, WOOD_WALL[0]); c.rect(x - 1, 2, 3, 2, hexc("5a5a62"))
-    wall_lamp(c, 4 * T, 1); wall_lamp(c, 7 * T + 12, 1)
-    counter(c, 4 * T, 9 * T, 2 * T)
-    c.rect(5 * T + 2, 2 * T + 2, 10, 2, hexc("5a5a62")); c.rect(5 * T + 5, 2 * T + 4, 2, 4, WOOD_WALL[0])   # 계산대 위 망치·도면
-    rrect(c, 7 * T, 2 * T + 1, 12, 7, 0.5, hexc("fbf6ec"))
-    c.rect(10 * T + 1, 3 * T + 7, 14, 4, hexc("4a4d55")); c.rect(10 * T + 4, 3 * T + 11, 8, 4, hexc("4a4d55"))  # 모루 (x10, y3)
-    c.rect(10 * T + 2, 3 * T + 7, 12, 1, hexc("7a7e88"))
-    rrect(c, T, 4 * T, 14, 3 * T, 1, WOOD_WALL[0])                        # 공구 걸이 (x1, y4~6)
-    for k in range(6):
-        y = 4 * T + 4 + k * 7
-        c.rect(T + 3, y, 9, 1, hexc("9aa0a8")); c.rect(T + 3, y + 1, 2, 3, hexc("5a5a62"))
-    rug(c, 4 * T, 3 * T + 4, 4 * T, 10, hexc("a85a46"), hexc("7a3a2e"), lambda cv, x, y: anvil_mark(cv, x, y))
-    rrect(c, 4 * T, 4 * T + 2, 4 * T, 2 * T - 4, 1.5, WOOD_WALL[0])       # 주괴 탁자 (x4~7, y4~5)
-    rrect(c, 4 * T, 4 * T + 2, 4 * T, 5, 1.5, WOOD_WALL[3])
-    for k, col in enumerate((hexc("e3c04a"), hexc("c9ccd1"), hexc("c46a3a"), hexc("c9ccd1"), hexc("e3c04a"))):
-        rrect(c, 4 * T + 4 + k * 12, 4 * T + 9, 9, 5, 1, col); c.rect(4 * T + 5 + k * 12, 4 * T + 9, 7, 1, hexc("ffffff"))
-    for yy in (4 * T, 5 * T):                                            # 석탄 통 (x10, y4~5)
-        barrel(c, 10 * T, yy, hexc("1f1f22"))
-    barrel(c, T, 7 * T)
-    c.ellipse(10 * T + 8, 7 * T + 8, 6, 6, hexc("b5a696")); c.ellipse(10 * T + 8, 7 * T + 8, 2, 2, hexc("7d6f63"))   # 숫돌
-    c.rect(10 * T + 2, 7 * T + 13, 12, 2, WOOD_WALL[0])
-    rrect(c, 5 * T + 4, 7 * T + 6, 2 * T - 8, 8, 1, hexc("a85a46"))
-    c.outline(INK)
-    c.save("interior_smith.png")
 
-    # ---- 기계상점: 작은 보일러 · 설계도·톱니 · 부품 선반 · 기계 진열대 · 전시용 미니 컨베이어 · 기계 상자
+# ---------------------------------------------------------------- 대장간 · 기계상점 실내 (실내 개편: 18x12칸, 288x192)
+#   씨앗상점(밝은 나무·초록·꽃)과 겹치지 않게 성격을 나눈다.
+#   대장간 = 불·금속·강화: 짙은 나무 + 석재 + 검은 쇠 + 붉은 주황 불빛. 오른쪽 위 큰 화덕이 주 광원, 그 앞 돌바닥에 모루.
+#   기계상점 = 자동화·부품·설계도: 나무 + 회색 금속 + 청동·초록. 벽 배관·압력계·청사진, 가운데 통로는 철판, 오른쪽 컨베이어.
+#   칸 배치는 scripts/world/interior.gd 의 rows 와 같다.
+
+METAL = [hexc("3a3c43"), hexc("555963"), hexc("7d838c"), hexc("a9aeb5"), hexc("d3d6da")]
+BRONZE = [hexc("6e4522"), hexc("9a6430"), hexc("c48a45"), hexc("e3b46a")]
+MGREEN = [hexc("2f4a40"), hexc("3f6455"), hexc("5a8a6e"), hexc("82b08f")]
+BLUEP = [hexc("26405e"), hexc("3a5f86"), hexc("a9c6e0"), hexc("e4eef6")]
+SWOOD = [hexc("3a2418"), hexc("4e3020"), hexc("63402a"), hexc("7a5234"), hexc("94683f")]
+STONE = [hexc("3f3a37"), hexc("57504a"), hexc("6f665e"), hexc("8a7f75"), hexc("a49789")]
+IRON = [hexc("1d1d21"), hexc("2c2c32"), hexc("44454d"), hexc("6a6d76"), hexc("9295a0")]
+FIRE = [hexc("8a2a14"), hexc("d24a1e"), hexc("f08a2c"), hexc("ffc65a"), hexc("fff0b8")]
+ORE_COL = {"iron": hexc("8f8f96"), "copper": hexc("c46a3a"), "gold": hexc("e3c04a"), "coal": hexc("2a2a2e")}
+
+
+def plank_floor(c, x0, y0, x1, y1, fl, seam, period=52, row=6):
+    for y in range(y0, y1):
+        band = (y - y0) // row
+        for x in range(x0, x1):
+            s = (x + band * 19) % period
+            col = fl[(band * 5 + (x + band * 19) // period) % len(fl)]
+            if (y - y0) % row == row - 1 or s == 0:
+                col = seam
+            elif (y - y0) % row == 0:
+                col = lt(col, 0.06)
+            c.set(x, y, col)
+
+
+def flagstones(c, x0, y0, w, h, cols, mortar, seed):
+    """석재 바닥 (엇갈린 크고 작은 판석)"""
+    rnd = random.Random(seed)
+    c.rect(x0, y0, w, h, mortar)
+    y = y0
+    while y < y0 + h:
+        rh = rnd.choice((6, 7, 8))
+        x = x0 - rnd.randint(0, 6)
+        while x < x0 + w:
+            rw = rnd.choice((8, 10, 12))
+            col = rnd.choice(cols)
+            for yy in range(max(y + 1, y0), min(y + rh, y0 + h)):
+                for xx in range(max(x + 1, x0), min(x + rw, x0 + w)):
+                    c.set(xx, yy, col)
+            if y + 1 < y0 + h and x + 1 >= x0:
+                c.rect(max(x + 1, x0), y + 1, min(rw - 1, x0 + w - max(x + 1, x0)), 1, lt(col, 0.12))
+            x += rw
+        y += rh
+
+
+def gear(c, cx, cy, r, col, hole=None, teeth=8):
+    for a in range(teeth):
+        ang = a * 2 * math.pi / teeth
+        tx, ty = cx + math.cos(ang) * (r + 0.8), cy + math.sin(ang) * (r + 0.8)
+        c.rect(int(round(tx - 0.5)), int(round(ty - 0.5)), 2, 2, col)
+    c.ellipse(cx, cy, r, r, col)
+    c.ellipse(cx - 0.6, cy - 0.6, r * 0.55, r * 0.55, lt(col, 0.18))
+    c.ellipse(cx, cy, max(1, r * 0.3), max(1, r * 0.3), hole or dk(col, 0.55))
+
+
+def gauge(c, cx, cy, r=3):
+    c.ellipse(cx, cy, r + 1, r + 1, BRONZE[1]); c.ellipse(cx, cy, r, r, hexc("f4efe2"))
+    c.set(int(cx), int(cy), METAL[0]); c.set(int(cx) + 1, int(cy) - 1, hexc("c0392b"))
+    if r >= 3:
+        c.set(int(cx) + 2, int(cy) - 2, hexc("c0392b"))
+
+
+def hpipe(c, x0, x1, y, col=None):
+    col = col or BRONZE
+    c.rect(x0, y, x1 - x0, 4, col[1]); c.rect(x0, y, x1 - x0, 1, col[3]); c.rect(x0, y + 3, x1 - x0, 1, col[0])
+
+
+def vpipe(c, x, y0, y1, col=None):
+    col = col or BRONZE
+    c.rect(x, y0, 4, y1 - y0, col[1]); c.rect(x, y0, 1, y1 - y0, col[3]); c.rect(x + 3, y0, 1, y1 - y0, col[0])
+
+
+def joint(c, x, y, col=None):
+    col = col or BRONZE
+    c.rect(x - 1, y - 1, 6, 6, col[0]); c.rect(x, y, 4, 4, col[2]); c.set(x, y, col[3])
+
+
+def valve(c, cx, cy):
+    c.ellipse(cx, cy, 3, 3, hexc("b8402c")); c.ellipse(cx, cy, 1.5, 1.5, hexc("7a2a1e"))
+    c.rect(int(cx) - 3, int(cy), 7, 1, hexc("e0715f")); c.rect(int(cx), int(cy) - 3, 1, 7, hexc("e0715f"))
+
+
+def rivets(c, x0, y0, x1, y1, step, col):
+    for x in range(x0, x1, step):
+        c.set(x, y0, col); c.set(x, y1, col)
+
+
+def metal_case(c, x, y, w, h, col, seed=0):
+    """작은 기계 상자 (모서리 리벳 + 위 밝은 면)"""
+    obox(c, x, y, w, h, col, 1)
+    c.rect(x + 1, y + 1, w - 2, 2, lt(col, 0.25))
+    for px, py in ((x + 2, y + 4), (x + w - 3, y + 4), (x + 2, y + h - 3), (x + w - 3, y + h - 3)):
+        c.set(px, py, lt(col, 0.45))
+
+
+def ingot(c, x, y, col):
+    c.rect(x + 1, y, 6, 1, lt(col, 0.35)); c.rect(x, y + 1, 8, 3, col); c.rect(x, y + 3, 8, 1, dk(col, 0.75))
+
+
+def ore_lump(c, x, y, col, seed):
+    rnd = random.Random(seed)
+    c.ellipse(x, y, 2.6, 2.2, dk(col, 0.82)); c.ellipse(x - 0.5, y - 0.5, 1.8, 1.4, col)
+    c.set(int(x) - 1, int(y) - 1, lt(col, 0.4))
+    if rnd.random() < 0.5:
+        c.set(int(x) + 1, int(y), lt(col, 0.2))
+
+
+def coal_pile(c, x, y, w, h, seed):
+    rnd = random.Random(seed)
+    for _ in range(int(w * h / 4)):
+        px, py = x + rnd.randint(0, w - 2), y + rnd.randint(0, h - 2)
+        c.rect(px, py, 2, 2, rnd.choice((IRON[0], IRON[1], IRON[2])))
+        if rnd.random() < 0.2:
+            c.set(px, py, IRON[3])
+
+
+def hammer(c, x, y, ln=9):
+    """x, y = 머리 왼쪽 위. 자루는 아래로"""
+    c.rect(x + 2, y + 2, 2, ln, SWOOD[3]); c.rect(x + 2, y + 2, 1, ln, SWOOD[4])
+    c.rect(x, y, 6, 3, IRON[2]); c.rect(x, y, 6, 1, IRON[4])
+
+
+def tongs(c, x, y, ln=11):
+    c.rect(x, y, 1, ln, IRON[2]); c.rect(x + 2, y, 1, ln, IRON[2]); c.rect(x, y + ln - 3, 3, 1, IRON[3]); c.set(x + 1, y + ln - 4, IRON[1])
+
+
+def farm_tool(c, x, y, kind, ln=12):
+    """반제품·완성 농기구 (괭이·삽·곡괭이·낫) — 무기 대신 농기구"""
+    c.rect(x + 2, y + 2, 1, ln, SWOOD[4])
+    if kind == 0:   # 괭이
+        c.rect(x, y, 5, 2, IRON[3]); c.rect(x, y + 2, 2, 2, IRON[2])
+    elif kind == 1:  # 삽
+        rrect(c, x, y + ln - 2, 5, 5, 1, IRON[3]); c.set(x + 1, y + ln - 1, IRON[4])
+    elif kind == 2:  # 곡괭이
+        c.rect(x - 1, y + 1, 7, 1, IRON[3]); c.set(x - 2, y + 2, IRON[3]); c.set(x + 6, y + 2, IRON[3])
+    else:            # 낫
+        c.rect(x + 2, y, 4, 1, IRON[3]); c.set(x + 6, y + 1, IRON[3]); c.set(x + 6, y + 2, IRON[2])
+
+
+def room_walls(c, W, H, side, door_col, edge):
+    """옆벽·앞벽 + 가운데 문 (세 실내 공통 뼈대). side = 벽 색 4단계"""
+    for x0 in (0, W - T + 4):
+        c.rect(x0, 0, T - 4, H, side[0])
+        c.rect(x0 + (T - 6 if x0 == 0 else 0), 0, 2, H, side[1])
+        c.rect(x0 + (0 if x0 == 0 else T - 5), 0, 1, H, edge)
+        for yy in range(6, H, 12):
+            c.rect(x0 + 2, yy, T - 8, 1, dk(side[0], 0.85))
+    c.rect(T - 4, 2 * T, 2, H - 3 * T, SOFT_SHADOW); c.rect(W - T + 2, 2 * T, 2, H - 3 * T, SOFT_SHADOW)
+    c.rect(0, H - T + 4, W, T - 4, side[0]); c.rect(0, H - T + 4, W, 1, side[3]); c.rect(0, H - 1, W, 1, edge)
+    for x in range(3, W, 9):
+        c.rect(x, H - T + 6, 1, T - 7, dk(side[0], 0.85))
+    c.rect(8 * T, H - T + 4, 2 * T, T - 4, door_col)
+    c.rect(8 * T, H - T + 4, 2 * T, 2, dk(door_col, 0.7)); c.rect(8 * T + 2, H - 3, 2 * T - 4, 2, hexc("c8b9a2"))
+    for px in (8 * T - 4, 10 * T):
+        obox(c, px, H - T - 2, 4, T + 2, side[1], 0.5)
+    lantern(c, 8 * T - 11, H - T - 2); lantern(c, 10 * T + 8, H - T - 2)
+
+
+# ======================================================================== 기계상점
+def make_interior_machine():
+    W, H = 18 * T, 12 * T
     c = Canvas(W, H)
-    room_base(c, hexc("e2d6bc"), hexc("cfc1a3"))
-    rrect(c, T + 2, 2, 2 * T - 4, 2 * T - 2, 3, hexc("4a4a50"))           # 보일러 (x1~2)
-    c.rect(2 * T - 2, 0, 5, 6, hexc("3a3a3a"))
-    rrect(c, T + 7, 15, 18, 10, 2, hexc("2a2a2e")); c.ellipse(2 * T, 20, 6, 3, hexc("ff9a3c")); c.ellipse(2 * T, 21, 3, 1.5, GLOW[2])
-    c.rect(T + 4, 6, 24, 1, hexc("a8653a"))
-    for k, x in enumerate((3 * T + 6, 5 * T + 10)):                       # 설계도 둘
-        rrect(c, x, 1, 26, 14, 1, hexc("e8dcc0"))
-        gear_mark(c, x + 8, 7, hexc("5a6a7a")); c.rect(x + 15, 4, 8, 1, hexc("5a6a7a")); c.rect(x + 15, 8, 6, 1, hexc("5a6a7a"))
-    rrect(c, 8 * T, 2, 3 * T, 2 * T - 2, 1, WOOD_WALL[0])                 # 부품 선반 (x8~10)
-    parts = [hexc("9aa0a8"), hexc("6f7a86"), hexc("c46a3a"), hexc("5f8a6a")]
-    for row, yy in enumerate((5, 17)):
-        c.rect(8 * T + 1, yy + 9, 3 * T - 2, 2, WOOD_WALL[3])
-        for k in range(5):
-            rrect(c, 8 * T + 3 + k * 9, yy + 2, 7, 7, 1, parts[(k + row) % 4]); c.set(8 * T + 6 + k * 9, yy + 5, hexc("e8e8d8"))
-    wall_lamp(c, 3 * T, 1); wall_lamp(c, 7 * T + 12, 1)
-    counter(c, 4 * T, 9 * T, 2 * T)
-    rrect(c, 6 * T, 2 * T + 6, 2 * T, 10, 1, hexc("5f8a5a")); gear_mark(c, 7 * T, 2 * T + 11)   # 계산대 앞 톱니 판
-    rrect(c, 4 * T + 6, 2 * T + 1, 12, 6, 0.5, hexc("fbf6ec")); c.ellipse(8 * T + 6, 2 * T + 3, 2.5, 2, hexc("d6a83a"))
-    rug(c, 4 * T, 3 * T + 4, 4 * T, 10, hexc("5f8a5a"), hexc("3c574d"), lambda cv, x, y: gear_mark(cv, x, y))
-    rrect(c, 4 * T, 4 * T + 2, 4 * T, 2 * T - 4, 1.5, WOOD_WALL[0])       # 기계 진열대 (x4~7, y4~5)
-    rrect(c, 4 * T, 4 * T + 2, 4 * T, 5, 1.5, WOOD_WALL[3])
-    for k, col in enumerate((hexc("c46a3a"), hexc("6f7a86"), hexc("5f8a6a"))):
-        bx = 4 * T + 3 + k * 20
-        rrect(c, bx, 4 * T - 4, 16, 14, 1.5, col); rrect(c, bx + 3, 4 * T - 1, 7, 5, 1, GLOW[1])
-        c.rect(bx + 11, 4 * T - 6, 3, 4, hexc("4a4a50"))
-    for k in range(5):
-        c.ellipse(4 * T + 7 + k * 12, 5 * T + 7, 3, 3, parts[k % 4])
-    rrect(c, 10 * T + 2, 3 * T, 12, 5 * T, 1, hexc("3a3a40"))             # 미니 컨베이어 (x10, y3~7)
-    for yy in range(3 * T + 2, 8 * T, 5):
-        c.rect(10 * T + 3, yy, 10, 1, hexc("5a5a62"))
-    for yy in (4 * T + 2, 6 * T + 4):
-        rrect(c, 10 * T + 4, yy, 8, 6, 1, hexc("e3c04a"))
-    for k in range(3):                                                    # 기계 상자 (x1, y4~6)
-        yy = 4 * T + k * T
-        rrect(c, T + 1, yy + 1, 14, 14, 1, WOOD_WALL[1]); c.rect(T + 1, yy + 1, 14, 2, WOOD_WALL[3])
-        c.ellipse(T + 8, yy + 9, 3, 3, parts[k]); c.set(T + 8, yy + 9, hexc("4a4d55"))
-    plant_pot(c, T, 7 * T)
-    rrect(c, 5 * T + 4, 7 * T + 6, 2 * T - 8, 8, 1, hexc("5f8a5a"))
-    c.outline(INK)
+    # ---- 바닥: 나무 판자 + 가운데 통로 철판 (문 → 계산대), 진열대 밑은 초록 깔개
+    plank_floor(c, T - 4, 2 * T, W - T + 4, H - T + 4, [hexc("a8714a"), hexc("b07a50"), hexc("9c6a44")], hexc("7a5034"))
+    px0, px1 = 7 * T, 11 * T
+    c.rect(px0, 4 * T, px1 - px0, H - 5 * T + 4, METAL[2])
+    for y in range(4 * T, H - T + 4, 16):
+        c.rect(px0, y, px1 - px0, 1, METAL[1])
+        for x in range(px0 + 2, px1, 4):
+            for yy in range(y + 3, min(y + 15, H - T + 4), 4):
+                c.set(x + ((yy // 4) % 2) * 2, yy, METAL[3])
+    for x in range(px0, px1 + 1, 32):
+        c.rect(min(x, px1 - 1), 4 * T, 1, H - 5 * T + 4, METAL[1])
+    c.rect(px0, 4 * T, 1, H - 5 * T + 4, METAL[0]); c.rect(px1 - 1, 4 * T, 1, H - 5 * T + 4, METAL[0])
+    rivets(c, px0 + 3, 4 * T + 2, px1 - 2, H - T + 1, 8, METAL[4])
+    # ---- 뒷벽: 위 나무 판벽 · 아래 철판 징두리(리벳) · 가로 배관 · 압력계 · 밸브
+    c.rect(0, 0, W, 3, SWOOD[2]); c.rect(0, 3, W, 1, DARK)
+    for x in range(0, W):
+        c.rect(x, 4, 1, 14, (hexc("8a6040"), hexc("94683f"), hexc("80583a"))[(x // 9) % 3])
+    for x in range(0, W, 9):
+        c.rect(x, 4, 1, 14, hexc("6a4428"))
+    c.rect(0, 18, W, 13, METAL[2]); c.rect(0, 18, W, 1, METAL[4]); c.rect(0, 30, W, 1, METAL[0])
+    for x in range(0, W, 24):
+        c.rect(x, 18, 1, 13, METAL[1])
+    rivets(c, 3, 20, W, 28, 6, METAL[4])
+    c.rect(0, 31, W, 1, DARK); c.rect(0, 32, W, 3, SOFT_SHADOW)
+    hpipe(c, T - 4, W - T + 4, 6, BRONZE)
+    for x in (3 * T, 6 * T + 4, 12 * T + 8, 15 * T):
+        joint(c, x, 6)
+    vpipe(c, 6 * T + 4, 9, 18); vpipe(c, 12 * T + 8, 9, 18, METAL[1:] + [METAL[4]])
+    gauge(c, 6 * T + 6, 13, 3); valve(c, 12 * T + 10, 13)
+    room_walls(c, W, H, [SWOOD[2], SWOOD[3], SWOOD[4], hexc("a87a4a")], hexc("4a3020"), DARK)
+
+    # ---- 바닥 깔개 · 등불 빛
+    rug(c, 2 * T + 8, 5 * T + 8, 5 * T - 6, 3 * T, MGREEN[2], MGREEN[0], lambda cv, x, y: None)
+    rug(c, 11 * T - 2, 5 * T + 8, 5 * T - 6, 3 * T, MGREEN[2], MGREEN[0], lambda cv, x, y: None)
+    rug(c, 8 * T + 2, 10 * T + 1, 2 * T - 4, 12, MGREEN[2], MGREEN[0], lambda cv, x, y: gear_mark(cv, x, y))
+    for cx, cy, rx, ry in ((7 * T + 8, 3 * T, 24, 10), (12 * T, 3 * T, 22, 10), (2 * T, 9 * T + 8, 20, 10), (W - 2 * T - 8, 9 * T + 8, 20, 10), (9 * T, 10 * T + 8, 24, 8)):
+        glow_pool(c, cx, cy, rx, ry, 24)
+
+    # ---- 계산대 뒤 벽: 청사진 두 장 (기계 설계도) · 톱니 장식 · 공구판
+    for k, bx in enumerate((7 * T - 2, 9 * T + 6)):
+        obox(c, bx, 7, 26, 18, BLUEP[1], 0.5)
+        c.rect(bx + 1, 8, 24, 16, BLUEP[1])
+        for gx in range(bx + 2, bx + 25, 4):
+            c.rect(gx, 8, 1, 16, lt(BLUEP[1], 0.08))
+        if k == 0:
+            gear(c, bx + 8, 15, 4, BLUEP[3], BLUEP[1]); gear(c, bx + 16, 12, 2.5, BLUEP[2], BLUEP[1], 6)
+            c.rect(bx + 14, 18, 9, 1, BLUEP[3]); c.rect(bx + 14, 21, 6, 1, BLUEP[2])
+        else:
+            c.rect(bx + 4, 11, 10, 8, BLUEP[3]); c.rect(bx + 5, 12, 8, 6, BLUEP[1]); c.rect(bx + 14, 14, 7, 1, BLUEP[3])
+            c.rect(bx + 20, 11, 1, 8, BLUEP[3]); c.ellipse(bx + 9, 15, 2, 2, BLUEP[3])
+        c.rect(bx + 1, 7, 2, 2, hexc("d6a83a")); c.rect(bx + 23, 7, 2, 2, hexc("d6a83a"))
+    gear(c, 11 * T + 10, 13, 5, BRONZE[2], BRONZE[0])
+    gear(c, 11 * T + 2, 20, 3, METAL[3], METAL[1], 6)
+    wall_lamp(c, 6 * T + 12, 20); wall_lamp(c, 12 * T + 1, 20)
+
+    # ---- B 보일러 (x1~2, y2): 청동 탱크 + 압력계 + 불창
+    x0 = T
+    floor_shadow(c, x0, 3 * T, 2 * T)
+    vpipe(c, x0 + 13, 0, 12, METAL[1:] + [METAL[4]])
+    rrect(c, x0 + 2, 9, 2 * T - 4, 3 * T - 10, 5, BRONZE[0]); rrect(c, x0 + 3, 10, 2 * T - 6, 3 * T - 12, 4, BRONZE[2])
+    c.rect(x0 + 5, 12, 3, 3 * T - 18, BRONZE[3])
+    for yy in (16, 28, 40):
+        c.rect(x0 + 3, yy, 2 * T - 6, 1, BRONZE[0])
+    gauge(c, x0 + 22, 20, 3)
+    rrect(c, x0 + 9, 31, 14, 9, 1.5, IRON[1]); c.ellipse(x0 + 16, 36, 4.5, 2.5, FIRE[2]); c.ellipse(x0 + 16, 36.5, 2.5, 1.2, FIRE[3])
+    c.rect(x0 + 3, 3 * T - 3, 2 * T - 6, 3, METAL[1])
+
+    # ---- P 부품 선반 (x3~5): 철제 선반 + 볼트 통 · 톱니 · 엔진 부품
+    x0, x1 = 3 * T, 6 * T
+    floor_shadow(c, x0, 3 * T, x1 - x0)
+    c.rect(x0 + 1, 8, 2, 3 * T - 8, METAL[1]); c.rect(x1 - 3, 8, 2, 3 * T - 8, METAL[1])
+    for k, yy in enumerate((18, 30, 44)):
+        c.rect(x0 + 1, yy, x1 - x0 - 2, 2, METAL[3]); c.rect(x0 + 1, yy + 2, x1 - x0 - 2, 1, METAL[0])
+    for j in range(4):                                                        # 볼트·너트 통 (1단)
+        bx = x0 + 4 + j * 11
+        rrect(c, bx, 11, 9, 7, 1, (BRONZE[1], METAL[2], MGREEN[2], BRONZE[1])[j])
+        for q in range(3):
+            c.set(bx + 2 + q * 2, 12, METAL[4]); c.set(bx + 3 + q * 2, 13, METAL[3])
+        c.rect(bx + 2, 15, 5, 2, hexc("f4efe2"))
+    gear(c, x0 + 9, 25, 4, METAL[3], METAL[1]); gear(c, x0 + 22, 26, 3, BRONZE[2], BRONZE[0], 6)   # 2단: 톱니
+    gear(c, x0 + 35, 25, 4, METAL[2], METAL[0])
+    metal_case(c, x0 + 4, 35, 14, 9, METAL[2]); c.rect(x0 + 7, 37, 8, 1, METAL[0])                 # 3단: 엔진 부품
+    c.ellipse(x0 + 26, 40, 4, 4, IRON[2]); c.ellipse(x0 + 26, 40, 2, 2, IRON[4])
+    metal_case(c, x0 + 33, 36, 11, 8, MGREEN[2])
+
+    # ---- S 도면 서랍장 (x10~12) + 둘둘 만 설계도
+    x0, x1 = 10 * T, 13 * T
+    floor_shadow(c, x0, 3 * T, x1 - x0)
+    obox(c, x0 + 1, 20, x1 - x0 - 2, 3 * T - 20, MGREEN[1])
+    c.rect(x0 + 2, 21, x1 - x0 - 4, 2, MGREEN[3])
+    for k in range(3):
+        yy = 24 + k * 8
+        c.rect(x0 + 3, yy, x1 - x0 - 6, 6, MGREEN[2]); c.rect(x0 + 3, yy + 5, x1 - x0 - 6, 1, MGREEN[0])
+        c.rect(x0 + 21, yy + 2, 6, 1, METAL[4])
+    for k in range(4):
+        rx = x0 + 4 + k * 10
+        c.rect(rx, 14 - (k % 2) * 2, 8, 4, BLUEP[2 + k % 2]); c.rect(rx, 14 - (k % 2) * 2, 1, 4, BLUEP[1])
+
+    # ---- M 철제 사물함 (x13~16): 초록 캐비닛 + 환기구 + 위 작은 선풍기
+    x0, x1 = 13 * T, 17 * T
+    floor_shadow(c, x0, 3 * T, x1 - x0)
+    for k in range(3):
+        lx = x0 + 1 + k * 21
+        obox(c, lx, 10, 20, 3 * T - 10, (MGREEN[1], METAL[2], MGREEN[1])[k], 1)
+        c.rect(lx + 2, 11, 16, 1, lt((MGREEN[1], METAL[2], MGREEN[1])[k], 0.25))
+        for yy in range(14, 24, 3):
+            c.rect(lx + 4, yy, 12, 1, dk((MGREEN[1], METAL[2], MGREEN[1])[k], 0.7))
+        c.rect(lx + 15, 30, 2, 5, METAL[4])
+    c.ellipse(x0 + 52, 6, 4, 4, METAL[2]); gear(c, x0 + 52, 6, 2.5, METAL[4], METAL[1], 4); c.rect(x0 + 51, 9, 2, 2, METAL[1])
+
+    # ---- C 계산대 (x6~10): 나무 몸통 + 철 모서리 + 톱니 명판 · 금전등록기 · 부품 쟁반 · 탁상등
+    x0, x1 = 6 * T, 11 * T
+    floor_shadow(c, x0, 4 * T, x1 - x0)
+    obox(c, x0, 3 * T - 3, x1 - x0, T + 3, SWOOD[3])
+    c.rect(x0 + 1, 3 * T - 2, x1 - x0 - 2, 4, METAL[3]); c.rect(x0 + 1, 3 * T + 2, x1 - x0 - 2, 1, METAL[1])
+    for x in range(x0 + 8, x1 - 3, 10):
+        c.rect(x, 3 * T + 4, 1, T - 5, SWOOD[1])
+    rivets(c, x0 + 3, 3 * T - 1, x1 - 2, 3 * T + 13, 10, METAL[4])
+    rrect(c, 8 * T + 6, 3 * T + 4, 20, 10, 1, MGREEN[1]); gear(c, 9 * T, 3 * T + 9, 3, hexc("e3d8b8"), MGREEN[1], 6)
+    metal_case(c, 9 * T + 12, 3 * T - 10, 14, 8, METAL[2]); c.rect(9 * T + 15, 3 * T - 8, 8, 2, hexc("9fd6a8"))
+    rrect(c, 6 * T + 4, 3 * T - 5, 16, 4, 0.5, METAL[1])
+    for q in range(5):
+        c.set(6 * T + 6 + q * 3, 3 * T - 4, (BRONZE[3], METAL[4])[q % 2])
+    c.rect(10 * T + 10, 3 * T - 12, 1, 9, METAL[1]); rrect(c, 10 * T + 7, 3 * T - 14, 7, 4, 1, MGREEN[2]); c.rect(10 * T + 8, 3 * T - 10, 5, 1, GLOW[1])
+    c.rect(8 * T - 2, 3 * T - 6, 8, 5, hexc("f4efe2")); c.rect(8 * T, 3 * T - 5, 4, 1, BLUEP[1])
+
+    # ---- X 부품 상자 더미 (x1, y3~4) · T 톱니 걸이판 (x1, y5~7)
+    floor_shadow(c, T, 5 * T, T)
+    for k, yy in enumerate((3 * T + 1, 4 * T + 1)):
+        crate(c, T + 1, yy + 2, 14, 13, SWOOD[4]); gear_mark(c, T + 8, yy + 9, BRONZE[3])
+    obox(c, T, 5 * T, 12, 3 * T - 1, hexc("b89a6a"), 0.5)
+    for yy in range(5 * T + 3, 8 * T - 2, 4):
+        for xx in range(T + 2, T + 11, 3):
+            c.set(xx, yy, hexc("8a7050"))
+    gear(c, T + 6, 5 * T + 8, 3.5, METAL[3], METAL[1]); gear(c, T + 6, 6 * T + 6, 2.5, BRONZE[2], BRONZE[0], 6)
+    c.rect(T + 3, 6 * T + 13, 6, 1, METAL[3]); c.rect(T + 3, 7 * T + 2, 1, 8, METAL[3]); c.rect(T + 2, 7 * T + 2, 3, 2, METAL[3])
+    c.rect(T + 7, 7 * T + 3, 1, 8, IRON[3]); c.rect(T + 6, 7 * T + 9, 3, 2, IRON[2])
+
+    # ---- Q 왼쪽 진열대 (x3~6, y6~7): 소형 발전기 · 펌프 · 가격표
+    x0, x1 = 3 * T, 7 * T
+    floor_shadow(c, x0 + 1, 8 * T - 1, x1 - x0 - 2)
+    obox(c, x0 + 1, 6 * T + 12, x1 - x0 - 2, 2 * T - 13, SWOOD[3])
+    c.rect(x0 + 2, 6 * T + 13, x1 - x0 - 4, 3, METAL[3]); rivets(c, x0 + 4, 6 * T + 14, x1 - 3, 8 * T - 3, 8, METAL[4])
+    metal_case(c, x0 + 4, 6 * T - 2, 24, 16, MGREEN[2])                        # 발전기: 코일 + 청동 계기
+    c.ellipse(x0 + 12, 6 * T + 6, 5, 5, BRONZE[1])
+    for yy in range(6 * T + 2, 6 * T + 11, 2):
+        c.rect(x0 + 8, yy, 9, 1, BRONZE[2])
+    gauge(c, x0 + 23, 6 * T + 3, 2); c.rect(x0 + 20, 6 * T + 8, 6, 2, hexc("9fd6a8"))
+    metal_case(c, x0 + 33, 6 * T, 20, 14, METAL[2])                           # 펌프: 몸통 + 관 + 손잡이
+    c.ellipse(x0 + 42, 6 * T + 7, 4.5, 4.5, METAL[1]); c.ellipse(x0 + 42, 6 * T + 7, 2, 2, METAL[4])
+    vpipe(c, x0 + 50, 5 * T + 8, 6 * T + 2, BRONZE); c.rect(x0 + 48, 5 * T + 7, 8, 2, BRONZE[0])
+    for k, tx in enumerate((x0 + 10, x0 + 40)):
+        c.rect(tx, 7 * T + 4, 9, 6, hexc("f4efe2")); c.rect(tx + 2, 7 * T + 6, 5, 1, METAL[1]); c.set(tx + 1, 7 * T + 4, hexc("c0392b"))
+
+    # ---- E 오른쪽 진열대 (x11~14, y6~7): 필터 · 분배기 · 미니 컨베이어 모형 · 부품 상자
+    x0, x1 = 11 * T, 15 * T
+    floor_shadow(c, x0 + 1, 8 * T - 1, x1 - x0 - 2)
+    obox(c, x0 + 1, 6 * T + 12, x1 - x0 - 2, 2 * T - 13, SWOOD[3])
+    c.rect(x0 + 2, 6 * T + 13, x1 - x0 - 4, 3, METAL[3]); rivets(c, x0 + 4, 6 * T + 14, x1 - 3, 8 * T - 3, 8, METAL[4])
+    rrect(c, x0 + 4, 5 * T + 10, 10, 18, 3, METAL[2]); rrect(c, x0 + 5, 5 * T + 11, 8, 16, 2.5, METAL[3])      # 필터 (원통)
+    for yy in (5 * T + 14, 5 * T + 19, 5 * T + 24):
+        c.rect(x0 + 4, yy, 10, 1, BRONZE[1])
+    c.rect(x0 + 7, 5 * T + 8, 4, 3, METAL[1])
+    metal_case(c, x0 + 17, 6 * T - 1, 18, 14, BRONZE[1])                       # 분배기: 세 갈래 출구
+    for k, ox in enumerate((x0 + 19, x0 + 24, x0 + 29)):
+        c.rect(ox, 6 * T + 9, 4, 4, IRON[1]); c.set(ox + 1, 6 * T + 10, GLOW[1] if k == 1 else METAL[3])
+    c.rect(x0 + 22, 6 * T + 3, 8, 1, BRONZE[3]); c.rect(x0 + 25, 6 * T + 1, 1, 4, BRONZE[3])
+    c.rect(x0 + 38, 6 * T + 4, 22, 7, IRON[1]); c.rect(x0 + 38, 6 * T + 4, 22, 1, IRON[3])                    # 미니 컨베이어 모형
+    for xx in range(x0 + 40, x0 + 59, 4):
+        c.set(xx, 6 * T + 7, IRON[3])
+    c.ellipse(x0 + 39, 6 * T + 11, 2, 2, METAL[2]); c.ellipse(x0 + 58, 6 * T + 11, 2, 2, METAL[2])
+    rrect(c, x0 + 44, 6 * T, 6, 5, 1, hexc("e3c04a"))
+    crate(c, x0 + 38, 7 * T + 1, 18, 9, SWOOD[4])
+    for q in range(4):
+        gear(c, x0 + 42 + q * 4, 7 * T, 1.5, (METAL[3], BRONZE[2])[q % 2], METAL[0], 4)
+    for tx in (x0 + 8, x0 + 22):
+        c.rect(tx, 7 * T + 4, 9, 6, hexc("f4efe2")); c.rect(tx + 2, 7 * T + 6, 5, 1, METAL[1]); c.set(tx + 1, 7 * T + 4, hexc("c0392b"))
+
+    # ---- R 시연용 컨베이어 (x16, y3~7) → Z 받는 상자 (x16, y8)
+    x0 = 16 * T
+    floor_shadow(c, x0, 9 * T, T)
+    c.rect(x0 + 1, 3 * T, 14, 5 * T, METAL[1]); c.rect(x0 + 1, 3 * T, 1, 5 * T, METAL[0]); c.rect(x0 + 14, 3 * T, 1, 5 * T, METAL[0])
+    c.rect(x0 + 3, 3 * T, 10, 5 * T, IRON[1])
+    for yy in range(3 * T + 1, 8 * T, 4):
+        c.rect(x0 + 3, yy, 10, 1, IRON[3])
+    for yy in range(3 * T + 6, 8 * T, 16):
+        c.set(x0 + 1, yy, METAL[4]); c.set(x0 + 14, yy, METAL[4])
+    for k, yy in enumerate((3 * T + 6, 5 * T + 2, 6 * T + 12)):
+        if k == 1:
+            rrect(c, x0 + 4, yy, 8, 7, 1, SWOOD[4]); c.rect(x0 + 4, yy + 3, 8, 1, SWOOD[2])
+        else:
+            gear(c, x0 + 8, yy + 3, 3, (BRONZE[2], METAL[3])[k // 2], METAL[0], 6)
+    crate(c, x0 + 1, 8 * T + 2, 14, 13, SWOOD[4]); gear(c, x0 + 6, 8 * T + 1, 2, METAL[3], METAL[0], 5); gear(c, x0 + 10, 8 * T + 2, 2, BRONZE[2], BRONZE[0], 5)
+    c.ellipse(x0 + 8, 3 * T + 2, 3, 2, IRON[3])
+
+    # ---- N 정비 작업대 (x1~2, y9): 바이스 · 렌치 · 등
+    x0 = T
+    floor_shadow(c, x0, 10 * T, 2 * T)
+    obox(c, x0, 9 * T + 4, 2 * T - 2, 9, SWOOD[4]); c.rect(x0 + 2, 9 * T + 13, 2, 3, SWOOD[1]); c.rect(x0 + 24, 9 * T + 13, 2, 3, SWOOD[1])
+    c.rect(x0 + 3, 9 * T, 8, 5, IRON[2]); c.rect(x0 + 3, 9 * T, 8, 1, IRON[4]); c.rect(x0 + 10, 9 * T + 2, 4, 1, IRON[3])
+    c.rect(x0 + 16, 9 * T + 6, 9, 1, METAL[3]); c.rect(x0 + 15, 9 * T + 5, 2, 3, METAL[3])
+    gear(c, x0 + 21, 9 * T + 2, 2, BRONZE[2], BRONZE[0], 5)
+    # ---- K 수리 중인 기계 작업대 (x14~16, y9): 뚜껑 열린 기계 + 전선 + 공구함
+    x0 = 14 * T
+    floor_shadow(c, x0, 10 * T, 3 * T)
+    obox(c, x0, 9 * T + 5, 3 * T, 8, SWOOD[4]); c.rect(x0 + 3, 9 * T + 13, 2, 3, SWOOD[1]); c.rect(x0 + 42, 9 * T + 13, 2, 3, SWOOD[1])
+    metal_case(c, x0 + 6, 8 * T + 10, 18, 11, METAL[2]); c.rect(x0 + 8, 8 * T + 12, 14, 6, IRON[1])
+    gear(c, x0 + 12, 8 * T + 15, 2.5, BRONZE[2], BRONZE[0], 6); c.set(x0 + 18, 8 * T + 14, hexc("9fd6a8"))
+    c.rect(x0 + 6, 8 * T + 6, 18, 3, METAL[3])
+    c.rect(x0 + 24, 9 * T + 2, 6, 1, hexc("c0392b")); c.rect(x0 + 29, 9 * T + 2, 1, 3, hexc("c0392b")); c.rect(x0 + 24, 9 * T + 4, 4, 1, hexc("e3c04a"))
+    obox(c, x0 + 32, 9 * T - 1, 12, 7, hexc("b8402c"), 1); c.rect(x0 + 36, 9 * T - 3, 4, 2, METAL[1])
+    # ---- P 화분 (1,10) · B 기름통 (16,10)
+    plant_pot(c, T, 10 * T)
+    floor_shadow(c, 16 * T, 11 * T, T)
+    rrect(c, 16 * T + 2, 10 * T + 1, 12, 15, 2, MGREEN[1]); c.rect(16 * T + 2, 10 * T + 5, 12, 1, MGREEN[0]); c.rect(16 * T + 2, 10 * T + 11, 12, 1, MGREEN[0])
+    c.ellipse(16 * T + 8, 10 * T + 2.5, 5.5, 2, MGREEN[3]); c.ellipse(16 * T + 10, 10 * T + 2.5, 1.2, 1, IRON[1])
     c.save("interior_machine.png")
+
+
+# ======================================================================== 대장간
+def make_interior_smith():
+    W, H = 18 * T, 12 * T
+    c = Canvas(W, H)
+    # ---- 바닥: 짙은 판자 + 화덕·모루 주변 석재 바닥 (오른쪽 위)
+    plank_floor(c, T - 4, 2 * T, W - T + 4, H - T + 4, [SWOOD[3], hexc("6e4830"), hexc("5c3c28")], SWOOD[1], 68, 6)
+    flagstones(c, 10 * T, 4 * T - 4, 7 * T - 4 + 4, 3 * T + 4, STONE[1:4], STONE[0], 7)
+    c.rect(10 * T, 7 * T, 7 * T, 1, STONE[0])
+    for x in range(10 * T, W - T + 4, 3):                                    # 불똥 자국·그을음
+        if (x * 7) % 5 == 0:
+            c.set(x, 4 * T + (x * 13) % 40, IRON[1])
+    # ---- 뒷벽: 위 그을린 판벽 · 아래 돌 징두리 (벽돌)
+    c.rect(0, 0, W, 3, SWOOD[1]); c.rect(0, 3, W, 1, IRON[0])
+    for x in range(W):
+        c.rect(x, 4, 1, 12, (SWOOD[2], SWOOD[3], hexc("5a3a26"))[(x // 11) % 3])
+    for x in range(0, W, 11):
+        c.rect(x, 4, 1, 12, SWOOD[0])
+    for y0 in range(16, 31, 5):
+        off = 0 if (y0 // 5) % 2 else 6
+        c.rect(0, y0, W, 5, STONE[2])
+        for x in range(-off, W, 12):
+            c.rect(x, y0, 1, 5, STONE[0])
+        c.rect(0, y0, W, 1, STONE[3]); c.rect(0, y0 + 4, W, 1, STONE[1])
+    c.rect(0, 31, W, 1, IRON[0]); c.rect(0, 32, W, 3, SOFT_SHADOW)
+    room_walls(c, W, H, [SWOOD[1], SWOOD[2], SWOOD[3], SWOOD[4]], hexc("2a1a12"), IRON[0])
+
+    # ---- 깔개 (지나갈 수 있음) · 불빛 웅덩이 (화덕 쪽은 붉고 크게)
+    rug(c, 8 * T + 2, 10 * T + 1, 2 * T - 4, 12, hexc("a85a46"), hexc("6e3226"), lambda cv, x, y: anvil_mark(cv, x, y))
+    rug(c, 3 * T + 4, 4 * T + 4, 4 * T + 8, 12, hexc("8a4a36"), hexc("5e2c20"), lambda cv, x, y: anvil_mark(cv, x, y))
+    for f, a in ((1.0, 22), (0.75, 26), (0.5, 30), (0.3, 34)):
+        c.ellipse(13 * T + 8, 4 * T + 4, 52 * f, 26 * f, (255, 140, 60, a))
+    for cx, cy, rx, ry in ((5 * T, 3 * T, 22, 9), (W - 2 * T, 8 * T, 16, 10), (9 * T, 10 * T + 8, 22, 8), (5 * T + 8, 8 * T + 4, 24, 10)):
+        glow_pool(c, cx, cy, rx, ry, 22)
+
+    # ---- 계산대 뒤 벽: 교차 망치 현판 · 벽등 · 그을음
+    obox(c, 4 * T + 2, 6, 28, 14, SWOOD[3], 0.5); c.rect(4 * T + 3, 7, 26, 12, hexc("e8d6b0"))
+    for s in (-1, 1):
+        for i in range(8):
+            c.set(5 * T + 1 + s * (i - 4), 9 + i, SWOOD[1])
+        c.rect(5 * T + 1 + s * 4 - 2, 8, 4, 2, IRON[2])
+    wall_lamp(c, 3 * T + 8, 14); wall_lamp(c, 7 * T + 8, 14)
+
+    # ---- R 광석 선반 (x1~2, y2): 칸마다 철·구리·금 광석
+    x0 = T
+    floor_shadow(c, x0, 3 * T, 2 * T)
+    obox(c, x0, 8, 2 * T, 3 * T - 8, SWOOD[3])
+    for row, (yy, kinds) in enumerate(((11, ("iron", "copper")), (23, ("gold", "iron")), (35, ("coal", "copper")))):
+        c.rect(x0 + 2, yy, 2 * T - 4, 10, SWOOD[0])
+        for k, kind in enumerate(kinds):
+            for q in range(3):
+                ore_lump(c, x0 + 6 + k * 13 + q * 3.5, yy + 6 - (q % 2) * 2, ORE_COL[kind], row * 10 + k * 3 + q)
+        c.rect(x0 + 1, yy + 10, 2 * T - 2, 2, SWOOD[4])
+        c.rect(x0 + 15, yy, 2, 10, SWOOD[3])
+
+    # ---- T 공구 벽 (x8~9, y2): 망치 · 집게 · 줄 · 반제품 괭이날
+    x0 = 8 * T
+    floor_shadow(c, x0, 3 * T, 2 * T)
+    obox(c, x0 + 1, 8, 2 * T - 2, 3 * T - 10, SWOOD[2])
+    c.rect(x0 + 3, 12, 2 * T - 6, 1, IRON[2]); c.rect(x0 + 3, 28, 2 * T - 6, 1, IRON[2])
+    hammer(c, x0 + 3, 13, 10); hammer(c, x0 + 11, 13, 12); tongs(c, x0 + 21, 13, 13); tongs(c, x0 + 26, 13, 11)
+    c.rect(x0 + 4, 30, 9, 3, IRON[3]); c.rect(x0 + 4, 30, 9, 1, IRON[4]); c.rect(x0 + 16, 30, 11, 2, IRON[2]); c.rect(x0 + 16, 32, 3, 3, IRON[2])
+    c.rect(x0 + 3, 3 * T - 4, 2 * T - 6, 2, SWOOD[4])
+
+    # ---- X 석탄 통 (x10, y2)
+    floor_shadow(c, 10 * T, 3 * T, T)
+    rrect(c, 10 * T + 1, 3 * T - 18, 14, 18, 2, SWOOD[3]); c.rect(10 * T + 1, 3 * T - 12, 14, 1, IRON[1]); c.rect(10 * T + 1, 3 * T - 5, 14, 1, IRON[1])
+    coal_pile(c, 10 * T + 2, 3 * T - 21, 12, 6, 31)
+    c.rect(10 * T + 12, 3 * T - 26, 1, 8, SWOOD[4]); rrect(c, 10 * T + 10, 3 * T - 27, 5, 3, 0.5, IRON[3])
+
+    # ---- F 큰 화덕 (x11~15, y2~3): 돌 화로 + 아치 + 타오르는 불 + 후드 + 굴뚝 + 풀무
+    x0, x1 = 11 * T, 16 * T
+    floor_shadow(c, x0, 4 * T, x1 - x0)
+    c.rect(x0 + 30, 0, 18, 10, IRON[1]); c.rect(x0 + 30, 0, 2, 10, IRON[3])                         # 굴뚝
+    for yy in range(4, 18):                                                                      # 쇠 후드 (사다리꼴)
+        inset = max(0, 17 - yy)
+        c.rect(x0 + 10 + inset, yy, x1 - x0 - 20 - inset * 2, 1, IRON[2] if yy % 4 else IRON[1])
+    c.rect(x0 + 8, 17, x1 - x0 - 16, 2, IRON[3])
+    obox(c, x0 + 2, 18, x1 - x0 - 4, 2 * T + 12, STONE[2], 2)                                   # 돌 화로 몸통
+    for yy in range(20, 4 * T - 2, 6):
+        off = 0 if (yy // 6) % 2 else 5
+        c.rect(x0 + 3, yy, x1 - x0 - 6, 1, STONE[1])
+        for xx in range(x0 + 3 + off, x1 - 3, 10):
+            c.rect(xx, yy, 1, 6, STONE[1])
+    c.rect(x0 + 3, 19, x1 - x0 - 6, 1, STONE[4])
+    ax, aw = x0 + 14, x1 - x0 - 28                                                              # 아치 + 불
+    rrect(c, ax - 2, 26, aw + 4, 26, 6, STONE[0])
+    rrect(c, ax, 28, aw, 24, 5, hexc("2a120a"))
+    c.ellipse(ax + aw / 2, 46, aw / 2 - 1, 8, FIRE[0]); c.ellipse(ax + aw / 2, 45, aw / 2 - 4, 7, FIRE[1])
+    for k, (fx, fh) in enumerate(((0.2, 10), (0.4, 15), (0.6, 13), (0.8, 9))):
+        cx = ax + aw * fx
+        c.ellipse(cx, 46 - fh / 2, 3.2, fh / 2, FIRE[2]); c.ellipse(cx, 47 - fh / 3, 1.8, fh / 3, FIRE[3])
+    c.ellipse(ax + aw / 2, 47, 7, 2.5, FIRE[4])
+    coal_pile(c, ax + 2, 49, aw - 4, 3, 41)
+    c.rect(ax - 2, 52, aw + 4, 2, IRON[2])
+    rrect(c, x1 - 13, 2 * T + 6, 10, 12, 2, hexc("7a4a2a")); c.rect(x1 - 12, 2 * T + 9, 8, 1, hexc("5a3420"))   # 풀무
+    c.rect(x1 - 9, 2 * T + 3, 2, 4, SWOOD[4]); c.rect(x1 - 12, 3 * T + 2, 8, 2, IRON[2])
+    c.rect(x0 + 4, 2 * T + 8, 8, 2, IRON[3]); c.rect(x0 + 6, 2 * T + 4, 2, 4, IRON[3])                       # 화덕 옆 쇠집게 걸이
+
+    # ---- I 주괴 선반 (x16, y2~3) · G 숫돌 바퀴 (x16, y4)
+    x0 = 16 * T
+    floor_shadow(c, x0, 4 * T, T)
+    obox(c, x0, 12, T, 3 * T + 4 - 12, SWOOD[3])
+    for k, (yy, col) in enumerate(((16, ORE_COL["gold"]), (27, ORE_COL["copper"]), (38, ORE_COL["iron"]), (49, ORE_COL["iron"]))):
+        c.rect(x0 + 2, yy, 12, 8, SWOOD[0])
+        ingot(c, x0 + 4, yy + 3, col); ingot(c, x0 + 3, yy + 5, dk(col, 0.92))
+        c.rect(x0 + 1, yy + 8, 14, 2, SWOOD[4])
+    floor_shadow(c, x0, 5 * T, T)
+    c.rect(x0 + 2, 5 * T - 4, 12, 4, SWOOD[2])
+    c.ellipse(x0 + 8, 4 * T + 7, 6, 6, STONE[3]); c.ellipse(x0 + 8, 4 * T + 7, 4, 4, STONE[4]); c.ellipse(x0 + 8, 4 * T + 7, 1.5, 1.5, IRON[1])
+    c.rect(x0 + 13, 4 * T + 6, 3, 1, SWOOD[4])
+
+    # ---- C 계산대 (x3~7): 짙은 나무 + 쇠띠 + 붉은 모루 천 · 망치 · 장부 · 수리 맡긴 괭이
+    x0, x1 = 3 * T, 8 * T
+    floor_shadow(c, x0, 4 * T, x1 - x0)
+    obox(c, x0, 3 * T - 3, x1 - x0, T + 3, SWOOD[2])
+    c.rect(x0 + 1, 3 * T - 2, x1 - x0 - 2, 4, SWOOD[4]); c.rect(x0 + 1, 3 * T + 2, x1 - x0 - 2, 1, SWOOD[1])
+    for yy in (3 * T + 5, 3 * T + 11):
+        c.rect(x0 + 1, yy, x1 - x0 - 2, 1, IRON[2])
+    rrect(c, 5 * T - 7, 3 * T - 2, 14, T + 1, 0.5, hexc("6e3226")); rrect(c, 5 * T - 6, 3 * T - 1, 12, T - 1, 0.5, hexc("a85a46"))
+    anvil_mark(c, 5 * T, 3 * T + 7, hexc("f6ead2"))
+    hammer(c, 3 * T + 6, 3 * T - 5, 0); c.rect(3 * T + 8, 3 * T - 2, 9, 2, SWOOD[4])
+    rrect(c, 6 * T + 2, 3 * T - 5, 12, 5, 0.5, hexc("e8d6b0")); c.rect(6 * T + 8, 3 * T - 5, 1, 5, hexc("c9b48a"))
+    farm_tool(c, 4 * T + 2, 3 * T - 6, 0, 0); c.rect(4 * T + 1, 3 * T - 2, 10, 1, SWOOD[4])
+
+    # ---- O 광석 상자 (x1, y3~4) · B 통 (x1, y5)
+    floor_shadow(c, T, 5 * T, T)
+    for k, (yy, kind) in enumerate(((3 * T, "iron"), (4 * T, "copper"))):
+        crate(c, T + 1, yy + 4, 14, 11, SWOOD[3])
+        for q in range(4):
+            ore_lump(c, T + 4 + q * 3, yy + 3 + (q % 2), ORE_COL[kind], 50 + k * 5 + q)
+    floor_shadow(c, T, 6 * T, T)
+    barrel(c, T, 5 * T, IRON[1]); coal_pile(c, T + 4, 5 * T + 1, 8, 3, 61)
+
+    # ---- N 큰 모루 (x12~13, y5) on 그루터기: 달군 괭이날 · 망치 · 불똥
+    ax = 12 * T
+    floor_shadow(c, ax + 2, 6 * T, 2 * T - 4)
+    rrect(c, ax + 9, 5 * T + 6, 14, 10, 2, SWOOD[3]); c.ellipse(ax + 16, 5 * T + 6.5, 7, 1.8, SWOOD[4])
+    for xx in range(ax + 11, ax + 22, 3):
+        c.rect(xx, 5 * T + 9, 1, 6, SWOOD[2])
+    c.rect(ax + 2, 5 * T - 3, 26, 6, IRON[1]); c.rect(ax + 2, 5 * T - 3, 26, 1, IRON[4]); c.rect(ax + 2, 5 * T - 2, 26, 1, IRON[3])
+    c.rect(ax - 3, 5 * T - 2, 5, 3, IRON[1]); c.rect(ax - 5, 5 * T - 2, 2, 2, IRON[1]); c.set(ax - 6, 5 * T - 2, IRON[2])
+    c.rect(ax + 8, 5 * T + 3, 14, 3, IRON[0]); c.rect(ax + 5, 5 * T + 6, 20, 2, IRON[1]); c.rect(ax + 5, 5 * T + 6, 20, 1, IRON[2])
+    rrect(c, ax + 4, 5 * T - 6, 9, 3, 0.5, FIRE[2]); c.rect(ax + 5, 5 * T - 6, 6, 1, FIRE[3]); c.set(ax + 12, 5 * T - 5, FIRE[1])
+    hammer(c, ax + 17, 5 * T - 9, 0); c.rect(ax + 19, 5 * T - 6, 9, 2, SWOOD[4])
+    for sx, sy in ((ax + 1, 5 * T - 9), (ax + 14, 5 * T - 11), (ax + 9, 5 * T - 13), (ax + 3, 5 * T - 12), (ax + 16, 5 * T - 8)):
+        c.set(sx, sy, FIRE[3])
+    floor_shadow(c, 14 * T, 6 * T, T)
+    rrect(c, 14 * T + 1, 5 * T + 3, 14, 13, 2.5, SWOOD[3]); c.rect(14 * T + 1, 5 * T + 8, 14, 1, IRON[1]); c.rect(14 * T + 1, 5 * T + 13, 14, 1, IRON[1])
+    c.ellipse(14 * T + 8, 5 * T + 4.5, 5.5, 2, hexc("3a4a55")); c.set(14 * T + 6, 5 * T + 4, hexc("6f8a99"))
+    for k in range(3):
+        c.set(14 * T + 5 + k * 3, 5 * T - k % 2, hexc("d8d4cc")); c.set(14 * T + 6 + k * 3, 5 * T - 2 - k % 2, hexc("ece8e0"))
+
+    # ---- H 농기구 걸이 (x1, y6~8): 괭이 · 삽 · 곡괭이 · 낫 (강화 대기)
+    obox(c, T, 6 * T, 13, 3 * T, SWOOD[2], 0.5)
+    for k in range(4):
+        farm_tool(c, T + 4, 6 * T + 2 + k * 11, k, 7)
+    c.rect(T + 2, 6 * T + 1, 9, 1, IRON[2])
+
+    # ---- E 강화 작업대 (x4~7, y7): 두꺼운 상판 + 쇠 바이스 + 숫돌 + 달군 날 + 강화석 상자
+    x0, x1 = 4 * T, 8 * T
+    floor_shadow(c, x0, 8 * T, x1 - x0)
+    obox(c, x0, 7 * T + 1, x1 - x0, 13, SWOOD[3])
+    c.rect(x0 + 1, 7 * T + 2, x1 - x0 - 2, 3, SWOOD[4]); c.rect(x0 + 1, 7 * T + 7, x1 - x0 - 2, 1, IRON[2])
+    c.rect(x0 + 3, 7 * T + 13, 3, 3, SWOOD[1]); c.rect(x1 - 6, 7 * T + 13, 3, 3, SWOOD[1])
+    c.rect(x0 + 4, 7 * T - 4, 10, 6, IRON[2]); c.rect(x0 + 4, 7 * T - 4, 10, 1, IRON[4]); c.rect(x0 + 13, 7 * T - 2, 5, 1, IRON[3])
+    rrect(c, x0 + 19, 7 * T - 2, 16, 4, 1, FIRE[2]); c.rect(x0 + 20, 7 * T - 2, 12, 1, FIRE[3]); c.set(x0 + 33, 7 * T, FIRE[1])   # 달군 낫날
+    c.rect(x0 + 34, 7 * T, 6, 1, SWOOD[4])
+    rrect(c, x0 + 42, 7 * T - 3, 14, 6, 1, STONE[3]); c.rect(x0 + 43, 7 * T - 3, 12, 1, STONE[4])                         # 숫돌
+    obox(c, x0 + 26, 7 * T + 5, 12, 6, SWOOD[1], 0.5)
+    for q in range(3):
+        c.rect(x0 + 28 + q * 3, 7 * T + 7, 2, 2, (ORE_COL["gold"], hexc("7fb4d6"), ORE_COL["copper"])[q])                    # 강화 재료
+    for sx, sy in ((x0 + 22, 7 * T - 5), (x0 + 30, 7 * T - 6), (x0 + 26, 7 * T - 8)):
+        c.set(sx, sy, FIRE[3])
+
+    # ---- M 금속 재료 (x14~16, y7~8): 쇠막대 더미 · 광석 수레 · 석탄 자루
+    x0 = 14 * T
+    floor_shadow(c, x0, 9 * T, 3 * T)
+    for k in range(5):
+        c.rect(x0 + 2, 7 * T + 4 + k * 3, 18, 2, (IRON[3], IRON[2])[k % 2]); c.set(x0 + 2, 7 * T + 4 + k * 3, IRON[4])
+    c.rect(x0 + 4, 7 * T + 2, 2, 17, SWOOD[3]); c.rect(x0 + 15, 7 * T + 2, 2, 17, SWOOD[3])
+    rrect(c, x0 + 22, 7 * T + 8, 24, 14, 2, IRON[2]); c.rect(x0 + 22, 7 * T + 8, 24, 2, IRON[4])                   # 광석 수레
+    for q in range(6):
+        ore_lump(c, x0 + 26 + q * 3.4, 7 * T + 7 - (q % 2), ORE_COL[("iron", "copper", "iron", "gold", "iron", "copper")[q]], 70 + q)
+    for wx in (x0 + 26, x0 + 41):
+        c.ellipse(wx, 8 * T + 6, 3.5, 3.5, SWOOD[1]); c.ellipse(wx, 8 * T + 6, 1.5, 1.5, IRON[3])
+    rrect(c, x0 + 4, 8 * T + 3, 14, 12, 3, hexc("4a3a30")); c.rect(x0 + 6, 8 * T + 2, 10, 3, hexc("3a2e26"))
+    coal_pile(c, x0 + 6, 8 * T, 10, 4, 81)
+
+    # ---- B 물통 (x1, y9) · S 석탄 양동이 (x1, y10)(x16, y10)
+    floor_shadow(c, T, 10 * T, T)
+    barrel(c, T, 9 * T, hexc("3a4a55"))
+    for bx in (T, 16 * T):
+        floor_shadow(c, bx, 11 * T, T)
+        rrect(c, bx + 3, 10 * T + 5, 10, 10, 2, IRON[2]); c.rect(bx + 3, 10 * T + 5, 10, 1, IRON[4])
+        coal_pile(c, bx + 4, 10 * T + 3, 8, 4, 90 + bx)
+        c.rect(bx + 2, 10 * T + 2, 1, 5, IRON[3]); c.rect(bx + 13, 10 * T + 2, 1, 5, IRON[3]); c.rect(bx + 2, 10 * T + 1, 12, 1, IRON[3])
+    c.save("interior_smith.png")
 
 
 # ---------------------------------------------------------------- 마을 주민·동물 (무드 이미지: 삼색 고양이 · 누렁 강아지 · 벤치 할머니 · 바구니 든 아이)
@@ -3766,7 +4581,9 @@ if __name__ == "__main__":
     make_shop_decor()
     make_plaza_props()
     make_mood_props()
-    make_interiors()
+    make_interior_store()
+    make_interior_smith()
+    make_interior_machine()
     make_townsfolk()
     make_placeables()
     make_greenhouse()

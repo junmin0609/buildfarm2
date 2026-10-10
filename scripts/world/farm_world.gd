@@ -463,7 +463,10 @@ func _apply_camera_area() -> void:
 	var room_id := Interior.room_at(player.global_position)
 	if room_id != "":
 		area = room_id
-		_set_camera_limits(Interior.view_rect_of(room_id))
+		# 방이 바뀌어 예전 저장 자리가 가구·벽 위면 (실내 개편 18x12) 문 안쪽에서 시작
+		if not Interior.is_floor(room_id, player.my_cell() - Interior.origin_of(room_id)):
+			player.wake_at(Interior.arrive_position(room_id))
+		_set_camera_limits(_centered_limits(Interior.camera_rect_of(room_id)))
 	elif Mine.contains(player.global_position):
 		area = "mine"
 		_set_camera_limits(_centered_limits(Mine.room_rect()))

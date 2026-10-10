@@ -70,8 +70,8 @@
 
 		{"id": "MQ06", "chapter": 2, "title": "첫 거래", "description": "출하함에 작물을 넣어 팔자.", "prerequisites": ["MQ05"],
 			"objectives": [{"type": "ship", "target": "kind:crop", "count": 3, "text": "출하함으로 작물 팔기"}], "rewards": {"money": 150}},
-		{"id": "MQ07", "chapter": 2, "title": "씨앗상점의 부탁", "description": "잡화점 하나에게 작물을 가져다주자.", "prerequisites": ["MQ06"],
-			"objectives": [{"type": "talk_npc", "target": "store", "count": 1, "text": "잡화점 주인과 이야기"}, {"type": "deliver", "target": "kind:crop", "count": 3, "npc": "store", "text": "작물 아무거나 3개 납품"}],
+		{"id": "MQ07", "chapter": 2, "title": "씨앗상점의 부탁", "description": "씨앗상점 하나에게 작물을 가져다주자.", "prerequisites": ["MQ06"],
+			"objectives": [{"type": "talk_npc", "target": "store", "count": 1, "text": "씨앗상점 주인과 이야기"}, {"type": "deliver", "target": "kind:crop", "count": 3, "npc": "store", "text": "작물 아무거나 3개 납품"}],
 			"rewards": {"money": 200}, "_note": "감자 대신 작물 아무거나 (사용자 결정 2)"},
 		{"id": "MQ08", "chapter": 2, "title": "낡은 제작대", "description": "목재와 돌을 모아 낡은 제작대를 고치면 건설 시설을 지을 수 있다.", "prerequisites": ["MQ07"],
 			"objectives": [{"type": "project", "target": "workbench_repair", "count": 1, "text": "목재 15 · 돌 10 납품"}], "rewards": {}},

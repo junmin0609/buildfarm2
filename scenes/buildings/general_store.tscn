@@ -6,9 +6,9 @@
 [node name="GeneralStore" type="Node2D"]
 script = ExtResource("1_shop")
 texture = ExtResource("2_tex")
-prompt = "[E] 잡화점 들어가기"
+prompt = "[E] 씨앗상점 들어가기"
 room_id = "store"
 tiles = Vector2i(5, 3)
-sign_text = "잡화점"
-sign_rect = Rect2(14, 27, 52, 18)
+sign_text = "씨앗상점"
+sign_rect = Rect2(6, 27, 68, 18)
 window_lights = PackedVector2Array(17, 64, 63, 64, 40, 70)

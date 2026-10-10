@@ -4441,7 +4441,7 @@ func _test_story_play(world: FarmWorld, hud: HUD) -> void:
 	_check(qm.state_of("MQ07") == QuestManager.REWARDED and inv.count_of("spinach") == 0, "MQ07: 아무 작물 3개 납품 (시금치, 겨울 작물)")
 
 	# MQ08 낡은 제작대: NPC 납품과 기술 탭 납품이 같은 데이터
-	_check(qm.project_hint() == "Q → 기술·복구 탭에서 납품 (또는 잡화점 하나)", "HUD 안내: %s" % qm.project_hint())
+	_check(qm.project_hint() == "Q → 기술·복구 탭에서 납품 (또는 씨앗상점 하나)", "HUD 안내: %s" % qm.project_hint())
 	await get_tree().process_frame
 	_check(hud._quest_tracker._hint.visible and hud._quest_tracker._hint.text.begins_with("Q → 기술·복구 탭"), "HUD 추적 칸에 납품 안내 줄")
 	inv.add("wood", 9)
@@ -5272,7 +5272,26 @@ func _test_plaza(world: FarmWorld) -> void:
 	_check(moved.version == SaveManager.VERSION and Vector2(moved.sections.player.position[0], moved.sections.player.position[1]) == world.home_position and kept.sections.player.position == farm_pos, "예전 저장: 광장에 있었으면 집 앞, 농장이면 그대로")
 	var in_room: Dictionary = world.save_manager._migrate({"version": 2, "sections": {"player": {"position": [165.0 * FarmWorld.TILE, 20.0 * FarmWorld.TILE]}}})
 	_check(Vector2(in_room.sections.player.position[0], in_room.sections.player.position[1]) == world.home_position, "버전 2 저장: 옛 가게 실내 자리에 있었으면 집 앞 (방 자리 바뀜)")
-	_check(Interior.door_cell("store") == Vector2i(5, 8) and Interior.SIZE == Vector2i(12, 9), "실내 12x9, 문은 아래 가운데")
+	_check(Interior.door_cell("store") == Vector2i(8, 11) and Interior.size_of("store") == Vector2i(18, 12) and Interior.size_of("smith") == Vector2i(18, 12) and Interior.size_of("machine") == Vector2i(18, 12) and Interior.door_cell("smith") == Vector2i(8, 11) and Interior.door_cell("machine") == Vector2i(8, 11), "가게 실내 셋 다 18x12, 문은 아래 가운데")
+	# 실내 개편: 방마다 문 안쪽 → 계산대 앞까지 바닥으로 이어지고, NPC 는 계산대 뒤 (손님 칸에서 닿지 않음)
+	for rid: String in Interior.ROOMS:
+		var rows: Array = Interior.room(rid).rows
+		var size := Interior.size_of(rid)
+		var npc_cell: Vector2i = Interior.room(rid).npc.cell
+		var talk := npc_cell + Vector2i(0, 2)
+		var start := Interior.door_cell(rid) + Vector2i(0, -1)
+		var seen := {start: true}
+		var todo: Array[Vector2i] = [start]
+		while not todo.is_empty():
+			var c: Vector2i = todo.pop_back()
+			for d: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+				if not seen.has(c + d) and Interior.is_floor(rid, c + d):
+					seen[c + d] = true
+					todo.append(c + d)
+		var rows_ok := rows.all(func(r: String) -> bool: return r.length() == size.x)
+		var behind_ok: bool = not seen.has(npc_cell)
+		_check(rows_ok and Interior.is_floor(rid, start) and Interior.is_floor(rid, start + Vector2i(1, 0)) and seen.has(talk) and behind_ok and Interior.is_floor(rid, npc_cell) and not Interior.is_floor(rid, npc_cell + Vector2i(0, 1)),
+			"%s 실내: 문 안쪽 → 계산대 앞 %s 로 걸어갈 수 있고 NPC %s 는 계산대 뒤" % [rid, talk, npc_cell])
 	# 저녁 불빛 (무드 개편): 낮엔 꺼짐, 밤엔 가로등·가게 창 둘레가 밝아짐
 	var lights := get_tree().get_nodes_in_group(NightLight.GROUP)
 	var m0 := GameState.minutes
@@ -5286,7 +5305,7 @@ func _test_plaza(world: FarmWorld) -> void:
 	GameState.set_clock(m0)
 	world._on_time_changed(GameState.day, GameState.minutes)
 	var r0 := Interior.view_rect_of("store")
-	_check(not r0.intersects(Interior.view_rect_of("smith")) and not Interior.view_rect_of("smith").intersects(Interior.view_rect_of("machine")), "방끼리 카메라 범위가 겹치지 않음")
+	_check(not r0.intersects(Interior.view_rect_of("smith")) and not Interior.view_rect_of("smith").intersects(Interior.view_rect_of("machine")) and not Interior.view_rect_of("machine").intersects(Mine.view_rect()) and not r0.intersects(SkyIsland.view_rect()), "방끼리·광산·하늘섬과 카메라 범위가 겹치지 않음")
 
 
 func _test_interiors(world: FarmWorld, hud: HUD) -> void:
@@ -5301,10 +5320,16 @@ func _test_interiors(world: FarmWorld, hud: HUD) -> void:
 	GameState.set_clock(9 * 60)
 	player.global_position = store.interact_point()
 	await get_tree().physics_frame
-	_check(player._nearest_interactable() == store and store.prompt == "[E] 잡화점 들어가기", "잡화점 문 앞 안내")
+	_check(player._nearest_interactable() == store and store.prompt == "[E] 씨앗상점 들어가기" and store.sign_text == "씨앗상점", "씨앗상점 문 앞 안내·간판 (room_id 는 store 그대로)")
 	player._interact()
 	var room: Interior = world.interiors["store"]
-	_check(world.area == "store" and world.is_indoors() and cam.limit_left == int(Interior.view_rect_of("store").position.x), "잡화점 안으로 (카메라는 방 범위)")
+	var store_rect := Interior.room_rect_of("store")
+	var cam_rect := Rect2(cam.limit_left, cam.limit_top, cam.limit_right - cam.limit_left, cam.limit_bottom - cam.limit_top)
+	_check(world.area == "store" and world.is_indoors() and cam_rect.encloses(Interior.camera_rect_of("store")) and absf(cam_rect.get_center().x - store_rect.get_center().x) <= 1.0, "씨앗상점 안으로 (카메라: 방 가로 가운데, 위아래 HUD 여백까지 %s / 방 %s)" % [cam_rect, store_rect])
+	# 예전 저장(12x9 방)에서 지금은 가구가 된 자리에 서 있었으면 → 문 안쪽에서 시작
+	player.global_position = world.cell_center(Interior.origin_of("store") + Vector2i(6, 3))
+	world._apply_camera_area()
+	_check(player.global_position == Interior.arrive_position("store"), "실내 저장 자리가 가구 위면 문 안쪽으로 옮김")
 	_check(not GameState.is_time_paused() and not get_tree().paused, "실내를 걸을 때는 시간이 흐름")
 	var t0 := GameState.minutes
 	GameState.advance_time(30.0)
@@ -5322,7 +5347,7 @@ func _test_interiors(world: FarmWorld, hud: HUD) -> void:
 	_check(hud._dialog.visible and get_tree().paused and GameState.is_time_paused() and hud._dialog._buttons.get_child_count() == 3, "대화 창 (사기·팔기·나가기, 게임·시간 멈춤)")
 	hud._dialog.choose("buy")
 	var names := hud._shop._buy_list.get_children().map(func(r: Node) -> String: return r.get_child(1).text)
-	_check(hud._shop.visible and not hud._dialog.visible and hud._shop._title.text == "잡화점 · 사기" and names.any(func(n: String) -> bool: return n.ends_with("씨앗")) and "기본 비료" in names and not "컨베이어" in names, "[사기] → 제철 씨앗·비료 (기계는 없음) %s" % [names])
+	_check(hud._shop.visible and not hud._dialog.visible and hud._shop._title.text == "씨앗상점 · 사기" and names.any(func(n: String) -> bool: return n.ends_with("씨앗")) and "기본 비료" in names and not "컨베이어" in names, "[사기] → 제철 씨앗·비료 (기계는 없음) %s" % [names])
 	hud._close_panels()
 	inv.add("carrot", 3, "silver")
 	player._interact()
@@ -5358,7 +5383,7 @@ func _test_interiors(world: FarmWorld, hud: HUD) -> void:
 	# 실내에서 저장 → 불러오면 실내에서, 하루가 끝나면 집 앞
 	world.save_manager.save_game("manual")
 	world.save_manager.load_game()
-	_check(world.area == "machine" and cam.limit_left == int(Interior.view_rect_of("machine").position.x), "실내에서 저장·불러오기 → 실내에서 이어서")
+	_check(world.area == "machine" and cam.limit_left == int(world._centered_limits(Interior.camera_rect_of("machine")).position.x), "실내에서 저장·불러오기 → 실내에서 이어서")
 	GameState.sleep()
 	hud._close_panels()
 	_check(world.area == "farm" and player.global_position == world.home_position, "실내에서 하루가 끝나면 집 앞에서 깨어남")

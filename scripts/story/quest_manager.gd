@@ -21,7 +21,7 @@ const REWARDED := "rewarded"
 ## 상태형 목표: 해 둔 일 (방문 등). 이벤트형 목표 집계와 따로 저장한다
 const STATE_TYPES := ["visit"]
 ## 복구 프로젝트 납품을 받는 NPC 이름 (대화 창·HUD 안내)
-const NPC_NAMES := {"store": "잡화점 하나", "smith": "대장장이 철수", "machine": "기계상점 미나"}
+const NPC_NAMES := {"store": "씨앗상점 하나", "smith": "대장장이 철수", "machine": "기계상점 미나"}
 ## 도구 강화 목표의 target: 강화된 도구 등급 → 재료 이름
 const TOOL_TIERS := {2: "copper", 3: "iron", 4: "gold"}
 
