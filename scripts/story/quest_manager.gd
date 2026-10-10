@@ -30,8 +30,15 @@ static var _data: Dictionary = {}
 static var current: QuestManager = null
 
 var world: FarmWorld
-## 퀘스트 id → {"state", "progress": [목표별 수], "granted": on_activate_items 를 줬는가}
+## 퀘스트 id → {"state", "progress": [목표별 수], "granted": 받을 때 주는 물건을 다 줬는가 (예전 저장 호환용)}
 var quests := {}
+## 받을 때 주는 지원 물건 (MQ17 밀 4 · MQ20 밀가루 3). 퀘스트 상태와 따로 저장한다
+##   퀘스트 id → {"owed": {아이템: 줄 개수}, "given": {아이템: 준 개수}}
+##   받는 순간 owed 를 기록하고, 가방에 들어가는 만큼만 주고 given 에 더한다 (Inventory.add 가 남긴 수만큼은 대기).
+##   가방이 바뀔 때마다 남은 것을 다시 준다 → 일부만 들어가도 중복·유실 없음. owed 가 생긴 뒤에는 퀘스트를 끝내도 마저 준다
+var support := {}
+## 지원 물건을 주는 중 (주면서 생긴 가방 신호로 다시 들어오지 않게)
+var _paying := false
 ## 한 번이라도 일어난 일 (예: "visited:plaza") — 상태형 목표가 받기 전 일도 인정하려고
 var flags := {}
 var era := "pioneer"
@@ -77,6 +84,7 @@ func _ready() -> void:
 	Events.watering_can_refilled.connect(func(amount: int) -> void: _on_event("refill", "", 1 if amount > 0 else 0))
 	Events.crop_harvested.connect(func(item_id: String, count: int) -> void: _on_event("harvest", item_id, count))
 	Events.inventory_changed.connect(_try_rewards)
+	Events.inventory_changed.connect(_pay_support)
 	# 가게 NPC 에게 말을 걸면 (Npc.room_id: store · smith · machine)
 	Events.npc_talk_requested.connect(func(npc: Node) -> void:
 		if "room_id" in npc and str(npc.room_id) != "":
@@ -123,6 +131,7 @@ func new_game() -> void:
 	techs.clear()
 	project_given.clear()
 	projects_done.clear()
+	support.clear()
 	legacy = false
 	era = era_ids()[0] if not era_ids().is_empty() else "pioneer"
 	for tech_id: String in data().get("techs", {}):
@@ -717,20 +726,89 @@ func _activate_ready() -> void:
 		if not q.get("prerequisites", []).all(func(p: String) -> bool: return state_of(p) == REWARDED):
 			continue
 		quests[q.id].state = ACTIVE
-		var give: Dictionary = q.get("on_activate_items", {})
-		if not give.is_empty() and not quests[q.id].granted and GameState.inventory.can_add_all(give):
-			quests[q.id].granted = true
-			for item_id: String in give:
-				GameState.inventory.add(item_id, int(give[item_id]))
+		_owe_support(q)
 	_refresh_state_objectives()
+	_pay_support(true)
 	ensure_quest_objects.call_deferred()
+
+
+# ---------- 받을 때 주는 지원 물건 (MQ17 밀 4 · MQ20 밀가루 3)
+
+## 이 퀘스트의 지원 물건을 '줄 것'으로 기록한다 (이미 기록이 있으면 그대로 — 두 번 주지 않음)
+func _owe_support(q: Dictionary, given := {}) -> void:
+	var give: Dictionary = q.get("on_activate_items", {})
+	if give.is_empty() or support.has(q.id):
+		return
+	var owed := {}
+	for item_id: String in give:
+		if ItemDB.has_item(item_id) and int(give[item_id]) > 0:
+			owed[item_id] = int(give[item_id])
+	if owed.is_empty():
+		return
+	var got := {}
+	for item_id: String in owed:
+		got[item_id] = clampi(int(given.get(item_id, 0)), 0, int(owed[item_id]))
+	support[q.id] = {"owed": owed, "given": got}
+	quests[q.id].granted = _support_left(q.id).is_empty()
+
+
+## 아직 못 준 지원 물건 {아이템: 개수}
+func _support_left(quest_id: String) -> Dictionary:
+	var left := {}
+	var s: Dictionary = support.get(quest_id, {})
+	for item_id: String in s.get("owed", {}):
+		var n := int(s.owed[item_id]) - int(s.given.get(item_id, 0))
+		if n > 0:
+			left[item_id] = n
+	return left
+
+
+## 못 준 지원 물건 전체 (퀘스트 창·HUD 안내용) [{quest, item, count}]
+func support_waiting() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for qid: String in support:
+		var left := _support_left(qid)
+		for item_id: String in left:
+			out.append({"quest": qid, "item": item_id, "count": int(left[item_id])})
+	return out
+
+
+## 남은 지원 물건을 가방에 들어가는 만큼 준다 (기존 Inventory.add: 못 넣은 수를 돌려줌 → 그만큼은 대기).
+## notify: 받는 순간·불러올 때만 '가방이 가득' 안내 (가방이 바뀔 때마다 띄우지 않게)
+func _pay_support(notify := false) -> void:
+	if _paying:
+		return
+	_paying = true
+	var got: Array[String] = []
+	var waiting: Array[String] = []
+	for qid: String in support:
+		var s: Dictionary = support[qid]
+		var left := _support_left(qid)
+		for item_id: String in left:
+			var n := int(left[item_id])
+			var put := n - GameState.inventory.add(item_id, n)
+			if put > 0:
+				s.given[item_id] = int(s.given.get(item_id, 0)) + put
+				got.append("%s +%d" % [ItemDB.get_item(item_id).name, put])
+			if put < n:
+				waiting.append("%s %d개" % [ItemDB.get_item(item_id).name, n - put])
+		if quests.has(qid):
+			quests[qid].granted = _support_left(qid).is_empty()
+	_paying = false
+	if not got.is_empty():
+		Events.toast.emit("퀘스트 지원: " + " · ".join(got))
+	if not waiting.is_empty() and (notify or not got.is_empty()):
+		Events.toast.emit("가방이 가득 차서 %s은(는) 자리가 생기면 드릴게요." % " · ".join(waiting))
+	if not got.is_empty():
+		Events.quest_changed.emit("")
 
 
 # ---------- 저장 ("story" 섹션)
 
 func to_data() -> Dictionary:
 	return {"era": era, "techs": techs.duplicate(), "quests": quests.duplicate(true), "flags": flags.duplicate(), "legacy": legacy,
-		"projects": {"given": project_given.duplicate(true), "done": projects_done.duplicate()}}
+		"projects": {"given": project_given.duplicate(true), "done": projects_done.duplicate()},
+		"support": support.duplicate(true)}
 
 
 ## 받은 데이터가 통째로 틀리면 false. 퀘스트 id 가 데이터에 없으면 건너뛰고, 데이터에 새로 생긴 퀘스트는 잠긴 상태로 시작
@@ -783,6 +861,8 @@ func load_data(d: Variant) -> bool:
 				for i in mini(prog.size(), saved_prog.size()):
 					prog[i] = clampi(int(saved_prog[i]), 0, int(q.objectives[i].get("count", 1)))
 			quests[q.id] = {"state": str(st.state), "progress": prog, "granted": st.get("granted", false) == true}
+			if not st.has("granted"):
+				quests[q.id]["_unknown_grant"] = true  # 지급 기록이 아예 없음: 아래 이전(migration)에서 주지 않는다
 			var seen: Variant = st.get("seen", {})
 			if seen is Dictionary and not seen.is_empty():
 				var keep := {}
@@ -790,7 +870,36 @@ func load_data(d: Variant) -> bool:
 					if seen[k] is Array:
 						keep[str(k)] = (seen[k] as Array).map(func(v: Variant) -> String: return str(v))
 				quests[q.id]["seen"] = keep
+	_load_support(d.get("support", null))
 	_activate_ready()
 	_try_rewards()
 	Events.quest_changed.emit("")
 	return true
+
+
+## 지원 물건 기록을 되살린다. 기록이 없는 예전 저장(4단계 후속 이전)은 퀘스트의 granted 로 옮긴다:
+##   granted = true  → 이미 다 줌 (그때 코드는 다 들어갈 때만 주고 같은 자리에서 true 로 바꿨다)
+##   granted = false · 진행 중 → 아직 못 받음 → 지금 줄 것으로 기록 (가방이 가득했거나, 밀가루가 생기기 전에 MQ20 을 받은 저장)
+##   granted = false · 완료/보상받음/잠김 → 주지 않음 (사용자 결정: 끝난 퀘스트에는 주지 않음)
+##   granted 키가 아예 없음 → 줬는지 알 수 없으니 주지 않음
+func _load_support(saved: Variant) -> void:
+	support.clear()
+	if saved is Dictionary:
+		for qid: Variant in saved:
+			var q := quest_def(str(qid))
+			var s: Variant = saved[qid]
+			if q.is_empty() or not s is Dictionary or not s.get("given", null) is Dictionary:
+				continue
+			_owe_support(q, s.given)
+	for q: Dictionary in quest_defs():
+		if q.get("on_activate_items", {}).is_empty() or support.has(q.id):
+			continue
+		var st: Dictionary = quests.get(q.id, {})
+		if st.get("_unknown_grant", false):
+			continue
+		if st.get("granted", false):
+			_owe_support(q, q.on_activate_items)
+		elif str(st.get("state", LOCKED)) == ACTIVE:
+			_owe_support(q)
+	for qid: String in quests:
+		quests[qid].erase("_unknown_grant")

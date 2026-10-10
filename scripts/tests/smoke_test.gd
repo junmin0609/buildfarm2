@@ -251,6 +251,7 @@ func _ready() -> void:
 	await _test_story_ui(world, hud)
 	await _test_story_tech(world, hud)
 	await _test_story_play(world, hud)
+	await _test_story_support(world)
 
 	# ---------- 게임을 켤 때 이어하기 / 새 게임
 	await _test_continue_on_start(main)
@@ -4067,6 +4068,116 @@ func _test_story_ui(world: FarmWorld, hud: HUD) -> void:
 	GameState.money = saved_money
 	player.global_position = saved_pos
 	await get_tree().process_frame
+
+
+## 퀘스트 지원 물건 (MQ17 밀 4 · MQ20 밀가루 3): 가방이 가득하면 대기 → 자리가 나면 지급, 일부만 들어가도 중복·유실 없음, 저장·이전
+func _test_story_support(world: FarmWorld) -> void:
+	var qm := world.quests
+	var inv := GameState.inventory
+	var saved_story := qm.to_data()
+	var saved_inv := inv.to_data()
+	var wheat_max := ItemDB.get_item("wheat").max_stack
+
+	# 가방이 가득한 채 MQ17 을 받음 → 대기 (완료 처리 안 함)
+	qm.new_game()
+	inv.load_data([])
+	_fill_bag(inv)
+	_reach(qm, "MQ17")
+	_check(qm.state_of("MQ17") == QuestManager.ACTIVE and inv.count_of("wheat") == 0 and not qm.quests["MQ17"].granted and qm._support_left("MQ17") == {"wheat": 4}, "가방이 가득: MQ17 은 받지만 밀 4 는 대기 (지급 완료 아님)")
+	world.save_manager.save_game("manual")
+	qm.new_game()
+	world.save_manager.load_game()
+	_check(qm._support_left("MQ17") == {"wheat": 4} and inv.count_of("wheat") == 0, "대기 중 저장·불러오기: 밀 4 대기 그대로")
+	_check(qm.to_data().support.has("MQ17") and qm.to_data().quests["MQ17"].state == QuestManager.ACTIVE, "지원 물건 기록은 퀘스트 상태와 따로 저장 (story.support)")
+	# 한 칸 비우기 → 바로 지급
+	inv.remove_at(0, inv.get_slot(0).count)
+	_check(inv.count_of("wheat") == 4 and qm._support_left("MQ17").is_empty() and qm.quests["MQ17"].granted, "자리가 나면 밀 4 지급")
+	world.save_manager.save_game("manual")
+	world.save_manager.load_game()
+	qm._activate_ready()
+	inv.remove("wheat", 1)
+	_check(inv.count_of("wheat") == 3, "지급 뒤 저장·불러오기·다시 확인·가방 변화에도 더 안 줌")
+
+	# 일부만 들어감: 밀 칸에 2 자리만 → 2 주고 2 대기 → 자리가 나면 나머지 2
+	qm.new_game()
+	inv.load_data([])
+	inv.add("wheat", wheat_max - 2)
+	_fill_bag(inv)
+	_reach(qm, "MQ17")
+	_check(inv.count_of("wheat") == wheat_max and qm._support_left("MQ17") == {"wheat": 2}, "일부만 들어감: 2 지급, 2 대기")
+	world.save_manager.save_game("manual")
+	world.save_manager.load_game()
+	_check(inv.count_of("wheat") == wheat_max and qm._support_left("MQ17") == {"wheat": 2}, "일부 지급 뒤 저장·불러오기: 준 2 · 남은 2 그대로")
+	for i in inv.size():
+		if inv.item_at(i) and inv.item_at(i).id == "stone":
+			inv.remove_at(i, inv.get_slot(i).count)
+			break
+	_check(inv.count_of("wheat") == wheat_max + 2 and qm._support_left("MQ17").is_empty(), "자리가 나면 나머지 2 → 모두 4 (중복·유실 없음)")
+
+	# MQ20 밀가루 3 도 같은 방식
+	qm.new_game()
+	inv.load_data([])
+	_fill_bag(inv)
+	_reach(qm, "MQ20")
+	_check(inv.count_of("flour") == 0 and qm._support_left("MQ20") == {"flour": 3} and not qm.quests["MQ20"].granted, "가방이 가득: MQ20 밀가루 3 대기")
+	inv.remove_at(0, inv.get_slot(0).count)
+	_check(inv.count_of("flour") == 3 and qm.support_waiting().is_empty() and qm.quests["MQ20"].granted, "한 칸 비우면 밀가루 3 지급")
+	world.save_manager.save_game("manual")
+	world.save_manager.load_game()
+	_check(inv.count_of("flour") == 3, "재접속해도 그대로 (중복 없음)")
+
+	# 예전 저장 이전 (story.support 없음): granted 로 판단
+	inv.load_data([])
+	var old := _old_story(qm, "MQ20", QuestManager.ACTIVE, false)
+	qm.load_data(old)
+	_check(inv.count_of("flour") == 3 and inv.count_of("wheat") == 0, "예전 저장: MQ20 진행 중 · 미지급 → 밀가루 3 지급 (MQ17 은 granted 라 안 줌)")
+	inv.load_data([])
+	qm.load_data(_old_story(qm, "MQ20", QuestManager.ACTIVE, true))
+	_check(inv.count_of("flour") == 0, "예전 저장: MQ20 이미 받음 (granted) → 안 줌")
+	qm.load_data(_old_story(qm, "MQ20", QuestManager.REWARDED, false))
+	_check(inv.count_of("flour") == 0, "예전 저장: 끝난 MQ20 → 안 줌")
+	var unknown := _old_story(qm, "MQ20", QuestManager.ACTIVE, false)
+	unknown.quests["MQ20"].erase("granted")
+	qm.load_data(unknown)
+	_check(inv.count_of("flour") == 0 and qm.support_waiting().is_empty(), "예전 저장: 지급 기록이 아예 없음 → 주지 않음")
+	qm.load_data(_old_story(qm, "MQ17", QuestManager.ACTIVE, false))
+	_check(inv.count_of("wheat") == 4, "예전 저장: MQ17 진행 중 · 미지급 (가방이 가득했던 저장) → 밀 4")
+	qm.load_data(qm.to_data())
+	_check(inv.count_of("wheat") == 4, "이전 뒤 저장 형식으로 다시 불러도 그대로")
+
+	qm.load_data(saved_story)
+	inv.load_data(saved_inv)
+	await get_tree().process_frame
+
+
+## 가방을 돌로 가득 채운다
+func _fill_bag(inv: Inventory) -> void:
+	while inv.add("stone", 999) == 0:
+		pass
+
+
+## target 앞의 퀘스트를 모두 끝내 target 을 받게 한다
+func _reach(qm: QuestManager, target: String) -> void:
+	for q: Dictionary in QuestManager.quest_defs():
+		if q.id == target:
+			break
+		qm.quests[q.id].state = QuestManager.REWARDED
+	qm._activate_ready()
+
+
+## 4단계 후속 이전 형식의 story (support 없음): target 앞은 끝남 (MQ17 은 받은 걸로), target 은 state · granted
+func _old_story(qm: QuestManager, target: String, state: String, granted: bool) -> Dictionary:
+	var qs := {}
+	var before := true
+	for q: Dictionary in QuestManager.quest_defs():
+		if q.id == target:
+			qs[q.id] = {"state": state, "progress": [], "granted": granted}
+			before = false
+		elif before:
+			qs[q.id] = {"state": QuestManager.REWARDED, "progress": [], "granted": true}
+		else:
+			qs[q.id] = {"state": QuestManager.LOCKED, "progress": [], "granted": false}
+	return {"era": "mechanical", "techs": {}, "flags": {}, "legacy": false, "quests": qs}
 
 
 ## 스토리 4단계: 새 게임으로 MQ06 → MQ20 을 실제 기능으로 끝까지 (출하·납품·프로젝트·폐탄더미·잔해·광산·용광로·강화·설계도·가공·컨베이어·분배기·창고)
